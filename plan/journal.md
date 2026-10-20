@@ -32,3 +32,11 @@ history after work has started.
 - pyproject/Makefile/tests/docs added; make setup + make test pass; lint runs but reports pre-existing findings to be fixed in Phase 1
 - verify: passed
 - scope: clean
+
+## 2026-10-20T23:25:51Z — T03 — claim
+- owner=agent ttl=120m
+
+## 2026-10-20T23:25:57Z — T03 — done
+- render helper + 4 named xfail regressions; special chars/DOI/empty subtitle render
+- verify: passed
+- scope: clean

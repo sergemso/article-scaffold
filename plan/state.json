@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-20T23:24:31Z",
+  "updated": "2026-10-20T23:25:57Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -146,14 +146,65 @@
       "steps_done": []
     },
     "T03": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-20T23:25:57Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-20T23:25:45Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "b7f0b4bc556ef3ccba296dc94ac8e86d53394f4e",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_render.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "....xxxxXX                                                               [100%]\n=================================== XPASSES ====================================\n____________________ test_validator_ignores_escaped_braces _____________________\n---------------------------- Captured stdout setup -----------------------------\nInitialized empty Git repository in /tmp/pytest-of-ubuntu/pytest-1/test_validator_ignores_escaped0/out/articles.test_topic/.git/\nInstalled pre-push hook -> .git/hooks/pre-push\n\n────────────────────────────────────────────────────────────\n Scaffolding complete.\n────────────────────────────────────────────────────────────\n\nNext steps:\n\n  1. Edit metadata.yaml to refine title/author/version/doi.\n     (You already entered these as cookiecutter prompts;\n      metadata.yaml is now the single source of truth.)\n\n  2. Regenerate derived metadata:\n       make metadata\n\n  3. Open paper/sections/00_abstract.tex and start writing.\n\n  4. Validate locally (the pre-push hook runs this automatically):\n       make validate\n\n  5. Build the PDF:\n       make pdf\n\n  6. Commit:\n       git add .\n       git commit -m 'initial scaffold'\n       git branch -M master\n       git remote add origin git@github.com:<user>/<repo>.git\n       git push -u origin master\n\nWhen you're ready to cut a release:\n       git tag v1.0.0\n       git push origin v1.0.0   # triggers release.yml\n\n___________________ test_metadata_regeneration_is_idempotent ___________________\n---------------------------- Captured stdout setup -----------------------------\nInitialized empty Git repository in /tmp/pytest-of-ubuntu/pytest-1/test_metadata_regeneration_is_0/out/articles.test_topic/.git/\nInstalled pre-push hook -> .git/hooks/pre-push\n\n────────────────────────────────────────────────────────────\n Scaffolding complete.\n────────────────────────────────────────────────────────────\n\nNext steps:\n\n  1. Edit metadata.yaml to refine title/author/version/doi.\n     (You already entered these as cookiecutter prompts;\n      metadata.yaml is now the single source of truth.)\n\n  2. Regenerate derived metadata:\n       make metadata\n\n  3. Open paper/sections/00_abstract.tex and start writing.\n\n  4. Validate locally (the pre-push hook runs this automatically):\n       make validate\n\n  5. Build the PDF:\n       make pdf\n\n  6. Commit:\n       git add .\n       git commit -m 'initial scaffold'\n       git branch -M master\n       git remote add origin git@github.com:<user>/<repo>.git\n       git push -u origin master\n\nWhen you're ready to cut a release:\n       git tag v1.0.0\n       git push origin v1.0.0   # triggers release.yml\n\n=========================== short test summary info ============================\nXFAIL tests/test_render.py::test_metadata_yaml_parses_with_quotes - T05: metadata values are not JSON-escaped\nXFAIL tests/test_render.py::test_citation_cff_has_valid_type - T11: CFF uses an invalid manuscript type\nXFAIL tests/test_render.py::test_zenodo_json_parses_with_quotes - T12: Zenodo JSON is not escaped\nXFAIL tests/test_render.py::test_latex_title_escapes_specials - T08: raw LaTeX specials reach article.tex\nXPASS tests/test_render.py::test_validator_ignores_escaped_braces - T15: validator counts escaped braces\nXPASS tests/test_render.py::test_metadata_regeneration_is_idempotent - T09/T10: metadata regeneration drifts\n4 passed, 4 xfailed, 2 xpassed in 1.95s\n",
+              "at": "2026-10-20T23:25:45Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-20T23:25:54Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "b7f0b4bc556ef3ccba296dc94ac8e86d53394f4e",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_render.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "....xxxxXX                                                               [100%]\n=================================== XPASSES ====================================\n____________________ test_validator_ignores_escaped_braces _____________________\n---------------------------- Captured stdout setup -----------------------------\nInitialized empty Git repository in /tmp/pytest-of-ubuntu/pytest-2/test_validator_ignores_escaped0/out/articles.test_topic/.git/\nInstalled pre-push hook -> .git/hooks/pre-push\n\n────────────────────────────────────────────────────────────\n Scaffolding complete.\n────────────────────────────────────────────────────────────\n\nNext steps:\n\n  1. Edit metadata.yaml to refine title/author/version/doi.\n     (You already entered these as cookiecutter prompts;\n      metadata.yaml is now the single source of truth.)\n\n  2. Regenerate derived metadata:\n       make metadata\n\n  3. Open paper/sections/00_abstract.tex and start writing.\n\n  4. Validate locally (the pre-push hook runs this automatically):\n       make validate\n\n  5. Build the PDF:\n       make pdf\n\n  6. Commit:\n       git add .\n       git commit -m 'initial scaffold'\n       git branch -M master\n       git remote add origin git@github.com:<user>/<repo>.git\n       git push -u origin master\n\nWhen you're ready to cut a release:\n       git tag v1.0.0\n       git push origin v1.0.0   # triggers release.yml\n\n___________________ test_metadata_regeneration_is_idempotent ___________________\n---------------------------- Captured stdout setup -----------------------------\nInitialized empty Git repository in /tmp/pytest-of-ubuntu/pytest-2/test_metadata_regeneration_is_0/out/articles.test_topic/.git/\nInstalled pre-push hook -> .git/hooks/pre-push\n\n────────────────────────────────────────────────────────────\n Scaffolding complete.\n────────────────────────────────────────────────────────────\n\nNext steps:\n\n  1. Edit metadata.yaml to refine title/author/version/doi.\n     (You already entered these as cookiecutter prompts;\n      metadata.yaml is now the single source of truth.)\n\n  2. Regenerate derived metadata:\n       make metadata\n\n  3. Open paper/sections/00_abstract.tex and start writing.\n\n  4. Validate locally (the pre-push hook runs this automatically):\n       make validate\n\n  5. Build the PDF:\n       make pdf\n\n  6. Commit:\n       git add .\n       git commit -m 'initial scaffold'\n       git branch -M master\n       git remote add origin git@github.com:<user>/<repo>.git\n       git push -u origin master\n\nWhen you're ready to cut a release:\n       git tag v1.0.0\n       git push origin v1.0.0   # triggers release.yml\n\n=========================== short test summary info ============================\nXFAIL tests/test_render.py::test_metadata_yaml_parses_with_quotes - T05: metadata values are not JSON-escaped\nXFAIL tests/test_render.py::test_citation_cff_has_valid_type - T11: CFF uses an invalid manuscript type\nXFAIL tests/test_render.py::test_zenodo_json_parses_with_quotes - T12: Zenodo JSON is not escaped\nXFAIL tests/test_render.py::test_latex_title_escapes_specials - T08: raw LaTeX specials reach article.tex\nXPASS tests/test_render.py::test_validator_ignores_escaped_braces - T15: validator counts escaped braces\nXPASS tests/test_render.py::test_metadata_regeneration_is_idempotent - T09/T10: metadata regeneration drifts\n4 passed, 4 xfailed, 2 xpassed in 2.11s\n",
+              "at": "2026-10-20T23:25:54Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-20T23:25:57Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "b7f0b4bc556ef3ccba296dc94ac8e86d53394f4e",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_render.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "....xxxxXX                                                               [100%]\n=================================== XPASSES ====================================\n____________________ test_validator_ignores_escaped_braces _____________________\n---------------------------- Captured stdout setup -----------------------------\nInitialized empty Git repository in /tmp/pytest-of-ubuntu/pytest-3/test_validator_ignores_escaped0/out/articles.test_topic/.git/\nInstalled pre-push hook -> .git/hooks/pre-push\n\n────────────────────────────────────────────────────────────\n Scaffolding complete.\n────────────────────────────────────────────────────────────\n\nNext steps:\n\n  1. Edit metadata.yaml to refine title/author/version/doi.\n     (You already entered these as cookiecutter prompts;\n      metadata.yaml is now the single source of truth.)\n\n  2. Regenerate derived metadata:\n       make metadata\n\n  3. Open paper/sections/00_abstract.tex and start writing.\n\n  4. Validate locally (the pre-push hook runs this automatically):\n       make validate\n\n  5. Build the PDF:\n       make pdf\n\n  6. Commit:\n       git add .\n       git commit -m 'initial scaffold'\n       git branch -M master\n       git remote add origin git@github.com:<user>/<repo>.git\n       git push -u origin master\n\nWhen you're ready to cut a release:\n       git tag v1.0.0\n       git push origin v1.0.0   # triggers release.yml\n\n___________________ test_metadata_regeneration_is_idempotent ___________________\n---------------------------- Captured stdout setup -----------------------------\nInitialized empty Git repository in /tmp/pytest-of-ubuntu/pytest-3/test_metadata_regeneration_is_0/out/articles.test_topic/.git/\nInstalled pre-push hook -> .git/hooks/pre-push\n\n────────────────────────────────────────────────────────────\n Scaffolding complete.\n────────────────────────────────────────────────────────────\n\nNext steps:\n\n  1. Edit metadata.yaml to refine title/author/version/doi.\n     (You already entered these as cookiecutter prompts;\n      metadata.yaml is now the single source of truth.)\n\n  2. Regenerate derived metadata:\n       make metadata\n\n  3. Open paper/sections/00_abstract.tex and start writing.\n\n  4. Validate locally (the pre-push hook runs this automatically):\n       make validate\n\n  5. Build the PDF:\n       make pdf\n\n  6. Commit:\n       git add .\n       git commit -m 'initial scaffold'\n       git branch -M master\n       git remote add origin git@github.com:<user>/<repo>.git\n       git push -u origin master\n\nWhen you're ready to cut a release:\n       git tag v1.0.0\n       git push origin v1.0.0   # triggers release.yml\n\n=========================== short test summary info ============================\nXFAIL tests/test_render.py::test_metadata_yaml_parses_with_quotes - T05: metadata values are not JSON-escaped\nXFAIL tests/test_render.py::test_citation_cff_has_valid_type - T11: CFF uses an invalid manuscript type\nXFAIL tests/test_render.py::test_zenodo_json_parses_with_quotes - T12: Zenodo JSON is not escaped\nXFAIL tests/test_render.py::test_latex_title_escapes_specials - T08: raw LaTeX specials reach article.tex\nXPASS tests/test_render.py::test_validator_ignores_escaped_braces - T15: validator counts escaped braces\nXPASS tests/test_render.py::test_metadata_regeneration_is_idempotent - T09/T10: metadata regeneration drifts\n4 passed, 4 xfailed, 2 xpassed in 1.97s\n",
+              "at": "2026-10-20T23:25:57Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "render helper + 4 named xfail regressions; special chars/DOI/empty subtitle render"
+      ],
       "steps_done": []
     },
     "T04": {
