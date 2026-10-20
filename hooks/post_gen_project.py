@@ -4,7 +4,6 @@ Installs the pre-push hook and makes scripts executable so the new
 repo is ready to `git init && git add . && git commit`.
 """
 
-import os
 import shutil
 import stat
 import subprocess

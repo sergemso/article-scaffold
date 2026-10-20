@@ -553,7 +553,10 @@ def print_card(task: dict, entry: dict, resume: bool, include_optional: bool) ->
     print(f"  python3 plan/agentctl.py checkpoint {task['id']} --note '...'")
     print(f"  python3 plan/agentctl.py verify {task['id']}")
     print(f"  python3 plan/agentctl.py done {task['id']} --note '...'")
-    print(f"  python3 plan/agentctl.py block {task['id']} --reason '...'   # after 2 failed attempts")
+    print(
+        f"  python3 plan/agentctl.py block {task['id']} "
+        "--reason '...'   # after 2 failed attempts"
+    )
 
     print()
     print("DONE MEANS:")
@@ -645,14 +648,28 @@ def cmd_doctor(args) -> int:
             if entry.get("status") == "done" and not entry.get("seeded"):
                 if not entry.get("commit"):
                     check("WARN", f"{task['id']} done without a commit sha")
-                if not any(e.get("kind") == "verify" and e.get("ok") for e in entry.get("evidence", [])):
+                if not any(
+                    e.get("kind") == "verify" and e.get("ok")
+                    for e in entry.get("evidence", [])
+                ):
                     check("WARN", f"{task['id']} done without a passing verify record")
 
-    for tool in ("git", "python3", "make", "pytest", "latexmk", "pandoc", "cffconvert", "actionlint", "shellcheck"):
+    for tool in (
+        "git",
+        "python3",
+        "make",
+        "pytest",
+        "latexmk",
+        "pandoc",
+        "cffconvert",
+        "actionlint",
+        "shellcheck",
+    ):
         if shutil.which(tool):
             check("INFO", f"tool: {tool}")
         else:
-            check("WARN", f"tool missing: {tool}" + (" (needed for PDF tasks)" if tool == "latexmk" else ""))
+            suffix = " (needed for PDF tasks)" if tool == "latexmk" else ""
+            check("WARN", f"tool missing: {tool}{suffix}")
 
     if args.fix and state is None:
         with locked():
@@ -732,7 +749,7 @@ def cmd_status(args) -> int:
     task, resume = next_action(tasks, state, include_optional=args.include_optional)
     if task:
         print(f"next: {task['id']}{' (resume)' if resume else ''} — {task['title']}")
-        print(f"      python3 plan/agentctl.py next --card")
+        print("      python3 plan/agentctl.py next --card")
     else:
         print("next: none")
     return 0
@@ -802,7 +819,7 @@ def cmd_claim(args) -> int:
         save_state(state)
         journal("claim", args.task, f"owner={args.owner} ttl={args.ttl}m")
     print(f"claimed {args.task} (owner {args.owner}, ttl {args.ttl}m)")
-    print(f"next: python3 plan/agentctl.py next --card")
+    print("next: python3 plan/agentctl.py next --card")
     return 0
 
 
@@ -916,13 +933,20 @@ def cmd_done(args) -> int:
             print("Changes outside the task scope:", file=sys.stderr)
             for path in outside:
                 print(f"  - {path}", file=sys.stderr)
-            fail("refusing to mark done; move the change to its own task or pass --allow-outside-scope")
+            fail(
+                "refusing to mark done; move the change to its own task "
+                "or pass --allow-outside-scope"
+            )
 
         commit = entry.get("commit")
         if outside:
-            entry["notes"] = (entry.get("notes", []) + ["SCOPE OVERRIDE: " + ", ".join(outside)])[-20:]
+            entry["notes"] = (
+                entry.get("notes", []) + ["SCOPE OVERRIDE: " + ", ".join(outside)]
+            )[-20:]
         if args.skip_verify:
-            entry["notes"] = (entry.get("notes", []) + ["DONE WITHOUT VERIFY: " + (args.note or "")])[-20:]
+            entry["notes"] = (
+                entry.get("notes", []) + ["DONE WITHOUT VERIFY: " + (args.note or "")]
+            )[-20:]
         elif args.note:
             entry["notes"] = (entry.get("notes", []) + [args.note])[-20:]
         entry["status"] = "done"
@@ -957,7 +981,10 @@ def cmd_done(args) -> int:
                 entry["commit"] = None
                 save_state(state)
                 journal("commit_failed", args.task, "task commit failed; status restored")
-                fail("task commit failed; state restored to in_progress, fix the hook and rerun done")
+                fail(
+                    "task commit failed; state restored to in_progress, "
+                    "fix the hook and rerun done"
+                )
             commit = head_sha()
             entry["commit"] = commit
             save_state(state)
@@ -1017,7 +1044,10 @@ def cmd_audit(args) -> int:
         entry = state["tasks"][task["id"]]
         if entry["status"] != "done" or entry.get("seeded"):
             continue
-        verify_ok = any(e.get("kind") == "verify" and e.get("ok") for e in entry.get("evidence", []))
+        verify_ok = any(
+            e.get("kind") == "verify" and e.get("ok")
+            for e in entry.get("evidence", [])
+        )
         if not verify_ok:
             warnings.append(f"{task['id']}: done without a passing verify record")
         if not entry.get("commit"):
@@ -1048,7 +1078,8 @@ def cmd_render(args) -> int:
     phases: dict[str, list[int]] = {}
     for task in tasks:
         phases.setdefault(task["phase"], [0, 0])
-        phases[task["phase"]][0] += 1 if state["tasks"][task["id"]]["status"] in {"done", "skipped"} else 0
+        done_or_skipped = state["tasks"][task["id"]]["status"] in {"done", "skipped"}
+        phases[task["phase"]][0] += 1 if done_or_skipped else 0
         phases[task["phase"]][1] += 1
     lines = [
         "# Implementation status",
@@ -1065,7 +1096,8 @@ def cmd_render(args) -> int:
     active = current_tasks(tasks, state)
     if active:
         for task in active:
-            lines.append(f"- `{task['id']}` {task['title']} — lease {lease_text(state['tasks'][task['id']])}")
+            entry = state["tasks"][task["id"]]
+            lines.append(f"- `{task['id']}` {task['title']} — lease {lease_text(entry)}")
     else:
         lines.append("_none_")
     lines += ["", "## Blocked", ""]
@@ -1073,7 +1105,11 @@ def cmd_render(args) -> int:
     lines += [f"- `{t['id']}` {t['title']}" for t in blocked] or ["_none_"]
     lines += ["", "## Next", ""]
     nxt, resume = next_action(tasks, state, include_optional=args.include_optional)
-    lines.append(f"- `{nxt['id']}` {nxt['title']}{' (resume)' if resume else ''}" if nxt else "_none_")
+    if nxt:
+        suffix = " (resume)" if resume else ""
+        lines.append(f"- `{nxt['id']}` {nxt['title']}{suffix}")
+    else:
+        lines.append("_none_")
     text = "\n".join(lines) + "\n"
     if args.write:
         Path(args.write).write_text(text, encoding="utf-8")

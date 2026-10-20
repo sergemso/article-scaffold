@@ -36,7 +36,11 @@ SPECIAL_TITLE = 'He said "hello" & 100% _ok — ünïcode'
 SPECIAL_ABSTRACT = 'A "quoted" abstract with 100% & # and — unicode.'
 
 
-def render(context: dict[str, str] | None = None, tmp_path: Path | None = None, **overrides: str) -> Path:
+def render(
+    context: dict[str, str] | None = None,
+    tmp_path: Path | None = None,
+    **overrides: str,
+) -> Path:
     """Render the template with no prompts and return the generated project."""
     if tmp_path is None:
         raise TypeError("render() requires tmp_path")

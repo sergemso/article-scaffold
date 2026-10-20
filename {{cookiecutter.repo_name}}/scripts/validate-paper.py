@@ -22,7 +22,6 @@ you don't push something that the CI will then take 5 minutes to reject.
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -108,7 +107,8 @@ def check_balanced_braces() -> int:
     opens = stripped.count("{")
     closes = stripped.count("}")
     if opens != closes:
-        _err(f"Brace mismatch in {ARTICLE_TEX.relative_to(REPO_ROOT)}: {opens} '{{' vs {closes} '}}'")
+        rel = ARTICLE_TEX.relative_to(REPO_ROOT)
+        _err(f"Brace mismatch in {rel}: {opens} '{{' vs {closes} '}}'")
         return 1
     print(f"  OK: braces balanced ({opens} pairs).")
     return 0

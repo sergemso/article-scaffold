@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from conftest import commit_all, run
 
 EXPECTED_FILES = [
