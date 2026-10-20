@@ -48,3 +48,10 @@ history after work has started.
 - test-template.yml: lint/unit/render; default metadata drift check; special chars via pytest xfail
 - verify: passed
 - scope: clean
+
+## 2026-10-20T23:27:20Z — G0 — gate
+- T02–T04 complete: dev tooling, render matrix, template CI
+- `make test`: 7 passed, 4 xfailed (named Phase 1 bugs), 2 xpassed
+- `audit`: 4 done, no scope or evidence errors
+- `plan/STATUS.md` rendered
+- `make lint`: clean
