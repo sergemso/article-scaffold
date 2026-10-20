@@ -222,7 +222,8 @@
         "{{cookiecutter.repo_name}}/metadata.yaml",
         "{{cookiecutter.repo_name}}/paper/sections/00_abstract.tex",
         "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
-        "{{cookiecutter.repo_name}}/README.md"
+        "{{cookiecutter.repo_name}}/README.md",
+        "{{cookiecutter.repo_name}}/CHANGES.md"
       ],
       "touch": [
         "{{cookiecutter.repo_name}}/metadata.yaml",
@@ -230,12 +231,13 @@
         "{{cookiecutter.repo_name}}/paper/sections/08_backmatter.tex",
         "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
         "{{cookiecutter.repo_name}}/README.md",
-        "tests/test_abstract.py"
+        "tests/test_abstract.py",
+        "{{cookiecutter.repo_name}}/CHANGES.md"
       ],
       "steps": [
         "Add abstract and abstract_note to metadata.yaml; store keywords as a YAML list or a documented comma-separated string.",
         "Replace the body of 00_abstract.tex with % ABSTRACT:START/END sentinels and a placeholder body; the generator owns the content between them.",
-        "Add README:META:START/END and BACKMATTER:VERSION:START/END sentinels so later drift checks have stable targets.",
+        "Add README:META:START/END, BACKMATTER:VERSION:START/END and CHANGES:CURRENT:START/END sentinels so later drift checks have stable targets.",
         "Extend generate-metadata.py to write the abstract (LaTeX-escaped) and keywords from metadata.yaml, leaving files untouched when already correct.",
         "Add tests that mutate metadata.yaml and check the sentinels update without duplicating content."
       ],
@@ -244,7 +246,7 @@
           "cmd": "python3 -m pytest tests/test_abstract.py -q"
         }
       ],
-      "done": "The abstract and keywords are read from metadata.yaml; the LaTeX and README blocks are generated between stable sentinels.",
+      "done": "The abstract and keywords are read from metadata.yaml; LaTeX, README and CHANGES blocks are generated between stable sentinels.",
       "requires": [],
       "network": false,
       "notes": ""
@@ -755,7 +757,8 @@
         "Add --resource-path for paper, paper/figures and the repo root to the pandoc command.",
         "Support an optional reference.docx and a documented template path.",
         "Use pandoc/core or a pinned pandoc version in CI; keep local behavior identical.",
-        "Add a test that renders a repo with a figure in paper/figures and inspects the DOCX zip for the image (skip if pandoc is absent)."
+        "Add a test that renders a repo with a figure in paper/figures and inspects the DOCX zip for the image (skip if pandoc is absent).",
+        "Document and optionally downscale oversized figures for DOCX; do not silently alter the PDF source images."
       ],
       "verify": [
         {
@@ -943,18 +946,19 @@
         "{{cookiecutter.repo_name}}/schemas/**"
       ],
       "steps": [
-        "Add authors: as a list of mappings (name, given, family, orcid, affiliations, corresponding, email) and affiliations: as an id->mapping map.",
+        "Add authors: as a list of mappings (name, given, family, orcid, affiliations, corresponding, email, ror) and affiliations: as an id->mapping map.",
         "Normalize the legacy author_name/author_orcid/author_affiliation fields with a deprecation warning; do not break v1 repos.",
         "Validate ORCID checksums, duplicate affiliations and missing corresponding authors.",
         "Record metadata_schema: 2 in the new schema while still reading v1.",
-        "Add fixtures for legacy, multi-author, mononym, and invalid ORCID."
+        "Add fixtures for legacy, multi-author, mononym, and invalid ORCID.",
+        "Accept ROR ids on affiliations and validate their shape (https://ror.org/...); do not require them."
       ],
       "verify": [
         {
           "cmd": "python3 -m pytest tests/test_metadata_v2.py -q"
         }
       ],
-      "done": "Both schema versions load; invalid author data produces actionable diagnostics.",
+      "done": "Both schema versions load; invalid author/affiliation data (including malformed ORCID/ROR) produces actionable diagnostics.",
       "requires": [],
       "network": false,
       "notes": ""
@@ -985,7 +989,7 @@
       "steps": [
         "Render authors with authblk or explicit \\author/\\thanks blocks, including affiliations and corresponding markers.",
         "Generate CFF authors, Zenodo creators and README author lines from the same normalized model.",
-        "Render ORCID as a link where the medium supports it; omit it where empty.",
+        "Render ORCID and ROR as links where the medium supports it; omit them where empty.",
         "Add a test that asserts all four outputs agree for a 3-author fixture."
       ],
       "verify": [
@@ -1137,6 +1141,7 @@
       ],
       "steps": [
         "Load titlesec before hyperref (or remove it); load cleveref after hyperref; keep pdfusetitle consistent with T07.",
+        "Review the package list: load csquotes and siunitx only when used; keep hyperref late and cleveref after it.",
         "Add .latexmkrc with -outdir=build, -halt-on-error, -file-line-error and a fixed SOURCE_DATE_EPOCH for reproducible runs.",
         "Make clean remove build artifacts; make pdf must work from a fresh clone.",
         "Add static tests for package order and for the expected build directory."
@@ -1146,7 +1151,7 @@
           "cmd": "python3 -m pytest tests/test_build.py -q"
         }
       ],
-      "done": "A clean build produces build/article.pdf and leaves no aux files in the source tree.",
+      "done": "A clean build produces build/article.pdf, leaves no aux files in the source tree, and the preamble order is documented.",
       "requires": [],
       "network": false,
       "notes": ""
@@ -1179,10 +1184,11 @@
       ],
       "steps": [
         "Remove the jinja2_time extension: set date to a placeholder and fill it with the stdlib in post_gen, or document a safe default.",
-        "Refresh .gitignore for build/, .venv, __pycache__, .DS_Store and LaTeX aux files.",
+        "Refresh .gitignore for build/, .venv, __pycache__, .DS_Store, LaTeX aux files, paper/figures/generated/, paper/supplementary/build/ and biblatex intermediates.",
         "Rewrite the README tree/prerequisites/license sections to match actual behavior; add CONTRIBUTING.md.",
         "Document how to override personal defaults without editing tracked files.",
-        "Add doc tests that grep for stale paths and commands."
+        "Add doc tests that grep for stale paths and commands.",
+        "Add a small, accurate badge block (CI, license, template version) only for services the repo actually uses."
       ],
       "verify": [
         {
@@ -1243,7 +1249,7 @@
       "depends_on": [
         "T24"
       ],
-      "why": "Releases are currently manual and DOI metadata drifts from the tag.",
+      "why": "Releases are currently manual and DOI metadata drifts from the tag; apply must stay offline and reviewable.",
       "context": [
         "docs/improvement-plan.md#4-phase-4--workflow-automation-v21-35-days",
         "{{cookiecutter.repo_name}}/Makefile"
@@ -1258,7 +1264,8 @@
         "Implement release plan --json: version, tag, doi, artifact list, checks, and a dry-run diff.",
         "Implement release apply only with an explicit --yes; require a clean tree, an absent tag, and a version bump.",
         "Set the DOI in metadata.yaml and regenerate every derived file; never edit generated files directly.",
-        "Add tests for clean/dirty trees, existing tags, invalid versions and DOI assignment."
+        "Add tests for clean/dirty trees, existing tags, invalid versions and DOI assignment.",
+        "Do not call the Zenodo API from release apply; emit the deposit payload (or print the command) and leave network upload to an explicit, separate step."
       ],
       "verify": [
         {
