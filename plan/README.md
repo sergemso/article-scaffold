@@ -51,6 +51,9 @@ copy, which is how the self-test runs without touching real progress.
   steps/verify, every verify entry has `cmd`.
 * State: known statuses; every plan task has a state entry; unknown tasks are
   reported by `doctor`.
+* Drift: `state.json` stores a `plan_hash`; `doctor` warns when `tasks.json`
+  changed since the last `init`, so an agent cannot silently execute a
+  different plan than the one it checkpointed.
 * Leases: a live lease owned by another agent blocks `claim`; expired leases
   are reported; `reclaim` requires expiry or `--force`.
 * `done`: task must be `in_progress`; verify must pass unless explicitly
