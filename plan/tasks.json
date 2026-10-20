@@ -536,21 +536,21 @@
         "tests/test_license.py"
       ],
       "steps": [
-        "Restrict the license choice to CC-BY-4.0 (default), CC-BY-SA-4.0, CC0-1.0, and MIT, with human prompts.",
-        "Vendor the full text of each license under licenses/ and have the post-gen hook copy the selected one to LICENSE.",
-        "Add a code_license choice (default MIT) and emit LICENSE-CODE when it differs from the paper license.",
-        "Link the selected license and code license from README and record the SPDX id in metadata.yaml.",
-        "Add a render-matrix test asserting the LICENSE text matches the choice for every option."
+        "Restrict the license choice to CC-BY-4.0 (default) and MIT, with human prompts.",
+        "Vendor the full text of both licenses under licenses/ and have the post-gen hook copy the selected one to LICENSE.",
+        "Fix the code license to MIT: emit LICENSE-CODE when the paper license is CC-BY-4.0, and a single LICENSE when the paper is MIT.",
+        "Link the selected paper license and the MIT code license from README and record both SPDX ids in metadata.yaml.",
+        "Add a render-matrix test asserting the LICENSE text matches the choice for both options and that no unsupported license is offered."
       ],
       "verify": [
         {
           "cmd": "python3 -m pytest tests/test_license.py -q"
         }
       ],
-      "done": "Every license choice yields the correct full text and README link; unknown licenses fail at pre-gen.",
+      "done": "Both license choices yield the correct full text and README links; the code license is always MIT.",
       "requires": [],
       "network": false,
-      "notes": ""
+      "notes": "Decision #5: CC-BY-4.0 + MIT only."
     },
     {
       "id": "T15",
@@ -1030,7 +1030,8 @@
       ],
       "steps": [
         "Add manuscript_kind choices (perspective default, empirical, review) and citation_style choices (author-year, numeric).",
-        "Conditionally include the methods/results sections and required packages; keep the perspective output unchanged by default.",
+        "Make empirical a first-class path: include methods/results sections, the packages they need, and a place for generated tables; keep the perspective output unchanged by default.",
+        "Wire the empirical path to the analysis outputs from T37 (paper/figures, paper/tables) without making analysis part of make pdf.",
         "Select the bibliography style from citation_style and pass the same choice to DOCX/HTML.",
         "Add a render matrix test over kind x style, asserting expected sections/packages and no LaTeX errors in the static check."
       ],
@@ -1039,10 +1040,10 @@
           "cmd": "python3 -m pytest tests/test_matrix.py -q"
         }
       ],
-      "done": "Every kind/style combination renders; the default is byte-identical to the current perspective output.",
+      "done": "Every kind/style combination renders; the perspective default is byte-identical; empirical is supported end-to-end together with T37.",
       "requires": [],
       "network": false,
-      "notes": ""
+      "notes": "Decision #2: perspective and empirical are both core; review stays selectable."
     },
     {
       "id": "T28",
@@ -1065,17 +1066,17 @@
         "tests/test_pre_gen.py"
       ],
       "steps": [
-        "Validate topic/repo_name slug rules, semver, ORCID checksum, license, DOI shape and non-empty title.",
+        "Validate topic/repo_name slug rules, semver, ORCID checksum when supplied, license, DOI shape and non-empty title.",
         "Add __prompts__ with plain-language labels; keep --no-input working for CI.",
         "Fail with one actionable message per invalid field, not a traceback.",
-        "Test valid and invalid contexts through cookiecutter's API."
+        "Test valid and invalid contexts through cookiecutter's API, including an empty ORCID."
       ],
       "verify": [
         {
           "cmd": "python3 -m pytest tests/test_pre_gen.py -q"
         }
       ],
-      "done": "Invalid contexts fail before rendering; prompts are human-readable and CI still runs --no-input.",
+      "done": "Invalid contexts fail before rendering; an empty ORCID is accepted; prompts are human-readable and CI still runs --no-input.",
       "requires": [],
       "network": false,
       "notes": ""
@@ -1083,7 +1084,7 @@
     {
       "id": "T29",
       "phase": "P3",
-      "order": 29,
+      "order": 30,
       "title": "Make workflows branch-agnostic",
       "effort": "S",
       "optional": false,
@@ -1122,7 +1123,7 @@
     {
       "id": "T30",
       "phase": "P3",
-      "order": 30,
+      "order": 31,
       "title": "Fix the preamble and make builds out-of-tree",
       "effort": "S",
       "optional": false,
@@ -1161,14 +1162,14 @@
     {
       "id": "T31",
       "phase": "P3",
-      "order": 31,
+      "order": 32,
       "title": "Repo hygiene, docs and neutral defaults",
       "effort": "S",
       "optional": false,
       "depends_on": [
         "T02"
       ],
-      "why": "Stale README trees, personal defaults and a jinja2-time dependency make the template harder to use.",
+      "why": "Stale README trees, personal identity in tracked defaults and a jinja2-time dependency make the template harder to use and share.",
       "context": [
         "README.md",
         "canonical-pattern.md",
@@ -1180,16 +1181,20 @@
         "canonical-pattern.md",
         "CONTRIBUTING.md",
         "cookiecutter.json",
+        "hooks/pre_gen_project.py",
+        "docs/dev-setup.md",
         "{{cookiecutter.repo_name}}/.gitignore",
         "{{cookiecutter.repo_name}}/README.md",
         "tests/test_docs.py"
       ],
       "steps": [
         "Remove the jinja2_time extension: set date to a placeholder and fill it with the stdlib in post_gen, or document a safe default.",
+        "Replace personal defaults (name, ORCID, GitHub user, affiliation) in cookiecutter.json with neutral placeholders.",
+        "Read an optional user config (for example ~/.config/article-scaffold/config.yaml or ARTICLE_SCAFFOLD_CONFIG) in pre_gen, fill missing values, and never copy the config into the generated repo.",
+        "Document the config format, precedence and privacy rule in README and docs/dev-setup.md.",
         "Refresh .gitignore for build/, .venv, __pycache__, .DS_Store, LaTeX aux files, paper/figures/generated/, paper/supplementary/build/ and biblatex intermediates.",
         "Rewrite the README tree/prerequisites/license sections to match actual behavior; add CONTRIBUTING.md.",
-        "Document how to override personal defaults without editing tracked files.",
-        "Add doc tests that grep for stale paths and commands.",
+        "Add doc tests that grep for stale paths and personal identity strings.",
         "Add a small, accurate badge block (CI, license, template version) only for services the repo actually uses."
       ],
       "verify": [
@@ -1197,7 +1202,7 @@
           "cmd": "python3 -m pytest tests/test_docs.py -q"
         }
       ],
-      "done": "Docs describe the actual tree and commands; the template has no undeclared Jinja extension.",
+      "done": "Docs describe the actual tree and commands; no personal identity is tracked; the optional user config is documented and never copied into a generated repo.",
       "requires": [],
       "network": false,
       "notes": ""
@@ -1205,7 +1210,7 @@
     {
       "id": "T32",
       "phase": "P3",
-      "order": 32,
+      "order": 33,
       "title": "Harden CI: reusable build, permissions, pinning",
       "effort": "S",
       "optional": false,
@@ -1244,7 +1249,7 @@
     {
       "id": "T33",
       "phase": "P4",
-      "order": 33,
+      "order": 34,
       "title": "Add release plan/apply and DOI handling",
       "effort": "S",
       "optional": false,
@@ -1282,7 +1287,7 @@
     {
       "id": "T34",
       "phase": "P4",
-      "order": 34,
+      "order": 35,
       "title": "Add diff, arXiv, wordcount, spell, watch and figures",
       "effort": "S",
       "optional": false,
@@ -1318,7 +1323,7 @@
     {
       "id": "T35",
       "phase": "P4",
-      "order": 35,
+      "order": 36,
       "title": "Reproducible builds, Pages and supplementary",
       "effort": "S",
       "optional": false,
@@ -1354,51 +1359,49 @@
     {
       "id": "T36",
       "phase": "P4",
-      "order": 36,
-      "title": "Add article migrate for v1 repos",
+      "order": 37,
+      "title": "Document the manual v2 migration",
       "effort": "S",
       "optional": false,
       "depends_on": [
-        "T25",
-        "T33"
+        "T25"
       ],
-      "why": "The v2 schema break is only acceptable if existing repos have a safe upgrade path.",
+      "why": "The v2 break is accepted, but no migration tool will be built; users need a precise, tested manual mapping.",
       "context": [
         "{{cookiecutter.repo_name}}/scripts/article/metadata.py",
         "docs/improvement-plan.md#6-compatibility-and-migration"
       ],
       "touch": [
-        "{{cookiecutter.repo_name}}/scripts/article/migrate.py",
         "{{cookiecutter.repo_name}}/docs/migrating-to-v2.md",
-        "tests/test_migrate.py"
+        "tests/test_migration_docs.py"
       ],
       "steps": [
-        "Detect v1 metadata, write a backup, map author/license/version fields to v2, and regenerate derived files.",
-        "Support --dry-run and --check; never overwrite without a backup or --yes.",
-        "Document manual review points (multi-author splitting, affiliations, ORCID).",
-        "Test a legacy fixture end-to-end and assert idempotence."
+        "Write docs/migrating-to-v2.md with a field-by-field mapping: author_name -> authors, affiliation -> affiliations, ORCID, license, metadata_schema, and every other v1 field.",
+        "State explicitly that no article migrate command exists and why; include a copy-paste before/after YAML example.",
+        "Document the backup step and how to regenerate derived files, then verify with article validate and article metadata --check.",
+        "Add a doc test that checks the mapping covers every v1 field and that no migration command is promised."
       ],
       "verify": [
         {
-          "cmd": "python3 -m pytest tests/test_migrate.py -q"
+          "cmd": "python3 -m pytest tests/test_migration_docs.py -q"
         }
       ],
-      "done": "A v1 fixture migrates with a backup, passes validation, and a second run is a no-op.",
+      "done": "The manual migration guide is complete, tested, and does not promise an automated tool.",
       "requires": [],
       "network": false,
-      "notes": ""
+      "notes": "Decision #4: v2 break allowed, no migration tool."
     },
     {
       "id": "T37",
-      "phase": "P5",
-      "order": 37,
-      "title": "Data and analysis pipeline (optional)",
+      "phase": "P3",
+      "order": 29,
+      "title": "Add the empirical data/analysis pipeline",
       "effort": "M",
-      "optional": true,
+      "optional": false,
       "depends_on": [
         "T27"
       ],
-      "why": "Empirical manuscripts need a reproducible path from data to figures/tables.",
+      "why": "Empirical manuscripts are core, so the data-to-figure path must be reproducible and tested, not an optional extension.",
       "context": [
         "docs/improvement-plan.md#5-scientificstructural-extensions-v22-510-days-optional"
       ],
@@ -1409,20 +1412,20 @@
         "tests/test_analysis.py"
       ],
       "steps": [
-        "Add opt-in data/ and analysis/ directories with a lockfile (uv or renv) and checksums.",
-        "Add make analysis that regenerates figures/tables into paper/figures and paper/tables.",
-        "Do not run analysis in make pdf unless the user opts in; fail clearly when the env is missing.",
-        "Test the pipeline with a tiny fixture dataset."
+        "Add data/ and analysis/ directories with a lockfile (uv or renv) and checksums; keep heavy deps opt-in.",
+        "Add make analysis that regenerates figures/tables into paper/figures and paper/tables for the empirical kind.",
+        "Do not run analysis in make pdf unless the user opts in; fail clearly when the analysis environment is missing.",
+        "Test the pipeline with a tiny fixture dataset and assert the generated artifacts are consumed by the empirical manuscript kind."
       ],
       "verify": [
         {
           "cmd": "python3 -m pytest tests/test_analysis.py -q"
         }
       ],
-      "done": "make analysis is reproducible from a clean checkout and its outputs are gitignored or checked intentionally.",
+      "done": "make analysis is reproducible from a clean checkout, its outputs feed the empirical kind, and heavy dependencies are opt-in.",
       "requires": [],
       "network": false,
-      "notes": ""
+      "notes": "Promoted from optional P5 by decision #2 (empirical is core)."
     },
     {
       "id": "T38",
@@ -1457,7 +1460,7 @@
       "done": "Every adapter renders and documents its requirements; the default perspective output is unchanged.",
       "requires": [],
       "network": false,
-      "notes": ""
+      "notes": "Decision #6: no journal classes now. Parked optional; do not start without a new decision."
     },
     {
       "id": "T39",
