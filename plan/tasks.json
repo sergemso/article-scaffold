@@ -1661,7 +1661,7 @@
         "tests/test_mcp_mutations.py"
       ],
       "steps": [
-        "Add plan/confirm tokens for metadata writes, release apply and migrate; tokens expire and are single-use.",
+        "Add plan/confirm tokens for metadata writes and release apply; tokens expire and are single-use.",
         "Refuse writes outside the repo, enforce timeouts, and append an audit log.",
         "Never expose network or shell passthrough.",
         "Test refusal paths: stale token, path escape, missing confirmation."
