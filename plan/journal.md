@@ -79,3 +79,11 @@ history after work has started.
 - hypersetup pdftitle/pdfauthor/pdfsubject/pdfkeywords generated in title block; hostile chars and empty subtitle covered
 - verify: passed
 - scope: clean
+
+## 2026-10-20T23:34:14Z — T08 — claim
+- owner=agent ttl=120m
+
+## 2026-10-20T23:34:16Z — T08 — done
+- single-pass escaper; title_tex override; 19 table/property tests including backslash, unicode, already_tex
+- verify: passed
+- scope: clean

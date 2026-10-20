@@ -119,22 +119,34 @@ def load_metadata() -> dict:
     return data
 
 
-def latex_escape(s: str) -> str:
-    """Minimal LaTeX escape for free-text fields embedded in article.tex."""
-    if not s:
+LATEX_ESCAPE_MAP = {
+    "\\": r"\textbackslash{}",
+    "&": r"\&",
+    "%": r"\%",
+    "$": r"\$",
+    "#": r"\#",
+    "_": r"\_",
+    "{": r"\{",
+    "}": r"\}",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+}
+
+
+def latex_escape(text: str, already_tex: bool = False) -> str:
+    """Escape free text for LaTeX in a single pass.
+
+    A single pass is essential: replacing backslashes first and then braces
+    would turn ``\\`` into ``\\textbackslash{}``. Unicode is preserved; the
+    generated document is UTF-8 and the active TeX engine decides which
+    characters it can typeset. Pass ``already_tex=True`` for a raw-LaTeX
+    override such as ``title_tex``; it is returned unchanged.
+    """
+    if not text:
         return ""
-    # Order matters: escape backslash first, then the rest.
-    out = s.replace("\\", r"\textbackslash{}")
-    out = out.replace("&", r"\&")
-    out = out.replace("%", r"\%")
-    out = out.replace("$", r"\$")
-    out = out.replace("#", r"\#")
-    out = out.replace("_", r"\_")
-    out = out.replace("{", r"\{")
-    out = out.replace("}", r"\}")
-    out = out.replace("~", r"\textasciitilde{}")
-    out = out.replace("^", r"\textasciicircum{}")
-    return out
+    if already_tex:
+        return text
+    return "".join(LATEX_ESCAPE_MAP.get(ch, ch) for ch in text)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -214,7 +226,11 @@ def gen_zenodo_json(m: dict) -> str:
 
 
 def gen_article_tex_title_block(m: dict) -> str:
-    title = latex_escape(m.get("title", ""))
+    title_raw = m.get("title", "")
+    # title_tex is an explicit raw-LaTeX escape hatch for the visible title.
+    # PDF metadata still uses the escaped plain title.
+    title = m.get("title_tex") or latex_escape(title_raw)
+    title_for_pdf = latex_escape(title_raw)
     subtitle = latex_escape(m.get("subtitle", "")) if m.get("subtitle") else ""
     author = latex_escape(m["_author_full"])
     affiliation = latex_escape(m["_author_affiliation"])
@@ -237,7 +253,7 @@ def gen_article_tex_title_block(m: dict) -> str:
     keywords = ", ".join(latex_escape(k) for k in m["_keywords_list"])
     subject = latex_escape(m.get("manuscript_type", ""))
     out.append(r"\hypersetup{")
-    out.append(f"  pdftitle={{ {title} }},")
+    out.append(f"  pdftitle={{ {title_for_pdf} }},")
     out.append(f"  pdfauthor={{ {author} }},")
     out.append(f"  pdfsubject={{ {subject} }},")
     out.append(f"  pdfkeywords={{ {keywords} }}")
