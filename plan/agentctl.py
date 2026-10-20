@@ -1023,7 +1023,10 @@ def cmd_audit(args) -> int:
         if not entry.get("commit"):
             warnings.append(f"{task['id']}: done without a commit sha")
         elif git("cat-file", "-e", f"{entry['commit']}^{{commit}}").returncode != 0:
-            errors.append(f"{task['id']}: recorded commit {entry['commit'][:8]} not found")
+            errors.append(
+                f"{task['id']}: recorded commit {entry['commit'][:8]} not found "
+                "(shallow clone? fetch full history, e.g. actions/checkout fetch-depth: 0)"
+            )
     for task in tasks:
         entry = state["tasks"][task["id"]]
         if entry["status"] == "in_progress" and not lease_valid(entry):
