@@ -17,3 +17,10 @@ history after work has started.
 - harness validated; baseline committed
 - verify: passed
 - scope: clean
+
+## 2026-10-20T23:13:46Z — repo — public + bootstrap CI
+- GitHub visibility changed to public: https://github.com/sergemso/article-scaffold
+- `.github/workflows/plan-ci.yml` added: plan/state contract + default Cookiecutter render
+- first run failed because the shallow checkout hid T01's recorded commit; `fetch-depth: 0` fixed it
+- run 39513551797: both jobs green
+- full template matrix remains T04; this workflow is the bootstrap check
