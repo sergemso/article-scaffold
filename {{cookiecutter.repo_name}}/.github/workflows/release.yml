@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # required by softprops/action-gh-release to create the release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false   # never cancel a release mid-flight
+
+jobs:
+  build-docx:
+    name: Build DOCX
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build DOCX with Pandoc
+        run: |
+          set -e
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace/paper \
+            pandoc/latex:3.1 \
+            --output=/workspace/manuscript.docx \
+            --from=latex \
+            --to=docx \
+            --citeproc \
+            --bibliography=refs.bib \
+            article.tex
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manuscript-docx
+          path: manuscript.docx
+          retention-days: 1
+          if-no-files-found: error
+
+  build-pdf:
+    name: Build PDF
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile LaTeX with latexmk
+        uses: xu-cheng/texlive-action@v2
+        with:
+          run: |
+            cd paper
+            latexmk -pdf -interaction=nonstopmode -file-line-error article.tex
+            test -f article.pdf
+            cp article.pdf ../manuscript.pdf
+
+      - name: Verify PDF
+        run: |
+          test -f manuscript.pdf
+          SIZE=$(stat -c%s manuscript.pdf)
+          echo "Built manuscript.pdf ($SIZE bytes)"
+          if grep -q "There were undefined references" paper/article.log; then
+            echo "::error::Some citations remain undefined - bibtex may have failed"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manuscript-pdf
+          path: manuscript.pdf
+          retention-days: 1
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [build-docx, build-pdf]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download DOCX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: manuscript-docx
+          path: release-assets
+
+      - name: Download PDF artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: manuscript-pdf
+          path: release-assets
+
+      - name: Verify assets
+        run: |
+          ls -lh release-assets/
+          for f in manuscript.docx manuscript.pdf; do
+            if [ ! -f "release-assets/$f" ]; then
+              echo "::error::Missing $f"
+              exit 1
+            fi
+          done
+
+      - name: Create Release with assets
+        uses: softprops/action-gh-release@v2
+        with:
+          # Tag name is the trigger tag (e.g., "v3"). Use tag_name explicitly
+          # so the release is associated with the tag, not with the workflow run.
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true   # auto-generate from commits since last tag
+          files: |
+            release-assets/manuscript.docx
+            release-assets/manuscript.pdf
+          fail_on_unmatched_files: true

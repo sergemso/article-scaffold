@@ -1,0 +1,267 @@
+# Bootstrap a new article repository from this cookiecutter template.
+#
+# Triggered manually (workflow_dispatch) with the same parameters as
+# `cookiecutter` would prompt for. Renders the template into a temp dir,
+# commits the rendered tree, creates a new GitHub repository under the
+# specified owner, and pushes the initial commit.
+#
+# ─────────────────────────────────────────────────────────────
+# PREREQUISITE — `GH_PAT` secret
+# ─────────────────────────────────────────────────────────────
+# The default `GITHUB_TOKEN` cannot create new repositories. You need
+# a Personal Access Token (classic) with the `repo` scope, or a
+# fine-grained token with `Administration: write` permission on the
+# target owner. Add it as a repository secret named `GH_PAT`:
+#
+#   Settings → Secrets and variables → Actions → New repository secret
+#   Name: GH_PAT
+#   Value: <your PAT>
+#
+# If the new repo is to be created under the same user that owns this
+# scaffold repo, leave `new_repo_owner` blank — the workflow uses
+# `${{ github.actor }}` by default.
+
+name: Bootstrap new article repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Topic slug — becomes the suffix of the new repo name (articles.<topic>)"
+        required: true
+        default: "subject_slug"
+      title:
+        description: "Manuscript title (full)"
+        required: true
+        default: "Untitled Manuscript"
+      subtitle:
+        description: "Optional subtitle (leave empty for none)"
+        required: false
+        default: ""
+      manuscript_type:
+        description: "Manuscript type label (shown in README)"
+        required: false
+        default: "Perspective / Review Essay"
+      author_name:
+        description: "Author full name"
+        required: false
+        default: "Sergei A. Strebulaev"
+      author_orcid:
+        description: "ORCID (no URL prefix, e.g. 0009-0006-2710-8910)"
+        required: false
+        default: "0009-0006-2710-8910"
+      author_affiliation:
+        description: "Author affiliation"
+        required: false
+        default: "Independent Researcher"
+      version:
+        description: "Semver version (e.g. 1.0.0)"
+        required: false
+        default: "1.0.0"
+      version_label:
+        description: "Human-readable version label (e.g. v1 preprint)"
+        required: false
+        default: "v1 preprint"
+      license:
+        description: "SPDX license identifier"
+        required: false
+        default: "CC-BY-4.0"
+      target_deposit:
+        description: "Target deposit venue (Zenodo, OSF, etc.)"
+        required: false
+        default: "Zenodo"
+      doi:
+        description: "DOI (leave empty pre-deposit; fill after deposit)"
+        required: false
+        default: ""
+      keywords:
+        description: "Comma-separated keywords"
+        required: false
+        default: "research, methodology"
+      abstract:
+        description: "Manuscript abstract (long form). Will be inserted into 00_abstract.tex and README."
+        required: false
+        default: "Replace this placeholder with the manuscript abstract. State the question, the contribution, the evidence base, and the limitations. The abstract is the first thing a reader sees and the only thing many readers will read, so it should be a self-contained summary of the argument, not a teaser for it."
+      repo_visibility:
+        description: "New repo visibility"
+        type: choice
+        options:
+          - public
+          - private
+        default: public
+      new_repo_owner:
+        description: "Owner of the new repo. Leave empty to use the triggering actor."
+        required: false
+        default: ""
+      skip_pre_push_hook:
+        description: "Skip the pre-push validate hook for the initial bootstrap push (recommended: false, so the workflow fails loudly if the template is broken)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-article-${{ github.ref }}-${{ inputs.topic }}
+  cancel-in-progress: false   # never cancel a repo creation mid-flight
+
+jobs:
+  bootstrap:
+    name: Scaffold and push new article repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout article-scaffold
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cookiecutter + deps
+        run: pip install cookiecutter jinja2-time pyyaml
+
+      - name: Resolve new repo owner
+        id: owner
+        run: |
+          OWNER="${{ inputs.new_repo_owner }}"
+          if [ -z "$OWNER" ]; then
+            OWNER="${{ github.actor }}"
+          fi
+          echo "owner=$OWNER" >> $GITHUB_OUTPUT
+          echo "Will create repo under: $OWNER"
+
+      - name: Render template via cookiecutter
+        id: cookiecutter
+        env:
+          TOPIC: ${{ inputs.topic }}
+        run: |
+          set -e
+          OUTPUT_DIR="$(mktemp -d)"
+          # `--no-input` so cookiecutter does not prompt; all values come
+          # from the workflow inputs (passed as positional key=value pairs).
+          # The `date` input is computed at render time so the user does
+          # not need to think about it.
+          cookiecutter --no-input --output-dir "$OUTPUT_DIR" . \
+            topic="$TOPIC" \
+            title="${{ inputs.title }}" \
+            subtitle="${{ inputs.subtitle }}" \
+            manuscript_type="${{ inputs.manuscript_type }}" \
+            author_name="${{ inputs.author_name }}" \
+            author_orcid="${{ inputs.author_orcid }}" \
+            author_affiliation="${{ inputs.author_affiliation }}" \
+            version="${{ inputs.version }}" \
+            version_label="${{ inputs.version_label }}" \
+            date="$(date -u +%Y-%m-%d)" \
+            license="${{ inputs.license }}" \
+            target_deposit="${{ inputs.target_deposit }}" \
+            doi="${{ inputs.doi }}" \
+            keywords="${{ inputs.keywords }}" \
+            github_user="${{ steps.owner.outputs.owner }}" \
+            abstract="${{ inputs.abstract }}"
+
+          REPO_NAME="articles.${TOPIC}"
+          PROJECT_DIR="$OUTPUT_DIR/$REPO_NAME"
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "Rendered to: $PROJECT_DIR"
+          echo "---"
+          find "$PROJECT_DIR" -type f | sort
+
+      - name: Verify rendered repo validates
+        run: |
+          cd "${{ steps.cookiecutter.outputs.project_dir }}"
+          make validate
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name  "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Stage initial commit
+        run: |
+          cd "${{ steps.cookiecutter.outputs.project_dir }}"
+          # cookiecutter's post_gen_project.py hook already initialized git
+          # on the `master` branch, made scripts executable, and installed
+          # the pre-push hook into .git/hooks/.
+          git add .
+          git commit -m "initial scaffold (from article-scaffold workflow)"
+
+      - name: Create and push new GitHub repo
+        id: create
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          cd "${{ steps.cookiecutter.outputs.project_dir }}"
+          set +x   # never print the token-bearing remote URL to logs
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Secret GH_PAT is not set. See the workflow file for setup instructions."
+            exit 1
+          fi
+          REPO_FULL="${{ steps.owner.outputs.owner }}/${{ steps.cookiecutter.outputs.repo_name }}"
+
+          # Create the empty repo on GitHub. --source=. would set up an
+          # `origin` remote, but the URL it creates is HTTPS and `git push`
+          # below would prompt for credentials (the GH_TOKEN env var is
+          # visible to `gh` but NOT to raw `git`). We create without --source
+          # and inject the token into the remote URL ourselves.
+          gh repo create "$REPO_FULL" \
+            --${{ inputs.repo_visibility }} \
+            --description="Article manuscript repository scaffolded from article-scaffold."
+
+          # Add `origin` with the token embedded in the URL so raw `git push`
+          # authenticates non-interactively. We do not echo the URL.
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git"
+
+          # Push the initial commit. By default the pre-push hook runs
+          # `make validate` again — harmless (we already validated) but
+          # adds ~5 s. The user can opt out via `skip_pre_push_hook`.
+          if [ "${{ inputs.skip_pre_push_hook }}" = "true" ]; then
+            git push --no-verify -u origin master
+          else
+            git push -u origin master
+          fi
+
+          # Scrub the token from the remote URL so it does not leak into
+          # .git/config if someone later inspects it. The remote now points
+          # at the clean HTTPS URL; future pushes will use git's credential
+          # helper (or the user's local auth).
+          git remote set-url origin "https://github.com/${REPO_FULL}.git"
+
+          echo "repo_url=https://github.com/$REPO_FULL" >> $GITHUB_OUTPUT
+          echo "::notice::Created ${{ inputs.repo_visibility }} repo at https://github.com/$REPO_FULL"
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Bootstrap result"
+            echo ""
+            if [ -n "${{ steps.create.outputs.repo_url }}" ]; then
+              echo "| Field | Value |"
+              echo "|-------|-------|"
+              echo "| Repo | [\`${{ steps.owner.outputs.owner }}/${{ steps.cookiecutter.outputs.repo_name }}\`](${{ steps.create.outputs.repo_url }}) |"
+              echo "| Visibility | \`${{ inputs.repo_visibility }}\` |"
+              echo "| Default branch | \`master\` |"
+              echo "| Version | \`${{ inputs.version }}\` (${{ inputs.version_label }}) |"
+              echo "| Author | ${{ inputs.author_name }} (ORCID ${{ inputs.author_orcid }}) |"
+              echo "| Topic slug | \`${{ inputs.topic }}\` |"
+              echo ""
+              echo "### Next steps"
+              echo ""
+              echo "1. \`git clone\` the new repo locally."
+              echo "2. (Optional) Edit \`metadata.yaml\` to refine title/keywords/etc."
+              echo "3. Run \`make metadata\` to regenerate \`CITATION.cff\`, \`.zenodo.json\`, the README citation block, and the title block in \`paper/article.tex\`."
+              echo "4. Open \`paper/sections/00_abstract.tex\` and start writing."
+              echo "5. \`make pdf\` to build the PDF."
+              echo "6. When ready to release: bump \`version\` in \`metadata.yaml\`, add a \`CHANGES.md\` entry, run \`make metadata && make pdf\`, commit, \`git tag v1.0.0 && git push origin v1.0.0\` — the \`release.yml\` workflow in the new repo will build and publish the artifacts."
+            else
+              echo "Bootstrap failed. See the job log above for the error."
+              echo ""
+              echo "Common failure: the \`GH_PAT\` secret is missing or does not have \`repo\` scope."
+              echo "Add it under Settings → Secrets and variables → Actions → New repository secret."
+            fi
+          } >> $GITHUB_STEP_SUMMARY

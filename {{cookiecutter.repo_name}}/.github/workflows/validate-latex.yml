@@ -1,0 +1,148 @@
+name: Validate LaTeX
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'paper/**'
+      - '.github/workflows/validate-latex.yml'
+  pull_request:
+    paths:
+      - 'paper/**'
+      - '.github/workflows/validate-latex.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: validate-latex-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    name: Check LaTeX sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify \input targets exist
+        run: |
+          set -e
+          python3 - <<'PY'
+          import os, re, sys
+
+          paper_dir = "paper"
+          main_tex = os.path.join(paper_dir, "article.tex")
+          if not os.path.isfile(main_tex):
+              print(f"::error::main TeX file not found: {main_tex}")
+              sys.exit(1)
+
+          with open(main_tex, encoding="utf-8") as f:
+              content = f.read()
+
+          # Find \input{...} commands that are NOT commented out
+          # (i.e. the line does not start with optional whitespace + %)
+          inputs = []
+          for line in content.splitlines():
+              stripped = line.lstrip()
+              if stripped.startswith("%"):
+                  continue
+              for m in re.findall(r"\\input\{([^}]+)\}", line):
+                  inputs.append(m)
+
+          errors = 0
+          for inp in inputs:
+              candidates = [
+                  os.path.join(paper_dir, inp),
+                  os.path.join(paper_dir, inp + ".tex"),
+              ]
+              if not any(os.path.isfile(c) for c in candidates):
+                  print(f"::error::\\input{{{inp}}} in article.tex does not resolve to a file")
+                  errors += 1
+              else:
+                  print(f"OK: \\input{{{inp}}}")
+
+          if errors:
+              sys.exit(1)
+          print(f"\nAll {len(inputs)} active \\input targets resolved.")
+          PY
+
+      - name: Verify \cite keys exist in refs.bib
+        run: |
+          set -e
+          python3 - <<'PY'
+          import os, re, sys
+
+          bib_path = "paper/refs.bib"
+          sections_dir = "paper/sections"
+
+          if not os.path.isfile(bib_path):
+              print(f"::error::BibTeX file not found: {bib_path}")
+              sys.exit(1)
+
+          with open(bib_path, encoding="utf-8") as f:
+              bib = f.read()
+          bib_keys = set(re.findall(r"@\w+\{([^,]+),", bib))
+          print(f"Found {len(bib_keys)} BibTeX entries.")
+
+          cited = set()
+          for fname in sorted(os.listdir(sections_dir)):
+              if not fname.endswith(".tex"):
+                  continue
+              with open(os.path.join(sections_dir, fname), encoding="utf-8") as f:
+                  section_content = f.read()
+              # Strip comments before extracting \cite keys
+              section_content = re.sub(r"(?m)%.*$", "", section_content)
+              for match in re.findall(r"\\cite\{([^}]+)\}", section_content):
+                  for key in match.split(","):
+                      cited.add(key.strip())
+
+          print(f"Found {len(cited)} unique \\cite keys across section files.")
+          missing = cited - bib_keys
+          if missing:
+              print("\n::error::The following \\cite keys are missing from refs.bib:")
+              for k in sorted(missing):
+                  print(f"  - {k}")
+              sys.exit(1)
+
+          # Also warn about unused bib entries (not fatal, just noisy)
+          unused = bib_keys - cited
+          if unused:
+              print(f"\n::warning::{len(unused)} BibTeX entries are defined but never cited:")
+              for k in sorted(unused):
+                  print(f"  - {k}")
+
+          print("\nAll \\cite keys resolve.")
+          PY
+
+      - name: Sanity check balanced braces
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+
+          for path in ["paper/article.tex"]:
+              if not os.path.isfile(path):
+                  print(f"::error::file not found: {path}")
+                  sys.exit(1)
+              with open(path, encoding="utf-8") as f:
+                  content = f.read()
+              # Strip comments (everything from an unescaped % to end of line)
+              stripped = re.sub(r"(?<!\\)%.*$", "", content)
+              opens = stripped.count("{")
+              closes = stripped.count("}")
+              if opens != closes:
+                  print(f"::error::Brace mismatch in {path}: {opens} '{{' vs {closes} '}}'")
+                  sys.exit(1)
+              print(f"OK: {path} braces balanced ({opens} pairs).")
+          PY

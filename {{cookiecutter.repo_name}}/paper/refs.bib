@@ -1,0 +1,28 @@
+% BibTeX bibliography for {{ cookiecutter.title }}
+%
+% Conventions:
+%   - Citation keys: authorlastnameYEAR (lowercase). E.g. perez2002, anthropic2026.
+%   - For multiple authors in the same year, append a, b, c: smith2026a, smith2026b.
+%   - Required fields vary by entry type; bibtex will warn if missing.
+%   - URLs go in the `url` field; access dates go in the `urldate` field (biblatex)
+%     or in a `note` field (classic bibtex).
+%
+% Citation keys defined here are referenced via \cite{key} or \citep{key} in
+% the section files. The CI validation step (validate-latex.yml) checks that
+% every \cite key in sections/*.tex resolves to an entry here.
+
+@book{perez2002,
+  author    = {Perez, Carlota},
+  title     = {Technological Revolutions and Financial Capital},
+  publisher = {Edward Elgar},
+  address   = {Cheltenham, UK},
+  year      = {2002}
+}
+
+@misc{example2026,
+  author       = {Example, Author},
+  title        = {An example reference entry},
+  year         = {2026},
+  howpublished = {\url{https://example.com}},
+  note         = {Accessed: {{ cookiecutter.date }}}
+}

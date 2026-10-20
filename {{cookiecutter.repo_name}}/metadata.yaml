@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────
+# Single source of truth for manuscript metadata.
+#
+# Edit this file, then run:
+#   python scripts/generate-metadata.py
+# to regenerate CITATION.cff, .zenodo.json, the README.md citation
+# block, and the title/author/date block in paper/article.tex.
+#
+# Re-running generate-metadata.py is idempotent: it only overwrites
+# the metadata-derived fields, leaving your prose untouched.
+# ─────────────────────────────────────────────────────────────
+
+title: "{{ cookiecutter.title }}"
+{% if cookiecutter.subtitle %}
+subtitle: "{{ cookiecutter.subtitle }}"
+{% else %}
+# subtitle: ""  # optional; uncomment and fill if needed
+{% endif %}
+manuscript_type: "{{ cookiecutter.manuscript_type }}"
+
+author:
+  name: "{{ cookiecutter.author_name }}"
+  orcid: "{{ cookiecutter.author_orcid }}"
+  affiliation: "{{ cookiecutter.author_affiliation }}"
+
+version: "{{ cookiecutter.version }}"
+version_label: "{{ cookiecutter.version_label }}"
+date: "{{ cookiecutter.date }}"
+
+license: "{{ cookiecutter.license }}"
+target_deposit: "{{ cookiecutter.target_deposit }}"
+doi: "{{ cookiecutter.doi }}"   # fill after deposit; leave empty for pre-deposit
+
+# Repository coordinates — used in CITATION.cff, .zenodo.json, README badge
+github_user: "{{ cookiecutter.github_user }}"
+repo_name: "{{ cookiecutter.repo_name }}"
+repo_url: "https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.repo_name }}"
+
+# Comma-separated; the generator splits on commas and trims whitespace.
+keywords: "{{ cookiecutter.keywords }}"
+
+# Free-text description used in .zenodo.json.
+# Defaults to the same text as the abstract; replace with a longer
+# Zenodo-specific description if needed.
+description: "{{ cookiecutter.abstract }}"
+
+# Used by .zenodo.json `references`. Each entry should be a short,
+# human-readable citation. Optional — leave empty list for a fresh repo.
+references: []
+#  - "Perez, C. (2002). Technological Revolutions and Financial Capital."
+#  - "Anthropic (2026). An update on independent evaluators."
+
+# Zenodo communities — optional. Each identifier maps to a Zenodo community.
+communities:
+  - technology
+  - political-science

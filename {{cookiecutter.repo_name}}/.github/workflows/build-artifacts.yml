@@ -1,0 +1,105 @@
+name: Build Artifacts
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'paper/**'
+      - '.github/workflows/build-artifacts.yml'
+    tags-ignore:
+      - 'v*'   # tags are handled by release.yml, which reuses this build
+  pull_request:
+    paths:
+      - 'paper/**'
+      - '.github/workflows/build-artifacts.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: build-artifacts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-docx:
+    name: Build DOCX via Pandoc
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build DOCX with Pandoc
+        run: |
+          set -e
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace/paper \
+            pandoc/latex:3.1 \
+            --output=/workspace/manuscript.docx \
+            --from=latex \
+            --to=docx \
+            --citeproc \
+            --bibliography=refs.bib \
+            article.tex
+
+      - name: Verify output
+        run: |
+          if [ ! -f manuscript.docx ]; then
+            echo "::error::Pandoc did not produce manuscript.docx"
+            exit 1
+          fi
+          SIZE=$(stat -c%s manuscript.docx)
+          echo "Built manuscript.docx ($SIZE bytes)"
+          if [ "$SIZE" -lt 10240 ]; then
+            echo "::error::DOCX is suspiciously small ($SIZE bytes)"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manuscript-docx
+          path: manuscript.docx
+          retention-days: 7
+          if-no-files-found: error
+
+  build-pdf:
+    name: Build PDF via pdflatex
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile LaTeX
+        uses: xu-cheng/texlive-action@v2
+        with:
+          run: |
+            cd paper
+            latexmk -pdf -interaction=nonstopmode -file-line-error article.tex
+            test -f article.pdf
+            cp article.pdf ../manuscript.pdf
+
+      - name: Verify PDF
+        run: |
+          if [ ! -f manuscript.pdf ]; then
+            echo "::error::pdflatex did not produce manuscript.pdf"
+            exit 1
+          fi
+          SIZE=$(stat -c%s manuscript.pdf)
+          echo "Built manuscript.pdf ($SIZE bytes)"
+          if [ "$SIZE" -lt 20480 ]; then
+            echo "::error::PDF is suspiciously small ($SIZE bytes)"
+            exit 1
+          fi
+          if grep -q "There were undefined references" paper/article.log; then
+            echo "::error::Some citations remain undefined - bibtex may have failed"
+            echo "::group::Last 30 lines of article.log"
+            tail -30 paper/article.log
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manuscript-pdf
+          path: manuscript.pdf
+          retention-days: 7
+          if-no-files-found: error

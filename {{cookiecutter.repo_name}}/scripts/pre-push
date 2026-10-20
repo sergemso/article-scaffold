@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Git pre-push hook — runs `make validate` (same checks as
+# .github/workflows/validate-latex.yml) before any push.
+#
+# Installed by cookiecutter post_gen_project.py hook into
+# .git/hooks/pre-push. To install manually in an existing repo:
+#   cp scripts/pre-push .git/hooks/pre-push
+#   chmod +x .git/hooks/pre-push
+#
+# To bypass for a single push: `git push --no-verify`.
+
+set -euo pipefail
+
+# Resolve repo root from the hook's location so the hook works
+# regardless of where `git push` is invoked from.
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPO_ROOT"
+
+echo "[pre-push] running make validate ..."
+
+if ! command -v make >/dev/null 2>&1; then
+    echo "[pre-push] WARNING: 'make' not found — skipping local validation."
+    exit 0
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "[pre-push] WARNING: 'python3' not found — skipping local validation."
+    exit 0
+fi
+
+if ! make validate; then
+    echo "[pre-push] FAILED local validation. Push aborted."
+    echo "[pre-push] To bypass: 'git push --no-verify'."
+    exit 1
+fi
+
+echo "[pre-push] OK."
+exit 0

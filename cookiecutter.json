@@ -1,0 +1,26 @@
+{
+  "topic": "subject_slug",
+  "repo_name": "articles.{{ cookiecutter.topic }}",
+  "github_user": "sergemso",
+  "title": "Untitled Manuscript",
+  "subtitle": "",
+  "manuscript_type": "Perspective / Review Essay",
+  "author_name": "Sergei A. Strebulaev",
+  "author_orcid": "0009-0006-2710-8910",
+  "author_affiliation": "Independent Researcher",
+  "version": "1.0.0",
+  "version_label": "v1 preprint",
+  "date": "{% now 'local', '%Y-%m-%d' %}",
+  "license": "CC-BY-4.0",
+  "target_deposit": "Zenodo",
+  "doi": "",
+  "keywords": "research, methodology",
+  "abstract": "Replace this placeholder with the manuscript abstract. State the question, the contribution, the evidence base, and the limitations. The abstract is the first thing a reader sees and the only thing many readers will read, so it should be a self-contained summary of the argument, not a teaser for it.",
+  "_extensions": [
+    "jinja2_time.TimeExtension"
+  ],
+  "_copy_without_render": [
+    ".github/workflows/*.yml",
+    "scripts/*.py"
+  ]
+}

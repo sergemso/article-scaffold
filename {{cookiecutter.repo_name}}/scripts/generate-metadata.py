@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""
+generate-metadata.py — regenerate derived metadata from metadata.yaml.
+
+Reads  metadata.yaml  and writes:
+  - CITATION.cff
+  - .zenodo.json
+  - paper/article.tex    (only the METADATA:TITLE_BLOCK:START ... :END block)
+  - README.md            (only the BIBTEX:CITATION:START ... :END block)
+
+Idempotent: re-running with the same metadata.yaml produces byte-identical
+output. Lines outside the sentinel-marked blocks are preserved, so manual
+edits to README.md or article.tex prose survive a regeneration.
+
+Usage:
+    python scripts/generate-metadata.py
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from datetime import date
+from pathlib import Path
+
+try:
+    import yaml  # type: ignore
+except ImportError:
+    print(
+        "ERROR: PyYAML is required. Install with: pip install pyyaml",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+METADATA_PATH = REPO_ROOT / "metadata.yaml"
+CITATION_PATH = REPO_ROOT / "CITATION.cff"
+ZENODO_PATH = REPO_ROOT / ".zenodo.json"
+ARTICLE_TEX_PATH = REPO_ROOT / "paper" / "article.tex"
+README_PATH = REPO_ROOT / "README.md"
+
+TITLE_BLOCK_START = "% METADATA:TITLE_BLOCK:START"
+TITLE_BLOCK_END = "% METADATA:TITLE_BLOCK:END"
+README_CITATION_START = "<!-- BIBTEX:CITATION:START -->"
+README_CITATION_END = "<!-- BIBTEX:CITATION:END -->"
+
+
+# ─────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────
+
+
+def load_metadata() -> dict:
+    if not METADATA_PATH.is_file():
+        print(f"ERROR: metadata.yaml not found at {METADATA_PATH}", file=sys.stderr)
+        sys.exit(1)
+    with METADATA_PATH.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    # Normalise: split keywords, parse date
+    raw_keywords = data.get("keywords", "") or ""
+    data["_keywords_list"] = [k.strip() for k in raw_keywords.split(",") if k.strip()]
+    raw_date = data.get("date", "")
+    if isinstance(raw_date, date):
+        data["_date_iso"] = raw_date.isoformat()
+    elif raw_date:
+        try:
+            d = date.fromisoformat(str(raw_date)[:10])
+            data["_date_iso"] = d.isoformat()
+        except ValueError:
+            data["_date_iso"] = str(raw_date)
+    else:
+        data["_date_iso"] = ""
+    # Author name parsing
+    author = data.get("author", {})
+    if isinstance(author, dict):
+        full_name = author.get("name", "")
+        orcid = author.get("orcid", "")
+        affiliation = author.get("affiliation", "")
+    else:
+        full_name, orcid, affiliation = str(author), "", ""
+    parts = full_name.split()
+    if len(parts) >= 2:
+        family, given = parts[-1], " ".join(parts[:-1])
+    else:
+        family, given = full_name, ""
+    data["_author_family"] = family
+    data["_author_given"] = given
+    data["_author_full"] = full_name
+    data["_author_orcid"] = orcid
+    data["_author_affiliation"] = affiliation
+    # Repo URL
+    data["_repo_url"] = (
+        f"https://github.com/{data.get('github_user','')}/{data.get('repo_name','')}"
+    )
+    # DOI URL
+    doi = data.get("doi", "") or ""
+    data["_doi"] = doi
+    data["_doi_url"] = f"https://doi.org/{doi}" if doi else data["_repo_url"]
+    return data
+
+
+def latex_escape(s: str) -> str:
+    """Minimal LaTeX escape for free-text fields embedded in article.tex."""
+    if not s:
+        return ""
+    # Order matters: escape backslash first, then the rest.
+    out = s.replace("\\", r"\textbackslash{}")
+    out = out.replace("&", r"\&")
+    out = out.replace("%", r"\%")
+    out = out.replace("$", r"\$")
+    out = out.replace("#", r"\#")
+    out = out.replace("_", r"\_")
+    out = out.replace("{", r"\{")
+    out = out.replace("}", r"\}")
+    out = out.replace("~", r"\textasciitilde{}")
+    out = out.replace("^", r"\textasciicircum{}")
+    return out
+
+
+# ─────────────────────────────────────────────────────────────
+# Generators
+# ─────────────────────────────────────────────────────────────
+
+
+def gen_citation_cff(m: dict) -> str:
+    lines = []
+    lines.append("cff-version: 1.2.0")
+    lines.append('message: "If you use this manuscript, please cite it as below."')
+    lines.append("authors:")
+    lines.append(f"- family-names: {m['_author_family']}")
+    lines.append(f"  given-names: {m['_author_given']}")
+    if m.get("_author_orcid"):
+        lines.append(f'  orcid: "https://orcid.org/{m["_author_orcid"]}"')
+    lines.append(f'title: "{m.get("title","")}"')
+    if m.get("subtitle"):
+        lines.append(f'subtitle: "{m["subtitle"]}"')
+    lines.append(f'version: {m.get("version","")}')
+    lines.append(f'date-released: {m["_date_iso"]}')
+    lines.append(f'url: "{m["_repo_url"]}"')
+    lines.append(f'repository-code: "{m["_repo_url"]}"')
+    lines.append(f'license: {m.get("license","")}')
+    lines.append("type: manuscript")
+    if m.get("_doi"):
+        lines.append(f'doi: "{m["_doi"]}"')
+    lines.append("keywords:")
+    for kw in m["_keywords_list"]:
+        lines.append(f'- "{kw}"')
+    lines.append("preferred-citation:")
+    lines.append("  type: manuscript")
+    lines.append(f'  title: "{m.get("title","")}"')
+    lines.append("  authors:")
+    lines.append(f"  - family-names: {m['_author_family']}")
+    lines.append(f"    given-names: {m['_author_given']}")
+    if m.get("_author_orcid"):
+        lines.append(f'    orcid: "https://orcid.org/{m["_author_orcid"]}"')
+    year = m["_date_iso"][:4] if m["_date_iso"] else ""
+    month = m["_date_iso"][5:7] if len(m["_date_iso"]) >= 7 else ""
+    lines.append(f"  year: {year}")
+    if month:
+        try:
+            lines.append(f"  month: {int(month)}")
+        except ValueError:
+            pass
+    notes = f'{m.get("version_label","")}, deposited on {m.get("target_deposit","")}'
+    lines.append(f'  notes: "{notes}"')
+    return "\n".join(lines) + "\n"
+
+
+def gen_zenodo_json(m: dict) -> str:
+    obj = {
+        "title": m.get("title", ""),
+        "description": m.get("description", "") or m.get("abstract", ""),
+        "creators": [
+            {
+                "name": m["_author_full"],
+                "orcid": m["_author_orcid"],
+                "affiliation": m["_author_affiliation"],
+            }
+        ],
+        "keywords": m["_keywords_list"],
+        "license": m.get("license", ""),
+        "upload_type": "publication",
+        "publication_type": "preprint",
+        "access_right": "open",
+        "version": m.get("version", ""),
+        "language": "en",
+        "communities": [{"identifier": c} for c in m.get("communities", []) or []],
+        "related_identifiers": [],
+        "references": m.get("references", []) or [],
+    }
+    if m.get("_doi"):
+        obj["doi"] = m["_doi"]
+    return json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
+
+
+def gen_article_tex_title_block(m: dict) -> str:
+    title = latex_escape(m.get("title", ""))
+    subtitle = latex_escape(m.get("subtitle", "")) if m.get("subtitle") else ""
+    author = latex_escape(m["_author_full"])
+    affiliation = latex_escape(m["_author_affiliation"])
+    orcid = m["_author_orcid"]
+    vlabel = m.get("version_label", "")
+    date_iso = m["_date_iso"]
+    out = [TITLE_BLOCK_START]
+    # Title with optional inline subtitle. The leading/trailing spaces inside
+    # \textbf{} and \title{} match the cookiecutter template's format so
+    # `make metadata` is a no-op on first run.
+    title_inner = f"\\Large \\textbf{{ {title}"
+    if subtitle:
+        title_inner += f"\\\\[0.3em] \\large {subtitle}"
+    title_inner += " }"
+    out.append(f"\\title{{{title_inner}}}")
+    out.append(f"\\author{{ {author}\\\\")
+    out.append(f"\\small {affiliation}\\\\")
+    out.append(f"\\small \\texttt{{ORCID: {orcid}}}}}")
+    out.append(f"\\date{{\\small {vlabel} — {date_iso}}}")
+    out.append(TITLE_BLOCK_END)
+    return "\n".join(out) + "\n"
+
+
+def gen_readme_bibtex_block(m: dict) -> str:
+    topic = m.get("repo_name", "").replace("articles.", "").replace(".", "_")
+    vlabel_norm = re.sub(r"[^A-Za-z0-9]", "_", m.get("version_label", ""))
+    key = f"{topic}_{vlabel_norm}"
+    author = m["_author_full"]
+    title = m.get("title", "")
+    year = m["_date_iso"][:4] if m["_date_iso"] else ""
+    vlabel = m.get("version_label", "")
+    deposit = m.get("target_deposit", "")
+    license_ = m.get("license", "")
+    lines = [
+        README_CITATION_START,
+        "<!-- Regenerated by `python scripts/generate-metadata.py` from metadata.yaml.",
+        "     Edit metadata.yaml, not this block. -->",
+        "```bibtex",
+        f"@misc{{ {key},",
+        f"  author       = {{ {author} }},",
+        f"  title        = {{ {title} }},",
+        f"  year         = {{ {year} }},",
+        f"  note         = {{ {vlabel} }},",
+        f"  howpublished = {{ {deposit} }},",
+    ]
+    if m.get("_doi"):
+        lines.append(f"  doi          = {{ {m['_doi']} }},")
+        lines.append(f"  url          = {{ {m['_doi_url']} }},")
+    else:
+        lines.append(f"  url          = {{ {m['_repo_url']} }},")
+    lines.append(f"  license      = {{ {license_} }}")
+    lines.append("}")
+    lines.append("```")
+    lines.append(README_CITATION_END)
+    return "\n".join(lines) + "\n"
+
+
+# ─────────────────────────────────────────────────────────────
+# Block replacement
+# ─────────────────────────────────────────────────────────────
+
+
+def replace_block(text: str, start_marker: str, end_marker: str, new_block: str) -> str:
+    pattern = re.compile(
+        re.escape(start_marker) + r".*?" + re.escape(end_marker),
+        re.DOTALL,
+    )
+    if not pattern.search(text):
+        raise ValueError(
+            f"Could not find marker block {start_marker}...{end_marker} in target file"
+        )
+    # Use a lambda replacement so backslashes in new_block (e.g. \Large in
+    # LaTeX) are treated as literals, not as regex group references.
+    new_block_stripped = new_block.rstrip("\n")
+    return pattern.sub(lambda m: new_block_stripped, text)
+
+
+# ─────────────────────────────────────────────────────────────
+# Main
+# ─────────────────────────────────────────────────────────────
+
+
+def main() -> int:
+    m = load_metadata()
+
+    # CITATION.cff — full rewrite
+    CITATION_PATH.write_text(gen_citation_cff(m), encoding="utf-8")
+    print(f"  wrote {CITATION_PATH.relative_to(REPO_ROOT)}")
+
+    # .zenodo.json — full rewrite
+    ZENODO_PATH.write_text(gen_zenodo_json(m), encoding="utf-8")
+    print(f"  wrote {ZENODO_PATH.relative_to(REPO_ROOT)}")
+
+    # article.tex — replace title block
+    article_text = ARTICLE_TEX_PATH.read_text(encoding="utf-8")
+    new_title_block = gen_article_tex_title_block(m)
+    new_article_text = replace_block(
+        article_text, TITLE_BLOCK_START, TITLE_BLOCK_END, new_title_block
+    )
+    ARTICLE_TEX_PATH.write_text(new_article_text, encoding="utf-8")
+    print(f"  updated {ARTICLE_TEX_PATH.relative_to(REPO_ROOT)} (title block)")
+
+    # README.md — replace citation block
+    readme_text = README_PATH.read_text(encoding="utf-8")
+    new_bibtex_block = gen_readme_bibtex_block(m)
+    new_readme = replace_block(
+        readme_text, README_CITATION_START, README_CITATION_END, new_bibtex_block
+    )
+    README_PATH.write_text(new_readme, encoding="utf-8")
+    print(f"  updated {README_PATH.relative_to(REPO_ROOT)} (citation block)")
+
+    print("\nDone. Review with `git diff` before committing.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

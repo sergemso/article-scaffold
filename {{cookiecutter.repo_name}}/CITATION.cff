@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this manuscript, please cite it as below."
+authors:
+- family-names: {{ cookiecutter.author_name.split()[-1] }}
+  given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) }}
+  orcid: "https://orcid.org/{{ cookiecutter.author_orcid }}"
+title: "{{ cookiecutter.title }}"
+{%- if cookiecutter.subtitle %}
+subtitle: "{{ cookiecutter.subtitle }}"
+{%- endif %}
+version: {{ cookiecutter.version }}
+date-released: {{ cookiecutter.date }}
+url: "https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.repo_name }}"
+repository-code: "https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.repo_name }}"
+license: {{ cookiecutter.license }}
+type: manuscript
+{%- if cookiecutter.doi %}
+doi: "{{ cookiecutter.doi }}"
+{%- endif %}
+keywords:
+{%- for kw in cookiecutter.keywords.split(",") %}
+- "{{ kw.strip() }}"
+{%- endfor %}
+preferred-citation:
+  type: manuscript
+  title: "{{ cookiecutter.title }}"
+  authors:
+  - family-names: {{ cookiecutter.author_name.split()[-1] }}
+    given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) }}
+    orcid: "https://orcid.org/{{ cookiecutter.author_orcid }}"
+  year: {{ cookiecutter.date[:4] }}
+  month: {{ cookiecutter.date[5:7] | int }}
+  notes: "{{ cookiecutter.version_label }}, deposited on {{ cookiecutter.target_deposit }}"
