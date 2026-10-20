@@ -40,3 +40,11 @@ history after work has started.
 - render helper + 4 named xfail regressions; special chars/DOI/empty subtitle render
 - verify: passed
 - scope: clean
+
+## 2026-10-20T23:27:01Z — T04 — claim
+- owner=agent ttl=120m
+
+## 2026-10-20T23:27:02Z — T04 — done
+- test-template.yml: lint/unit/render; default metadata drift check; special chars via pytest xfail
+- verify: passed
+- scope: clean

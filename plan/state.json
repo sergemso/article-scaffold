@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-20T23:25:57Z",
+  "updated": "2026-10-20T23:27:02Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -208,14 +208,49 @@
       "steps_done": []
     },
     "T04": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-20T23:27:02Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-20T23:27:01Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "2086392e178002f6d29897e8592f79ae29608531",
+          "checks": [
+            {
+              "cmd": "python3 -c \"import pathlib, yaml; yaml.safe_load(pathlib.Path('.github/workflows/test-template.yml').read_text())\"",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "",
+              "at": "2026-10-20T23:27:01Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-20T23:27:02Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "2086392e178002f6d29897e8592f79ae29608531",
+          "checks": [
+            {
+              "cmd": "python3 -c \"import pathlib, yaml; yaml.safe_load(pathlib.Path('.github/workflows/test-template.yml').read_text())\"",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "",
+              "at": "2026-10-20T23:27:02Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "test-template.yml: lint/unit/render; default metadata drift check; special chars via pytest xfail"
+      ],
       "steps_done": []
     },
     "T05": {

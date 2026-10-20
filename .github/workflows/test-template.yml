@@ -1,0 +1,106 @@
+# Template tests: lint, unit tests, and a real render.
+#
+# The special-character fixture is rendered here too, but only the default
+# render is checked for metadata drift. The known escaping bugs are tracked as
+# xfail tests in tests/test_render.py and are fixed in Phase 1.
+name: Template tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: template-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dev tools
+        run: make setup
+
+      - name: Run linters
+        run: make lint
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dev tools
+        run: make setup
+
+      - name: Run pytest
+        run: make test
+
+  render:
+    name: Render and validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dev tools
+        run: make setup
+
+      - name: Put the dev environment on PATH
+        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Render default and special-character fixtures
+        run: |
+          .venv/bin/python - <<'PY'
+          from pathlib import Path
+
+          from tests.conftest import SPECIAL_ABSTRACT, SPECIAL_TITLE, render
+
+          default = render(tmp_path=Path("/tmp/render/default"))
+          special = render(
+              tmp_path=Path("/tmp/render/special"),
+              title=SPECIAL_TITLE,
+              abstract=SPECIAL_ABSTRACT,
+          )
+          Path("/tmp/render/paths").write_text(f"{default}\n{special}\n")
+          print(f"default={default}")
+          print(f"special={special}")
+          PY
+
+      - name: Validate both renders
+        run: |
+          DEFAULT=$(sed -n '1p' /tmp/render/paths)
+          SPECIAL=$(sed -n '2p' /tmp/render/paths)
+          test -f "$DEFAULT/paper/article.tex"
+          test -f "$SPECIAL/paper/article.tex"
+          make -C "$DEFAULT" validate
+          make -C "$SPECIAL" validate
+
+      - name: Check metadata drift on the default render
+        run: |
+          DEFAULT=$(sed -n '1p' /tmp/render/paths)
+          git -C "$DEFAULT" add -A
+          git -C "$DEFAULT" \
+            -c user.name=CI \
+            -c user.email=ci@example.invalid \
+            commit -qm initial
+          make -C "$DEFAULT" metadata
+          git -C "$DEFAULT" diff --exit-code
