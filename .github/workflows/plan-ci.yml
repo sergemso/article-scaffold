@@ -1,0 +1,98 @@
+# Bootstrap CI for the agent-executable plan.
+#
+# This is intentionally small: it validates the plan/state harness and does a
+# default Cookiecutter render. T04 replaces/expands it with the full template
+# matrix (lint, unit tests, special-character fixtures, validate/metadata drift).
+name: Plan CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plan-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan and state
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Compile the harness
+        run: python3 -m py_compile plan/agentctl.py
+
+      - name: Validate plan and state
+        run: |
+          python3 plan/agentctl.py doctor
+          python3 plan/agentctl.py audit
+
+      - name: Check the machine-readable contract
+        run: |
+          python3 plan/agentctl.py status --json > /tmp/status.json
+          python3 plan/agentctl.py next --json > /tmp/next.json
+          python3 -m json.tool /tmp/status.json > /dev/null
+          python3 -m json.tool /tmp/next.json > /dev/null
+          python3 - <<'PY'
+          import json
+
+          status = json.load(open("/tmp/status.json"))
+          tasks = json.load(open("plan/tasks.json"))["tasks"]
+          assert len(tasks) == len({t["id"] for t in tasks}), "duplicate task id"
+          assert len(tasks) == len({t["order"] for t in tasks}), "duplicate order"
+          assert status["counts"].get("done", 0) >= 1, status["counts"]
+          assert status["phases"]["P0"]["total"] == 4, status["phases"]["P0"]
+
+          nxt = json.load(open("/tmp/next.json"))
+          if nxt.get("task"):
+              assert nxt["task"]["id"] in status["tasks"]
+              assert status["tasks"][nxt["task"]["id"]]["status"] in {"todo", "in_progress"}
+          print("plan contract OK")
+          PY
+
+      - name: Render a human status report
+        run: |
+          python3 plan/agentctl.py render --write /tmp/STATUS.md
+          test -s /tmp/STATUS.md
+          head -20 /tmp/STATUS.md
+
+  render-smoke:
+    name: Default render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Cookiecutter
+        run: |
+          python3 -m pip install --disable-pip-version-check \
+            cookiecutter jinja2-time pyyaml
+
+      - name: Render with the default context
+        run: |
+          cookiecutter --no-input . --output-dir /tmp/render
+          test -f /tmp/render/articles.subject_slug/paper/article.tex
+          test -f /tmp/render/articles.subject_slug/metadata.yaml
+          python3 - <<'PY'
+          import pathlib
+          import yaml
+
+          root = pathlib.Path("/tmp/render/articles.subject_slug")
+          meta = yaml.safe_load((root / "metadata.yaml").read_text())
+          assert isinstance(meta, dict), meta
+          assert meta.get("title"), meta
+          print("render smoke OK:", meta["title"])
+          PY

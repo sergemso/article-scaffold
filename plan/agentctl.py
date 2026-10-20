@@ -743,6 +743,9 @@ def cmd_next(args) -> int:
     state = load_state(tasks, create=False)
     task, resume = next_action(tasks, state, include_optional=args.include_optional)
     if task is None:
+        if args.json:
+            print(json.dumps({"task": None, "state": None, "resume": False}, indent=2))
+            return 0
         print("No ready tasks.")
         if not args.include_optional:
             print("All non-optional tasks may be done; pass --include-optional to see P5/P6.")
