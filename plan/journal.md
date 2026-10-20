@@ -71,3 +71,11 @@ history after work has started.
 - abstract/abstract_note/keywords single-source; sentinels for abstract, README masthead, CHANGES, backmatter; idempotent generator
 - verify: passed
 - scope: clean
+
+## 2026-10-20T23:33:25Z — T07 — claim
+- owner=agent ttl=120m
+
+## 2026-10-20T23:33:28Z — T07 — done
+- hypersetup pdftitle/pdfauthor/pdfsubject/pdfkeywords generated in title block; hostile chars and empty subtitle covered
+- verify: passed
+- scope: clean

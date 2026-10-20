@@ -234,6 +234,14 @@ def gen_article_tex_title_block(m: dict) -> str:
     out.append(f"\\small {affiliation}\\\\")
     out.append(f"\\small \\texttt{{ORCID: {orcid}}}}}")
     out.append(f"\\date{{\\small {vlabel} — {date_iso}}}")
+    keywords = ", ".join(latex_escape(k) for k in m["_keywords_list"])
+    subject = latex_escape(m.get("manuscript_type", ""))
+    out.append(r"\hypersetup{")
+    out.append(f"  pdftitle={{ {title} }},")
+    out.append(f"  pdfauthor={{ {author} }},")
+    out.append(f"  pdfsubject={{ {subject} }},")
+    out.append(f"  pdfkeywords={{ {keywords} }}")
+    out.append("}")
     out.append(TITLE_BLOCK_END)
     return "\n".join(out) + "\n"
 

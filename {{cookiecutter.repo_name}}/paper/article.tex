@@ -30,11 +30,7 @@
   colorlinks=true,
   linkcolor=blue!50!black,
   citecolor=blue!50!black,
-  urlcolor=blue!50!black,
-  pdftitle={ {{ cookiecutter.title }} },
-  pdfauthor={ {{ cookiecutter.author_name }} },
-  pdfsubject={ {{ cookiecutter.keywords }} },
-  pdfkeywords={ {{ cookiecutter.keywords }} }
+  urlcolor=blue!50!black
 }
 
 % Spacing
@@ -72,6 +68,12 @@
 \small {{ cookiecutter.author_affiliation }}\\
 \small \texttt{ORCID: {{ cookiecutter.author_orcid }}}}
 \date{\small {{ cookiecutter.version_label }} — {{ cookiecutter.date }}}
+\hypersetup{
+  pdftitle={ {{ cookiecutter.title }} },
+  pdfauthor={ {{ cookiecutter.author_name }} },
+  pdfsubject={ {{ cookiecutter.manuscript_type }} },
+  pdfkeywords={ {{ cookiecutter.keywords }} }
+}
 % METADATA:TITLE_BLOCK:END
 
 % ─────────────────────────────────────────────────────────────
