@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 
 import yaml
-
 from conftest import SPECIAL_ABSTRACT, SPECIAL_TITLE, render
 
 HOSTILE_SUBTITLE = 'A "sub" title with 50% & more'
