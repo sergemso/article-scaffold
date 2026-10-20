@@ -1,33 +1,33 @@
 cff-version: 1.2.0
 message: "If you use this manuscript, please cite it as below."
 authors:
-- family-names: {{ cookiecutter.author_name.split()[-1] }}
-  given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) }}
-  orcid: "https://orcid.org/{{ cookiecutter.author_orcid }}"
-title: "{{ cookiecutter.title }}"
+- family-names: {{ cookiecutter.author_name.split()[-1] | tojson }}
+  given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) | tojson }}
+  orcid: {{ ("https://orcid.org/" ~ cookiecutter.author_orcid) | tojson }}
+title: {{ cookiecutter.title | tojson }}
 {%- if cookiecutter.subtitle %}
-subtitle: "{{ cookiecutter.subtitle }}"
+subtitle: {{ cookiecutter.subtitle | tojson }}
 {%- endif %}
-version: {{ cookiecutter.version }}
-date-released: {{ cookiecutter.date }}
-url: "https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.repo_name }}"
-repository-code: "https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.repo_name }}"
-license: {{ cookiecutter.license }}
+version: {{ cookiecutter.version | tojson }}
+date-released: {{ cookiecutter.date | tojson }}
+url: {{ ("https://github.com/" ~ cookiecutter.github_user ~ "/" ~ cookiecutter.repo_name) | tojson }}
+repository-code: {{ ("https://github.com/" ~ cookiecutter.github_user ~ "/" ~ cookiecutter.repo_name) | tojson }}
+license: {{ cookiecutter.license | tojson }}
 type: manuscript
 {%- if cookiecutter.doi %}
-doi: "{{ cookiecutter.doi }}"
+doi: {{ cookiecutter.doi | tojson }}
 {%- endif %}
 keywords:
 {%- for kw in cookiecutter.keywords.split(",") %}
-- "{{ kw.strip() }}"
+- {{ kw.strip() | tojson }}
 {%- endfor %}
 preferred-citation:
   type: manuscript
-  title: "{{ cookiecutter.title }}"
+  title: {{ cookiecutter.title | tojson }}
   authors:
-  - family-names: {{ cookiecutter.author_name.split()[-1] }}
-    given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) }}
-    orcid: "https://orcid.org/{{ cookiecutter.author_orcid }}"
+  - family-names: {{ cookiecutter.author_name.split()[-1] | tojson }}
+    given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) | tojson }}
+    orcid: {{ ("https://orcid.org/" ~ cookiecutter.author_orcid) | tojson }}
   year: {{ cookiecutter.date[:4] }}
   month: {{ cookiecutter.date[5:7] | int }}
-  notes: "{{ cookiecutter.version_label }}, deposited on {{ cookiecutter.target_deposit }}"
+  notes: {{ (cookiecutter.version_label ~ ", deposited on " ~ cookiecutter.target_deposit) | tojson }}

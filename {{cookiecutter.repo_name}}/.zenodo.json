@@ -1,23 +1,23 @@
 {
-  "title": "{{ cookiecutter.title }}",
-  "description": "{{ cookiecutter.abstract }}",
+  "title": {{ cookiecutter.title | tojson }},
+  "description": {{ cookiecutter.abstract | tojson }},
   "creators": [
     {
-      "name": "{{ cookiecutter.author_name }}",
-      "orcid": "{{ cookiecutter.author_orcid }}",
-      "affiliation": "{{ cookiecutter.author_affiliation }}"
+      "name": {{ cookiecutter.author_name | tojson }},
+      "orcid": {{ cookiecutter.author_orcid | tojson }},
+      "affiliation": {{ cookiecutter.author_affiliation | tojson }}
     }
   ],
   "keywords": [
 {%- for kw in cookiecutter.keywords.split(",") %}
-    "{{ kw.strip() }}"{% if not loop.last %},{% endif %}
+    {{ kw.strip() | tojson }}{% if not loop.last %},{% endif %}
 {%- endfor %}
   ],
-  "license": "{{ cookiecutter.license }}",
+  "license": {{ cookiecutter.license | tojson }},
   "upload_type": "publication",
   "publication_type": "preprint",
   "access_right": "open",
-  "version": "{{ cookiecutter.version }}",
+  "version": {{ cookiecutter.version | tojson }},
   "language": "en",
   "communities": [
     {

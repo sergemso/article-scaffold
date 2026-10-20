@@ -55,3 +55,11 @@ history after work has started.
 - `audit`: 4 done, no scope or evidence errors
 - `plan/STATUS.md` rendered
 - `make lint`: clean
+
+## 2026-10-20T23:30:05Z — T05 — claim
+- owner=agent ttl=120m
+
+## 2026-10-20T23:30:08Z — T05 — done
+- tojson applied to YAML/JSON/CFF; hostile title/abstract/subtitle/keywords parse; special metadata generation passes
+- verify: passed
+- scope: clean

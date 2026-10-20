@@ -10,39 +10,39 @@
 # the metadata-derived fields, leaving your prose untouched.
 # ─────────────────────────────────────────────────────────────
 
-title: "{{ cookiecutter.title }}"
+title: {{ cookiecutter.title | tojson }}
 {% if cookiecutter.subtitle %}
-subtitle: "{{ cookiecutter.subtitle }}"
+subtitle: {{ cookiecutter.subtitle | tojson }}
 {% else %}
 # subtitle: ""  # optional; uncomment and fill if needed
 {% endif %}
-manuscript_type: "{{ cookiecutter.manuscript_type }}"
+manuscript_type: {{ cookiecutter.manuscript_type | tojson }}
 
 author:
-  name: "{{ cookiecutter.author_name }}"
-  orcid: "{{ cookiecutter.author_orcid }}"
-  affiliation: "{{ cookiecutter.author_affiliation }}"
+  name: {{ cookiecutter.author_name | tojson }}
+  orcid: {{ cookiecutter.author_orcid | tojson }}
+  affiliation: {{ cookiecutter.author_affiliation | tojson }}
 
-version: "{{ cookiecutter.version }}"
-version_label: "{{ cookiecutter.version_label }}"
-date: "{{ cookiecutter.date }}"
+version: {{ cookiecutter.version | tojson }}
+version_label: {{ cookiecutter.version_label | tojson }}
+date: {{ cookiecutter.date | tojson }}
 
-license: "{{ cookiecutter.license }}"
-target_deposit: "{{ cookiecutter.target_deposit }}"
-doi: "{{ cookiecutter.doi }}"   # fill after deposit; leave empty for pre-deposit
+license: {{ cookiecutter.license | tojson }}
+target_deposit: {{ cookiecutter.target_deposit | tojson }}
+doi: {{ cookiecutter.doi | tojson }}   # fill after deposit; leave empty for pre-deposit
 
 # Repository coordinates — used in CITATION.cff, .zenodo.json, README badge
-github_user: "{{ cookiecutter.github_user }}"
-repo_name: "{{ cookiecutter.repo_name }}"
-repo_url: "https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.repo_name }}"
+github_user: {{ cookiecutter.github_user | tojson }}
+repo_name: {{ cookiecutter.repo_name | tojson }}
+repo_url: {{ ("https://github.com/" ~ cookiecutter.github_user ~ "/" ~ cookiecutter.repo_name) | tojson }}
 
 # Comma-separated; the generator splits on commas and trims whitespace.
-keywords: "{{ cookiecutter.keywords }}"
+keywords: {{ cookiecutter.keywords | tojson }}
 
 # Free-text description used in .zenodo.json.
 # Defaults to the same text as the abstract; replace with a longer
 # Zenodo-specific description if needed.
-description: "{{ cookiecutter.abstract }}"
+description: {{ cookiecutter.abstract | tojson }}
 
 # Used by .zenodo.json `references`. Each entry should be a short,
 # human-readable citation. Optional — leave empty list for a fresh repo.
