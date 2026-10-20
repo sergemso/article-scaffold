@@ -68,7 +68,7 @@
         ".gitignore"
       ],
       "steps": [
-        "Create pyproject.toml with project metadata and a [project.optional-dependencies] dev extra: pytest, cookiecutter, pyyaml, cffconvert, jsonschema, ruff.",
+        "Create pyproject.toml with project metadata and a [project.optional-dependencies] dev extra: pytest, cookiecutter, pyyaml, cffconvert, jsonschema, ruff. Include a setuptools [build-system] and [tool.setuptools] packages = [] so an editable install installs only dev deps and never tries to package the Jinja template directory.",
         "Configure pytest (testpaths=tests) and ruff (line length, target py310); do not add runtime dependencies for generated repos.",
         "Add a root Makefile with setup, test, lint, and doctor targets; setup installs the dev extra.",
         "Add a root .gitignore for .venv/, __pycache__/, .pytest_cache/, .ruff_cache/, build/, *.pyc and *.egg-info/ so verify artifacts never enter a task diff.",
