@@ -597,7 +597,8 @@ def cmd_doctor(args) -> int:
     else:
         check("INFO", f"python {py.major}.{py.minor}.{py.micro}")
 
-    if not (ROOT / ".git").is_dir():
+    is_git = git("rev-parse", "--is-inside-work-tree").stdout.strip() == "true"
+    if not is_git:
         check("WARN", "not a git work tree (checkpoints cannot be committed)")
     else:
         branch = git_out("rev-parse", "--abbrev-ref", "HEAD")
@@ -879,6 +880,11 @@ def cmd_done(args) -> int:
 
     if not args.skip_verify:
         rc = verify_task(task, record=True, timeout=args.timeout)
+        if rc == 3:
+            fail(
+                "verify skipped because required tools are missing; install them, "
+                "or close with --skip-verify and a note naming the CI job that verifies it"
+            )
         if rc != 0:
             fail("verify failed; fix it or record a block. Do not mark done.")
 

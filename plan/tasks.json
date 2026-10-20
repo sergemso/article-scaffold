@@ -72,7 +72,8 @@
         "Add a root Makefile with setup, test, lint, and doctor targets; setup installs the dev extra.",
         "Add .editorconfig, .gitattributes (* text=auto eol=lf, *.pdf/*.docx binary), and docs/dev-setup.md.",
         "Add tests/test_smoke.py so pytest has at least one test before the render helper exists.",
-        "Run make setup, then make test; if the environment has no pip/uv, block with the missing tool instead of skipping tests."
+        "Run make setup, then make test; if the environment has no pip/uv, block with the missing tool instead of skipping tests.",
+        "If python3 -m pip and uv are both missing, try python3 -m ensurepip --user; if that fails, block with the exact OS package command instead of installing ad hoc."
       ],
       "verify": [
         {

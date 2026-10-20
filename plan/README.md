@@ -96,9 +96,11 @@ Only edit `tasks.json` when the plan itself changes. Rules:
 
 ## Self-test
 
-A full lifecycle test (claim → checkpoint → verify → done, plus block/reclaim
-and scope refusal) is described in `plan/README.md` and can be run against a
-copy with `--root`. It does not touch real state.
+The harness was exercised against a throwaway copy with `--root`:
+claim → checkpoint → verify → done, plus block/unblock, an expired lease,
+`reclaim`, a scope refusal, and the `--json`/`render` outputs. To repeat it,
+copy the repo to a temporary directory, commit once, and run the same commands
+with `--root` pointing at the copy. Real progress in this repo is untouched.
 
 ## Design lineage
 
