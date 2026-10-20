@@ -1,0 +1,544 @@
+{
+  "schema": 1,
+  "plan_version": "1.0.0",
+  "created": "2026-10-20T22:29:57Z",
+  "updated": "2026-10-20T22:31:20Z",
+  "tasks": {
+    "T01": {
+      "status": "done",
+      "attempts": 1,
+      "lease": null,
+      "last_checkpoint": "2026-10-20T22:31:20Z",
+      "commit": null,
+      "seeded": false,
+      "evidence": [
+        {
+          "at": "2026-10-20T22:31:18Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "1bf91525e8141ce911a130dac7e4524fbe3d0c55",
+          "checks": [
+            {
+              "cmd": "python3 plan/agentctl.py doctor",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "INFO  repo: /home/ubuntu/projects/sergemso/article-scaffold\nINFO  python 3.10.12\nINFO  git branch: master\nWARN  working tree has 10 changed path(s)\nINFO  plan valid: 44 tasks\nINFO  T01 in progress; lease agent until 2026-10-21T00:31:18Z (valid)\nINFO  tool: git\nINFO  tool: python3\nINFO  tool: make\nWARN  tool missing: pytest\nWARN  tool missing: latexmk (needed for PDF tasks)\nWARN  tool missing: pandoc\nWARN  tool missing: cffconvert\nWARN  tool missing: actionlint\nWARN  tool missing: shellcheck\nINFO  next: T01 (resume) — Bootstrap the agent harness\n\nOK — 7 warning(s)\n",
+              "at": "2026-10-20T22:31:18Z"
+            },
+            {
+              "cmd": "python3 plan/agentctl.py status --json",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "mpts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T21\": {\n      \"status\": \"todo\",\n      \"title\": \"Extract the vendored core library\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T22\": {\n      \"status\": \"todo\",\n      \"title\": \"Add the JSON-first CLI\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T23\": {\n      \"status\": \"todo\",\n      \"title\": \"Delegate Make, hooks and CI to the CLI\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T24\": {\n      \"status\": \"todo\",\n      \"title\": \"Add article status and publish the JSON contract\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T25\": {\n      \"status\": \"todo\",\n      \"title\": \"Add the v2 authors/affiliations loader\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T26\": {\n      \"status\": \"todo\",\n      \"title\": \"Render multiple authors everywhere\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T27\": {\n      \"status\": \"todo\",\n      \"title\": \"Parameterize manuscript kind and citation style\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T28\": {\n      \"status\": \"todo\",\n      \"title\": \"Add pre-gen validation and human prompts\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T29\": {\n      \"status\": \"todo\",\n      \"title\": \"Make workflows branch-agnostic\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T30\": {\n      \"status\": \"todo\",\n      \"title\": \"Fix the preamble and make builds out-of-tree\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T31\": {\n      \"status\": \"todo\",\n      \"title\": \"Repo hygiene, docs and neutral defaults\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T32\": {\n      \"status\": \"todo\",\n      \"title\": \"Harden CI: reusable build, permissions, pinning\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T33\": {\n      \"status\": \"todo\",\n      \"title\": \"Add release plan/apply and DOI handling\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T34\": {\n      \"status\": \"todo\",\n      \"title\": \"Add diff, arXiv, wordcount, spell, watch and figures\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T35\": {\n      \"status\": \"todo\",\n      \"title\": \"Reproducible builds, Pages and supplementary\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T36\": {\n      \"status\": \"todo\",\n      \"title\": \"Add article migrate for v1 repos\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T37\": {\n      \"status\": \"todo\",\n      \"title\": \"Data and analysis pipeline (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T38\": {\n      \"status\": \"todo\",\n      \"title\": \"Journal class adapters (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T39\": {\n      \"status\": \"todo\",\n      \"title\": \"Reviewer mode and response letters (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T40\": {\n      \"status\": \"todo\",\n      \"title\": \"Devcontainer (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T41\": {\n      \"status\": \"todo\",\n      \"title\": \"REUSE/SPDX compliance (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T42\": {\n      \"status\": \"todo\",\n      \"title\": \"Template upgrade path (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T43\": {\n      \"status\": \"todo\",\n      \"title\": \"Read-only MCP adapter (optional)\",\n      \"phase\": \"P6\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T44\": {\n      \"status\": \"todo\",\n      \"title\": \"MCP mutating tools with confirmation (optional)\",\n      \"phase\": \"P6\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    }\n  }\n}\n",
+              "at": "2026-10-20T22:31:18Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-20T22:31:20Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "1bf91525e8141ce911a130dac7e4524fbe3d0c55",
+          "checks": [
+            {
+              "cmd": "python3 plan/agentctl.py doctor",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "INFO  repo: /home/ubuntu/projects/sergemso/article-scaffold\nINFO  python 3.10.12\nINFO  git branch: master\nWARN  working tree has 10 changed path(s)\nINFO  plan valid: 44 tasks\nINFO  T01 in progress; lease agent until 2026-10-21T00:31:18Z (valid)\nINFO  tool: git\nINFO  tool: python3\nINFO  tool: make\nWARN  tool missing: pytest\nWARN  tool missing: latexmk (needed for PDF tasks)\nWARN  tool missing: pandoc\nWARN  tool missing: cffconvert\nWARN  tool missing: actionlint\nWARN  tool missing: shellcheck\nINFO  next: T01 (resume) — Bootstrap the agent harness\n\nOK — 7 warning(s)\n",
+              "at": "2026-10-20T22:31:20Z"
+            },
+            {
+              "cmd": "python3 plan/agentctl.py status --json",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "mpts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T21\": {\n      \"status\": \"todo\",\n      \"title\": \"Extract the vendored core library\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T22\": {\n      \"status\": \"todo\",\n      \"title\": \"Add the JSON-first CLI\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T23\": {\n      \"status\": \"todo\",\n      \"title\": \"Delegate Make, hooks and CI to the CLI\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T24\": {\n      \"status\": \"todo\",\n      \"title\": \"Add article status and publish the JSON contract\",\n      \"phase\": \"P2\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T25\": {\n      \"status\": \"todo\",\n      \"title\": \"Add the v2 authors/affiliations loader\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T26\": {\n      \"status\": \"todo\",\n      \"title\": \"Render multiple authors everywhere\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T27\": {\n      \"status\": \"todo\",\n      \"title\": \"Parameterize manuscript kind and citation style\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T28\": {\n      \"status\": \"todo\",\n      \"title\": \"Add pre-gen validation and human prompts\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T29\": {\n      \"status\": \"todo\",\n      \"title\": \"Make workflows branch-agnostic\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T30\": {\n      \"status\": \"todo\",\n      \"title\": \"Fix the preamble and make builds out-of-tree\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T31\": {\n      \"status\": \"todo\",\n      \"title\": \"Repo hygiene, docs and neutral defaults\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T32\": {\n      \"status\": \"todo\",\n      \"title\": \"Harden CI: reusable build, permissions, pinning\",\n      \"phase\": \"P3\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T33\": {\n      \"status\": \"todo\",\n      \"title\": \"Add release plan/apply and DOI handling\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T34\": {\n      \"status\": \"todo\",\n      \"title\": \"Add diff, arXiv, wordcount, spell, watch and figures\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T35\": {\n      \"status\": \"todo\",\n      \"title\": \"Reproducible builds, Pages and supplementary\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T36\": {\n      \"status\": \"todo\",\n      \"title\": \"Add article migrate for v1 repos\",\n      \"phase\": \"P4\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T37\": {\n      \"status\": \"todo\",\n      \"title\": \"Data and analysis pipeline (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T38\": {\n      \"status\": \"todo\",\n      \"title\": \"Journal class adapters (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T39\": {\n      \"status\": \"todo\",\n      \"title\": \"Reviewer mode and response letters (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T40\": {\n      \"status\": \"todo\",\n      \"title\": \"Devcontainer (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T41\": {\n      \"status\": \"todo\",\n      \"title\": \"REUSE/SPDX compliance (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T42\": {\n      \"status\": \"todo\",\n      \"title\": \"Template upgrade path (optional)\",\n      \"phase\": \"P5\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T43\": {\n      \"status\": \"todo\",\n      \"title\": \"Read-only MCP adapter (optional)\",\n      \"phase\": \"P6\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    },\n    \"T44\": {\n      \"status\": \"todo\",\n      \"title\": \"MCP mutating tools with confirmation (optional)\",\n      \"phase\": \"P6\",\n      \"attempts\": 0,\n      \"lease\": \"none\"\n    }\n  }\n}\n",
+              "at": "2026-10-20T22:31:20Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "harness files present; doctor/status/next verified",
+        "harness validated; baseline committed"
+      ],
+      "steps_done": []
+    },
+    "T02": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T03": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T04": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T05": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T06": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T07": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T08": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T09": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T10": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T11": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T12": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T13": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T14": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T15": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T16": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T17": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T18": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T19": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T20": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T21": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T22": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T23": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T24": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T25": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T26": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T27": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T28": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T29": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T30": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T31": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T32": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T33": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T34": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T35": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T36": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T37": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T38": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T39": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T40": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T41": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T42": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T43": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    },
+    "T44": {
+      "status": "todo",
+      "attempts": 0,
+      "lease": null,
+      "last_checkpoint": null,
+      "commit": null,
+      "seeded": false,
+      "evidence": [],
+      "notes": [],
+      "steps_done": []
+    }
+  }
+}

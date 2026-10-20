@@ -1,0 +1,1662 @@
+{
+  "schema": 1,
+  "plan_version": "1.0.0",
+  "repo": "article-scaffold",
+  "generated": "2026-10-21",
+  "owner": "agent",
+  "notes": "Canonical task graph. Edit only through a deliberate plan change; state lives in state.json.",
+  "tasks": [
+    {
+      "id": "T01",
+      "phase": "P0",
+      "order": 1,
+      "title": "Bootstrap the agent harness",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [],
+      "why": "An agent with no chat history must be able to find the plan, resume, and checkpoint without a server.",
+      "context": [
+        "AGENTS.md",
+        "plan/README.md",
+        "plan/decisions.md"
+      ],
+      "touch": [
+        "AGENTS.md",
+        "plan/**",
+        "docs/**"
+      ],
+      "steps": [
+        "Verify the harness files exist and are tracked.",
+        "Run doctor, status, and next --card.",
+        "Commit the harness if it is still untracked."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 plan/agentctl.py doctor"
+        },
+        {
+          "cmd": "python3 plan/agentctl.py status --json"
+        }
+      ],
+      "done": "doctor exits 0 (warnings allowed) and next returns the first ready task.",
+      "requires": [],
+      "network": false,
+      "notes": "The planner delivered the files; this task validates them and makes the baseline commit."
+    },
+    {
+      "id": "T02",
+      "phase": "P0",
+      "order": 2,
+      "title": "Add dev tooling and test entry points",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T01"
+      ],
+      "why": "Every later task needs a reproducible way to run tests and lint without touching the generated repo's runtime.",
+      "context": [
+        "docs/improvement-plan.md#phase-0",
+        "README.md"
+      ],
+      "touch": [
+        "pyproject.toml",
+        "Makefile",
+        ".editorconfig",
+        ".gitattributes",
+        "tests/test_smoke.py",
+        "docs/dev-setup.md"
+      ],
+      "steps": [
+        "Create pyproject.toml with project metadata and a [project.optional-dependencies] dev extra: pytest, cookiecutter, pyyaml, cffconvert, jsonschema, ruff.",
+        "Configure pytest (testpaths=tests) and ruff (line length, target py310); do not add runtime dependencies for generated repos.",
+        "Add a root Makefile with setup, test, lint, and doctor targets; setup installs the dev extra.",
+        "Add .editorconfig, .gitattributes (* text=auto eol=lf, *.pdf/*.docx binary), and docs/dev-setup.md.",
+        "Add tests/test_smoke.py so pytest has at least one test before the render helper exists."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -c \"import pathlib; assert pathlib.Path('pyproject.toml').is_file(); assert pathlib.Path('.editorconfig').is_file(); assert pathlib.Path('tests/test_smoke.py').is_file()\""
+        },
+        {
+          "cmd": "make -n test >/dev/null"
+        }
+      ],
+      "done": "make setup is documented; make test runs the smoke test; no runtime dep was added to the template.",
+      "requires": [
+        "python3",
+        "git",
+        "make"
+      ],
+      "network": true,
+      "notes": ""
+    },
+    {
+      "id": "T03",
+      "phase": "P0",
+      "order": 3,
+      "title": "Render helper and regression fixtures",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T02"
+      ],
+      "why": "Phase 1 must be driven by failing tests, not by manual inspection of rendered output.",
+      "context": [
+        "docs/improvement-plan.md#phase-0",
+        "cookiecutter.json",
+        "hooks/post_gen_project.py"
+      ],
+      "touch": [
+        "tests/**"
+      ],
+      "steps": [
+        "Add tests/conftest.py with a render(context, tmp_path) helper that calls cookiecutter.main.cookiecutter(no_input=True, output_dir=..., extra_context=...).",
+        "Add fixtures for: the default context; a title with &, %, _, quotes and unicode; an abstract with %, &, #; a DOI set; and an empty subtitle.",
+        "Add tests/test_render.py that renders each fixture and asserts the expected files exist.",
+        "Add xfail(strict=False) regression tests for the known defects: unparseable YAML/JSON/CFF, raw LaTeX specials, validator false positives, metadata drift.",
+        "Keep the helper tolerant of the post-gen hook creating a nested git repo in tmp_path."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_render.py -q"
+        }
+      ],
+      "done": "The render matrix passes; at least one known defect is reproduced as xfail and named after the bug.",
+      "requires": [],
+      "network": false,
+      "notes": "Activate the venv (or use its python) before running verify, because agentctl shells out to python3."
+    },
+    {
+      "id": "T04",
+      "phase": "P0",
+      "order": 4,
+      "title": "Template test CI skeleton",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T03"
+      ],
+      "why": "A local-only harness cannot catch environment drift; CI must run the same render matrix.",
+      "context": [
+        "docs/improvement-plan.md#phase-0",
+        ".github/workflows/"
+      ],
+      "touch": [
+        ".github/workflows/test-template.yml"
+      ],
+      "steps": [
+        "Add test-template.yml with permissions: contents: read and jobs: lint, unit, render.",
+        "lint runs ruff and, when present, shellcheck/yamllint; unit runs pytest; render renders the default and special-character fixtures.",
+        "In the render job, run make validate and make metadata, then git diff --exit-code to expose drift.",
+        "Pin actions to major versions now; T32 will pin SHAs. Do not add MCP or a PDF build yet."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -c \"import pathlib, yaml; yaml.safe_load(pathlib.Path('.github/workflows/test-template.yml').read_text())\""
+        }
+      ],
+      "done": "The workflow is valid YAML and its render job exercises the same helper as local tests.",
+      "requires": [
+        "python3"
+      ],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T05",
+      "phase": "P1.1",
+      "order": 5,
+      "title": "Escape structured metadata with tojson",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T03"
+      ],
+      "why": "Free text interpolated into YAML/JSON/CFF can make the generated repo unparseable.",
+      "context": [
+        "{{cookiecutter.repo_name}}/metadata.yaml",
+        "{{cookiecutter.repo_name}}/.zenodo.json",
+        "{{cookiecutter.repo_name}}/CITATION.cff",
+        "{{cookiecutter.repo_name}}/README.md"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/metadata.yaml",
+        "{{cookiecutter.repo_name}}/.zenodo.json",
+        "{{cookiecutter.repo_name}}/CITATION.cff",
+        "{{cookiecutter.repo_name}}/README.md",
+        "tests/test_escaping.py"
+      ],
+      "steps": [
+        "Replace quoted Jinja interpolation in YAML/JSON/CFF with a JSON string literal: title: {{ cookiecutter.title | tojson }} (no surrounding quotes).",
+        "Do the same for subtitle, author fields, abstract, keywords, license, DOI and any other free text in those files.",
+        "Leave README prose alone for now; its metadata/masthead block moves to a generated sentinel in T06/T10.",
+        "Add tests/test_escaping.py that renders the hostile-title fixture and yaml.safe_load/json.loads every generated file."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_escaping.py -q"
+        }
+      ],
+      "done": "Hostile titles produce parseable YAML, JSON and CFF; the original xfail for this bug is now xpass or removed.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T06",
+      "phase": "P1.1",
+      "order": 6,
+      "title": "Make the abstract and keywords single-source",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T05"
+      ],
+      "why": "The abstract currently exists only as LaTeX, so make metadata cannot update it and metadata.yaml cannot describe the paper.",
+      "context": [
+        "{{cookiecutter.repo_name}}/metadata.yaml",
+        "{{cookiecutter.repo_name}}/paper/sections/00_abstract.tex",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/README.md"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/metadata.yaml",
+        "{{cookiecutter.repo_name}}/paper/sections/00_abstract.tex",
+        "{{cookiecutter.repo_name}}/paper/sections/08_backmatter.tex",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/README.md",
+        "tests/test_abstract.py"
+      ],
+      "steps": [
+        "Add abstract and abstract_note to metadata.yaml; store keywords as a YAML list or a documented comma-separated string.",
+        "Replace the body of 00_abstract.tex with % ABSTRACT:START/END sentinels and a placeholder body; the generator owns the content between them.",
+        "Add README:META:START/END and BACKMATTER:VERSION:START/END sentinels so later drift checks have stable targets.",
+        "Extend generate-metadata.py to write the abstract (LaTeX-escaped) and keywords from metadata.yaml, leaving files untouched when already correct.",
+        "Add tests that mutate metadata.yaml and check the sentinels update without duplicating content."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_abstract.py -q"
+        }
+      ],
+      "done": "The abstract and keywords are read from metadata.yaml; the LaTeX and README blocks are generated between stable sentinels.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T07",
+      "phase": "P1.1",
+      "order": 7,
+      "title": "Drive PDF metadata from the title block",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T06"
+      ],
+      "why": "make metadata must update PDF title/author/subject/keywords, not just the visible title.",
+      "context": [
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/metadata.yaml"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "tests/test_title_block.py"
+      ],
+      "steps": [
+        "Extend the METADATA:TITLE_BLOCK generated region to include \\hypersetup{pdftitle=...,pdfauthor=...,pdfsubject=...,pdfkeywords=...}.",
+        "Alternatively use \\hypersetup{pdfusetitle} plus a generated \\paperKeywords; choose one and document it.",
+        "Keep the visible title/author block working and do not introduce a second source of truth.",
+        "Add a text-level test that checks the generated block contains the expected escaped values for the hostile-title fixture."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_title_block.py -q"
+        }
+      ],
+      "done": "make metadata rewrites PDF metadata in article.tex; a text test covers special characters and an empty subtitle.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T08",
+      "phase": "P1.1",
+      "order": 8,
+      "title": "Fix latex_escape and add property tests",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T03"
+      ],
+      "why": "The current escape order can double-escape backslashes and miss characters that break compilation.",
+      "context": [
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "tests/test_latex_escape.py"
+      ],
+      "steps": [
+        "Implement latex_escape(text, already_tex=False) with a single-pass mapping for \\ & % $ # _ { } ~ ^ and a documented unicode policy.",
+        "Never re-escape generated backslashes; support an explicit title_tex override for authors who need raw LaTeX.",
+        "Add table-driven tests covering every special character, double escaping, empty strings and unicode."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_latex_escape.py -q"
+        }
+      ],
+      "done": "Every special character round-trips through the escaper; idempotence is tested.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T09",
+      "phase": "P1.1",
+      "order": 9,
+      "title": "Run the metadata generator after rendering",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T06",
+        "T08"
+      ],
+      "why": "A fresh render must already be coherent; relying on the user to run make metadata leaves the repo inconsistent.",
+      "context": [
+        "hooks/post_gen_project.py",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/Makefile"
+      ],
+      "touch": [
+        "hooks/post_gen_project.py",
+        "tests/test_idempotency.py"
+      ],
+      "steps": [
+        "In post_gen_project.py, run the generated scripts/generate-metadata.py with sys.executable and cwd=the generated project.",
+        "Fail with a clear message if PyYAML is missing; do not silently skip generation.",
+        "Add an idempotency test: render, snapshot, run make metadata, assert git diff is empty, for default, DOI-set and hostile-input fixtures.",
+        "Make the hook safe to run twice."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_idempotency.py -q"
+        }
+      ],
+      "done": "A fresh render is byte-identical after make metadata in all fixtures, including DOI set.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T10",
+      "phase": "P1.1",
+      "order": 10,
+      "title": "Add metadata --check and wire it into CI",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T09"
+      ],
+      "why": "Without a drift check, generated artifacts silently diverge from metadata.yaml.",
+      "context": [
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/Makefile",
+        ".github/workflows/test-template.yml"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/Makefile",
+        ".github/workflows/test-template.yml",
+        "tests/test_drift.py"
+      ],
+      "steps": [
+        "Add --check to generate-metadata.py: compute expected content, compare with disk, print a unified diff and exit 1 on drift.",
+        "Add make metadata-check and make metadata (write) as separate targets; make pdf must not depend on a write.",
+        "Run metadata-check in the template CI render job.",
+        "Add tests for clean, drifted and missing-file cases."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_drift.py -q"
+        }
+      ],
+      "done": "make metadata-check fails on drift and succeeds on a fresh render; CI runs it.",
+      "requires": [],
+      "network": false,
+      "notes": "Gate G1 after this task: run make test, audit, and render STATUS.md."
+    },
+    {
+      "id": "T11",
+      "phase": "P1.2",
+      "order": 11,
+      "title": "Rewrite CFF generation",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T05",
+        "T08"
+      ],
+      "why": "The current CITATION.cff is invalid: type manuscript is not allowed, version loads as a float, and free text is unescaped.",
+      "context": [
+        "{{cookiecutter.repo_name}}/CITATION.cff",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/CITATION.cff",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "tests/test_cff.py"
+      ],
+      "steps": [
+        "Generate CFF with yaml.safe_dump(sort_keys=False, allow_unicode=True); never hand-format YAML.",
+        "Use root type: software and a valid preferred-citation (generic for an unpublished manuscript, or article only when a journal is known).",
+        "Quote version and date-released so version stays a string; include abstract, keywords, identifiers and authors from metadata.",
+        "Omit empty optional fields rather than emitting null/empty strings.",
+        "Add tests that parse the CFF with PyYAML and assert field types; run cffconvert --validate when available."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_cff.py -q"
+        }
+      ],
+      "done": "CITATION.cff parses, has valid types, and keeps version as a string.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T12",
+      "phase": "P1.2",
+      "order": 12,
+      "title": "Rewrite Zenodo deposit generation",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T05"
+      ],
+      "why": "The current .zenodo.json has invalid communities, a license id Zenodo does not use, and fragile creator/orcid shapes.",
+      "context": [
+        "{{cookiecutter.repo_name}}/.zenodo.json",
+        "{{cookiecutter.repo_name}}/metadata.yaml",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/.zenodo.json",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "tests/test_zenodo.py"
+      ],
+      "steps": [
+        "Generate JSON with json.dumps; map SPDX ids to Zenodo vocabulary ids (CC-BY-4.0 -> cc-by-4.0).",
+        "Default communities to [] unless a valid, verified community id is configured; never invent one.",
+        "Set publication_type explicitly (preprint/article) and omit empty doi, orcid, related_identifiers.",
+        "Model creators as a list of {name, orcid?, affiliation?} entries.",
+        "Add tests for default, DOI set, multi-creator and license variants."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_zenodo.py -q"
+        }
+      ],
+      "done": "The deposit JSON is valid, uses the Zenodo license vocabulary, and has no unverified communities.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T13",
+      "phase": "P1.2",
+      "order": 13,
+      "title": "Schema validation tests and CI",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T11",
+        "T12"
+      ],
+      "why": "Parsing is not validity; CFF and Zenodo have schemas that catch semantic mistakes.",
+      "context": [
+        "docs/improvement-plan.md#5-test-and-ci-plan",
+        ".github/workflows/test-template.yml"
+      ],
+      "touch": [
+        "tests/test_schemas.py",
+        ".github/workflows/test-template.yml"
+      ],
+      "steps": [
+        "Add offline schema/type assertions for CFF and Zenodo output.",
+        "Add a network-marked test (RUN_NETWORK=1) that resolves Zenodo community/license ids and validates CFF with cffconvert.",
+        "Add a non-blocking CI job for the network checks; the default test run must stay offline and green."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_schemas.py -q"
+        }
+      ],
+      "done": "Offline tests pass; network tests skip cleanly and run in the non-blocking job.",
+      "requires": [],
+      "network": false,
+      "notes": "Network tests must never gate make test, make pdf, or pre-push."
+    },
+    {
+      "id": "T14",
+      "phase": "P1.3",
+      "order": 14,
+      "title": "Honor the selected license",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T02"
+      ],
+      "why": "The LICENSE file currently ignores cookiecutter.license, which is a legal correctness bug.",
+      "context": [
+        "cookiecutter.json",
+        "{{cookiecutter.repo_name}}/LICENSE",
+        "{{cookiecutter.repo_name}}/README.md",
+        "{{cookiecutter.repo_name}}/metadata.yaml"
+      ],
+      "touch": [
+        "cookiecutter.json",
+        "{{cookiecutter.repo_name}}/LICENSE",
+        "{{cookiecutter.repo_name}}/licenses/**",
+        "{{cookiecutter.repo_name}}/README.md",
+        "{{cookiecutter.repo_name}}/metadata.yaml",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "tests/test_license.py"
+      ],
+      "steps": [
+        "Restrict the license choice to CC-BY-4.0 (default), CC-BY-SA-4.0, CC0-1.0, and MIT, with human prompts.",
+        "Vendor the full text of each license under licenses/ and have the post-gen hook copy the selected one to LICENSE.",
+        "Add a code_license choice (default MIT) and emit LICENSE-CODE when it differs from the paper license.",
+        "Link the selected license and code license from README and record the SPDX id in metadata.yaml.",
+        "Add a render-matrix test asserting the LICENSE text matches the choice for every option."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_license.py -q"
+        }
+      ],
+      "done": "Every license choice yields the correct full text and README link; unknown licenses fail at pre-gen.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T15",
+      "phase": "P1.4",
+      "order": 15,
+      "title": "Rewrite validator comment/cite/input handling",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T03"
+      ],
+      "why": "The validator misses commented text and cite keys and produces false positives for inline input.",
+      "context": [
+        "{{cookiecutter.repo_name}}/scripts/validate-paper.py",
+        "tests/fixtures/"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/validate-paper.py",
+        "tests/test_validate.py",
+        "tests/fixtures/**"
+      ],
+      "steps": [
+        "Strip comments with a multiline-aware pattern and respect escaped percent signs.",
+        "Check \\citep, \\citet, \\citealp, \\citeauthor, \\citeyear and \\nocite keys, including comma-separated lists.",
+        "Handle inline \\input{...}/\\include{...} and ignore occurrences inside comments.",
+        "Emit structured diagnostics (file, line, code, message) while preserving the existing CLI and exit behavior.",
+        "Add fixtures for every historical false positive/negative."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_validate.py -q"
+        }
+      ],
+      "done": "Every fixture from the review has a test; no commented text is treated as live input.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T16",
+      "phase": "P1.4",
+      "order": 16,
+      "title": "Add structural validator checks",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T15"
+      ],
+      "why": "The current validator checks only a fraction of what breaks a submission.",
+      "context": [
+        "{{cookiecutter.repo_name}}/scripts/validate-paper.py",
+        "{{cookiecutter.repo_name}}/paper/"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/validate-paper.py",
+        "tests/test_validate_structural.py",
+        "tests/fixtures/**"
+      ],
+      "steps": [
+        "Check \\includegraphics paths against \\graphicspath and the filesystem.",
+        "Check \\ref targets exist, labels are unique, and unused labels are reported as warnings.",
+        "Check bib keys against refs.bib, duplicate keys, and orphan entries.",
+        "Check that includes cannot escape the paper directory; recurse with a depth limit.",
+        "Keep warnings separate from errors so CI can choose strictness."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_validate_structural.py -q"
+        }
+      ],
+      "done": "Structural fixtures cover missing figures, broken refs, duplicate labels and orphan bib entries.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T17",
+      "phase": "P1.4",
+      "order": 17,
+      "title": "Make CI call the one validator",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T15",
+        "T16"
+      ],
+      "why": "CI currently duplicates validator logic, so CI and make validate can disagree.",
+      "context": [
+        "{{cookiecutter.repo_name}}/.github/workflows/validate-latex.yml",
+        "{{cookiecutter.repo_name}}/Makefile"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/.github/workflows/validate-latex.yml",
+        "{{cookiecutter.repo_name}}/Makefile",
+        "tests/test_ci_parity.py"
+      ],
+      "steps": [
+        "Replace inline Python/shell validation in the workflow with python3 scripts/validate-paper.py.",
+        "Run the same command in make validate; do not duplicate flags.",
+        "Add permissions: contents: read, concurrency, and path filters that match the generated repo layout.",
+        "Add a test that renders a repo and asserts make validate and the workflow use the same entry point."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_ci_parity.py -q"
+        }
+      ],
+      "done": "There is exactly one validator implementation; CI and make validate invoke it identically.",
+      "requires": [],
+      "network": false,
+      "notes": "Gate G1b after this task."
+    },
+    {
+      "id": "T18",
+      "phase": "P1.5",
+      "order": 18,
+      "title": "Fix git init and pre-push hook installation",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T09"
+      ],
+      "why": "Running cookiecutter inside a git repo skips git init and silently fails to install the pre-push hook.",
+      "context": [
+        "hooks/post_gen_project.py",
+        "{{cookiecutter.repo_name}}/scripts/pre-push"
+      ],
+      "touch": [
+        "hooks/post_gen_project.py",
+        "{{cookiecutter.repo_name}}/scripts/pre-push",
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/README.md",
+        "tests/test_post_gen.py"
+      ],
+      "steps": [
+        "Compare the generated path with git rev-parse --show-toplevel; only git init when the generated repo is not already inside one.",
+        "Install the hook with git config core.hooksPath or by copying it to .git/hooks; make hooks must be idempotent.",
+        "Never fail the render when git is missing; print an actionable warning instead.",
+        "Add an integration test that renders inside a temporary git repo and asserts the hook is installed once."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_post_gen.py -q"
+        }
+      ],
+      "done": "Nested renders no longer create a broken repo; the hook is installed once and make hooks is safe to rerun.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T19",
+      "phase": "P1.6",
+      "order": 19,
+      "title": "Harden the bootstrap workflow",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T04"
+      ],
+      "why": "User-supplied workflow inputs are interpolated into shell, which is a command-injection risk.",
+      "context": [
+        ".github/workflows/bootstrap-article.yml"
+      ],
+      "touch": [
+        ".github/workflows/bootstrap-article.yml",
+        "tests/test_bootstrap.py"
+      ],
+      "steps": [
+        "Pass inputs through env: variables and quote every expansion; never interpolate ${{ inputs.* }} directly inside run:.",
+        "Validate topic against a slug regex, repo_name against the expected pattern, and version against semver before use.",
+        "Use cookiecutter --no-input with an explicit context; make repository creation idempotent and set topics/permissions explicitly.",
+        "Add a test that parses the workflow YAML and fails if a run block contains ${{ inputs. or ${{ github.event.inputs."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_bootstrap.py -q"
+        }
+      ],
+      "done": "No workflow input reaches a shell unquoted; invalid inputs fail before any git/GitHub command runs.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T20",
+      "phase": "P1.7",
+      "order": 20,
+      "title": "Make DOCX respect graphics paths and references",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T02"
+      ],
+      "why": "Pandoc does not read LaTeX \\graphicspath, so figures silently disappear from DOCX.",
+      "context": [
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/paper/article.tex"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/.github/workflows/build-artifacts.yml",
+        "tests/test_docx.py"
+      ],
+      "steps": [
+        "Add --resource-path for paper, paper/figures and the repo root to the pandoc command.",
+        "Support an optional reference.docx and a documented template path.",
+        "Use pandoc/core or a pinned pandoc version in CI; keep local behavior identical.",
+        "Add a test that renders a repo with a figure in paper/figures and inspects the DOCX zip for the image (skip if pandoc is absent)."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_docx.py -q"
+        }
+      ],
+      "done": "DOCX includes figures from \\graphicspath and CI uses the same command as make docx.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T21",
+      "phase": "P2",
+      "order": 21,
+      "title": "Extract the vendored core library",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T17"
+      ],
+      "why": "Validator, generator, hooks, CI and a future MCP adapter must share one implementation.",
+      "context": [
+        "docs/improvement-plan.md#adr-001--core-library-is-canonical-cli-and-mcp-are-adapters",
+        "{{cookiecutter.repo_name}}/scripts/"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/article/**",
+        "{{cookiecutter.repo_name}}/schemas/**",
+        "tests/test_core.py"
+      ],
+      "steps": [
+        "Create scripts/article/ as a stdlib-only package: __init__.py, core.py, metadata.py, latex.py, validate.py, build.py, diagnostics.py.",
+        "Move pure logic out of validate-paper.py and generate-metadata.py; no printing, no process exit, no cwd assumptions.",
+        "Represent diagnostics, metadata and build plans as dataclasses or plain dicts with stable keys.",
+        "Add JSON schemas under schemas/ for diagnostics and status.",
+        "Keep imports working in Python 3.10 and in a generated repo with only stdlib + PyYAML."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_core.py -q"
+        }
+      ],
+      "done": "Core functions are pure, unit-tested, and importable without side effects or third-party deps beyond PyYAML.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T22",
+      "phase": "P2",
+      "order": 22,
+      "title": "Add the JSON-first CLI",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T21"
+      ],
+      "why": "Make, hooks, CI and MCP need one machine-readable entry point with stable exit codes.",
+      "context": [
+        "docs/improvement-plan.md#adr-002--stable-json-contract",
+        "{{cookiecutter.repo_name}}/scripts/article/"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/article/cli.py",
+        "{{cookiecutter.repo_name}}/scripts/article/__main__.py",
+        "tests/test_cli.py"
+      ],
+      "steps": [
+        "Implement python3 -m scripts.article with subcommands: validate, metadata, status, build, release (release may be a stub until T33).",
+        "Every command supports --json and returns 0 ok, 1 diagnostics/failure, 2 usage, 3 internal.",
+        "Add --check/--dry-run where a command can mutate files; stdout stays machine-readable, logs go to stderr.",
+        "Do not import or call any MCP code.",
+        "Test each command via a rendered fixture, including exit codes and JSON schema validation."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_cli.py -q"
+        }
+      ],
+      "done": "CLI subcommands are documented by --help, emit stable JSON, and use the agreed exit codes.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T23",
+      "phase": "P2",
+      "order": 23,
+      "title": "Delegate Make, hooks and CI to the CLI",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T22"
+      ],
+      "why": "Keeping shell copies of the logic defeats the single-source-of-truth design.",
+      "context": [
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/scripts/pre-push",
+        "{{cookiecutter.repo_name}}/scripts/validate-paper.py",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/scripts/pre-push",
+        "{{cookiecutter.repo_name}}/.github/workflows/validate-latex.yml",
+        "{{cookiecutter.repo_name}}/scripts/validate-paper.py",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/README.md",
+        "tests/test_delegation.py"
+      ],
+      "steps": [
+        "make pdf/validate/metadata/metadata-check/docx call the CLI (or keep file targets but share the core).",
+        "pre-push calls the CLI and remains safe when the CLI is missing (warn, do not break unrelated pushes).",
+        "Turn validate-paper.py and generate-metadata.py into thin deprecated shims that parse the old flags and delegate.",
+        "Preserve byte-identical output for existing commands.",
+        "Add a test that every entry point produces the same diagnostics for the same fixture."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_delegation.py -q"
+        }
+      ],
+      "done": "No business logic remains in Make/hooks/CI/shims; old entry points still work.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T24",
+      "phase": "P2",
+      "order": 24,
+      "title": "Add article status and publish the JSON contract",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T22"
+      ],
+      "why": "Agents and humans need one command that says what is true about the repo without parsing logs.",
+      "context": [
+        "docs/improvement-plan.md#adr-002--stable-json-contract",
+        "{{cookiecutter.repo_name}}/schemas/"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/article/status.py",
+        "{{cookiecutter.repo_name}}/schemas/status.schema.json",
+        "{{cookiecutter.repo_name}}/docs/cli.md",
+        "tests/test_status.py"
+      ],
+      "steps": [
+        "Implement article status [--json] with template_version, metadata validity, metadata drift, diagnostics summary, tool versions and dirty-tree state.",
+        "Write schemas/status.schema.json and validate the output against it in tests.",
+        "Document the exit codes and JSON fields in docs/cli.md; state that the contract is versioned with the template.",
+        "Keep status read-only and offline."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_status.py -q"
+        }
+      ],
+      "done": "status is schema-valid, offline and read-only; docs match the implementation.",
+      "requires": [],
+      "network": false,
+      "notes": "Gate G2 after this task."
+    },
+    {
+      "id": "T25",
+      "phase": "P3",
+      "order": 25,
+      "title": "Add the v2 authors/affiliations loader",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T24"
+      ],
+      "why": "A single author_name field cannot represent real papers, and v2 is the agreed schema break.",
+      "context": [
+        "docs/improvement-plan.md#31-author-and-affiliation-model",
+        "{{cookiecutter.repo_name}}/metadata.yaml"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/article/metadata.py",
+        "{{cookiecutter.repo_name}}/metadata.yaml",
+        "tests/test_metadata_v2.py"
+      ],
+      "steps": [
+        "Add authors: as a list of mappings (name, given, family, orcid, affiliations, corresponding, email) and affiliations: as an id->mapping map.",
+        "Normalize the legacy author_name/author_orcid/author_affiliation fields with a deprecation warning; do not break v1 repos.",
+        "Validate ORCID checksums, duplicate affiliations and missing corresponding authors.",
+        "Record metadata_schema: 2 in the new schema while still reading v1.",
+        "Add fixtures for legacy, multi-author, mononym, and invalid ORCID."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_metadata_v2.py -q"
+        }
+      ],
+      "done": "Both schema versions load; invalid author data produces actionable diagnostics.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T26",
+      "phase": "P3",
+      "order": 26,
+      "title": "Render multiple authors everywhere",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T25"
+      ],
+      "why": "Authors must be consistent across LaTeX, CFF, Zenodo and README.",
+      "context": [
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/CITATION.cff",
+        "{{cookiecutter.repo_name}}/.zenodo.json",
+        "{{cookiecutter.repo_name}}/README.md",
+        "tests/test_authors_render.py"
+      ],
+      "steps": [
+        "Render authors with authblk or explicit \\author/\\thanks blocks, including affiliations and corresponding markers.",
+        "Generate CFF authors, Zenodo creators and README author lines from the same normalized model.",
+        "Render ORCID as a link where the medium supports it; omit it where empty.",
+        "Add a test that asserts all four outputs agree for a 3-author fixture."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_authors_render.py -q"
+        }
+      ],
+      "done": "A multi-author fixture is consistent across LaTeX/CFF/Zenodo/README and builds when latexmk is available.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T27",
+      "phase": "P3",
+      "order": 27,
+      "title": "Parameterize manuscript kind and citation style",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T26"
+      ],
+      "why": "The template is currently hard-wired to a perspective essay with one bibliography style.",
+      "context": [
+        "cookiecutter.json",
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/paper/sections/09_references.tex"
+      ],
+      "touch": [
+        "cookiecutter.json",
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/paper/sections/09_references.tex",
+        "{{cookiecutter.repo_name}}/scripts/generate-metadata.py",
+        "{{cookiecutter.repo_name}}/Makefile",
+        "tests/test_matrix.py"
+      ],
+      "steps": [
+        "Add manuscript_kind choices (perspective default, empirical, review) and citation_style choices (author-year, numeric).",
+        "Conditionally include the methods/results sections and required packages; keep the perspective output unchanged by default.",
+        "Select the bibliography style from citation_style and pass the same choice to DOCX/HTML.",
+        "Add a render matrix test over kind x style, asserting expected sections/packages and no LaTeX errors in the static check."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_matrix.py -q"
+        }
+      ],
+      "done": "Every kind/style combination renders; the default is byte-identical to the current perspective output.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T28",
+      "phase": "P3",
+      "order": 28,
+      "title": "Add pre-gen validation and human prompts",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T27"
+      ],
+      "why": "Bad slugs, versions or ORCIDs should fail before a half-written repo exists.",
+      "context": [
+        "cookiecutter.json",
+        "hooks/"
+      ],
+      "touch": [
+        "hooks/pre_gen_project.py",
+        "cookiecutter.json",
+        "tests/test_pre_gen.py"
+      ],
+      "steps": [
+        "Validate topic/repo_name slug rules, semver, ORCID checksum, license, DOI shape and non-empty title.",
+        "Add __prompts__ with plain-language labels; keep --no-input working for CI.",
+        "Fail with one actionable message per invalid field, not a traceback.",
+        "Test valid and invalid contexts through cookiecutter's API."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_pre_gen.py -q"
+        }
+      ],
+      "done": "Invalid contexts fail before rendering; prompts are human-readable and CI still runs --no-input.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T29",
+      "phase": "P3",
+      "order": 29,
+      "title": "Make workflows branch-agnostic",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T04"
+      ],
+      "why": "Hard-coded master filters break new repos that use main.",
+      "context": [
+        ".github/workflows/bootstrap-article.yml",
+        "{{cookiecutter.repo_name}}/.github/workflows/"
+      ],
+      "touch": [
+        ".github/workflows/bootstrap-article.yml",
+        "{{cookiecutter.repo_name}}/.github/workflows/**",
+        "hooks/post_gen_project.py",
+        "{{cookiecutter.repo_name}}/README.md",
+        "cookiecutter.json",
+        "tests/test_branch.py"
+      ],
+      "steps": [
+        "Remove branches: [master] filters or replace them with the repository default branch; use github.event.repository.default_branch where needed.",
+        "Push HEAD rather than a hard-coded branch name.",
+        "Add an optional default_branch choice and document it.",
+        "Add a test that parses the workflows and fails on a literal master/main branch filter."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_branch.py -q"
+        }
+      ],
+      "done": "No workflow assumes master; a main-based repo passes the same jobs.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T30",
+      "phase": "P3",
+      "order": 30,
+      "title": "Fix the preamble and make builds out-of-tree",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T27"
+      ],
+      "why": "Package order and in-tree builds cause fragile, noisy repos and non-reproducible artifacts.",
+      "context": [
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/Makefile"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/.latexmkrc",
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/.github/workflows/**",
+        "tests/test_build.py"
+      ],
+      "steps": [
+        "Load titlesec before hyperref (or remove it); load cleveref after hyperref; keep pdfusetitle consistent with T07.",
+        "Add .latexmkrc with -outdir=build, -halt-on-error, -file-line-error and a fixed SOURCE_DATE_EPOCH for reproducible runs.",
+        "Make clean remove build artifacts; make pdf must work from a fresh clone.",
+        "Add static tests for package order and for the expected build directory."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_build.py -q"
+        }
+      ],
+      "done": "A clean build produces build/article.pdf and leaves no aux files in the source tree.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T31",
+      "phase": "P3",
+      "order": 31,
+      "title": "Repo hygiene, docs and neutral defaults",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T02"
+      ],
+      "why": "Stale README trees, personal defaults and a jinja2-time dependency make the template harder to use.",
+      "context": [
+        "README.md",
+        "canonical-pattern.md",
+        "cookiecutter.json",
+        "{{cookiecutter.repo_name}}/.gitignore"
+      ],
+      "touch": [
+        "README.md",
+        "canonical-pattern.md",
+        "CONTRIBUTING.md",
+        "cookiecutter.json",
+        "{{cookiecutter.repo_name}}/.gitignore",
+        "{{cookiecutter.repo_name}}/README.md",
+        "tests/test_docs.py"
+      ],
+      "steps": [
+        "Remove the jinja2_time extension: set date to a placeholder and fill it with the stdlib in post_gen, or document a safe default.",
+        "Refresh .gitignore for build/, .venv, __pycache__, .DS_Store and LaTeX aux files.",
+        "Rewrite the README tree/prerequisites/license sections to match actual behavior; add CONTRIBUTING.md.",
+        "Document how to override personal defaults without editing tracked files.",
+        "Add doc tests that grep for stale paths and commands."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_docs.py -q"
+        }
+      ],
+      "done": "Docs describe the actual tree and commands; the template has no undeclared Jinja extension.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T32",
+      "phase": "P3",
+      "order": 32,
+      "title": "Harden CI: reusable build, permissions, pinning",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T04",
+        "T30"
+      ],
+      "why": "Duplicated CI logic and floating actions are both a maintenance and supply-chain risk.",
+      "context": [
+        ".github/workflows/",
+        "{{cookiecutter.repo_name}}/.github/workflows/"
+      ],
+      "touch": [
+        ".github/workflows/**",
+        "{{cookiecutter.repo_name}}/.github/workflows/**",
+        ".github/dependabot.yml",
+        "tests/test_ci_hardening.py"
+      ],
+      "steps": [
+        "Extract a reusable build workflow used by test-template and the generated repo's CI.",
+        "Set least-privilege permissions, concurrency groups and a tag/release guard.",
+        "Pin third-party actions to commit SHAs with version comments; pin the TeX Live action and enable caching.",
+        "Add Dependabot for actions and pip.",
+        "Add a test that parses every workflow and asserts permissions are present and no unpinned uses: remains."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_ci_hardening.py -q"
+        }
+      ],
+      "done": "All workflows parse, use least privilege, and have no floating third-party actions.",
+      "requires": [],
+      "network": false,
+      "notes": "Gate G3 after this task."
+    },
+    {
+      "id": "T33",
+      "phase": "P4",
+      "order": 33,
+      "title": "Add release plan/apply and DOI handling",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T24"
+      ],
+      "why": "Releases are currently manual and DOI metadata drifts from the tag.",
+      "context": [
+        "docs/improvement-plan.md#4-phase-4--workflow-automation-v21-35-days",
+        "{{cookiecutter.repo_name}}/Makefile"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/article/release.py",
+        "{{cookiecutter.repo_name}}/scripts/article/cli.py",
+        "{{cookiecutter.repo_name}}/tests/test_release.py",
+        "{{cookiecutter.repo_name}}/docs/releasing.md"
+      ],
+      "steps": [
+        "Implement release plan --json: version, tag, doi, artifact list, checks, and a dry-run diff.",
+        "Implement release apply only with an explicit --yes; require a clean tree, an absent tag, and a version bump.",
+        "Set the DOI in metadata.yaml and regenerate every derived file; never edit generated files directly.",
+        "Add tests for clean/dirty trees, existing tags, invalid versions and DOI assignment."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_release.py -q"
+        }
+      ],
+      "done": "release plan is read-only and schema-valid; release apply is gated, deterministic and idempotent.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T34",
+      "phase": "P4",
+      "order": 34,
+      "title": "Add diff, arXiv, wordcount, spell, watch and figures",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T23"
+      ],
+      "why": "These are the remaining daily authoring tasks that still require memorizing tool flags.",
+      "context": [
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/scripts/"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/scripts/article/tools.py",
+        "{{cookiecutter.repo_name}}/tests/test_tools.py"
+      ],
+      "steps": [
+        "Add make diff (latexdiff between two refs), arxiv (flatten and sanitize), wordcount, spell, watch and figures.",
+        "Each target must fail with an actionable message when its external tool is missing; no silent success.",
+        "arxiv must not include build artifacts, .git, or private notes; test the file list.",
+        "Keep all of these out of make pdf and CI gates unless explicitly invoked."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_tools.py -q"
+        }
+      ],
+      "done": "Each target has a unit test for its command construction and a clear missing-tool message.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T35",
+      "phase": "P4",
+      "order": 35,
+      "title": "Reproducible builds, Pages and supplementary",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T30"
+      ],
+      "why": "Archival deposits need verifiable builds and a stable public artifact.",
+      "context": [
+        "{{cookiecutter.repo_name}}/.github/workflows/",
+        "{{cookiecutter.repo_name}}/Makefile"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/.github/workflows/**",
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/tests/test_reproducible.py"
+      ],
+      "steps": [
+        "Build twice with a fixed SOURCE_DATE_EPOCH and compare PDF hashes; document any allowed variance.",
+        "Add a Pages job that deploys build/article.pdf (and supplementary) from a tag.",
+        "Add a supplementary build target and artifact retention.",
+        "Test the workflow wiring and the double-build script; skip the real build when latexmk is absent."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_reproducible.py -q"
+        }
+      ],
+      "done": "Two clean builds match, Pages deploys only from a tag, and supplementary artifacts are attached.",
+      "requires": [],
+      "network": false,
+      "notes": "Gate G4 after this task."
+    },
+    {
+      "id": "T36",
+      "phase": "P4",
+      "order": 36,
+      "title": "Add article migrate for v1 repos",
+      "effort": "S",
+      "optional": false,
+      "depends_on": [
+        "T25",
+        "T33"
+      ],
+      "why": "The v2 schema break is only acceptable if existing repos have a safe upgrade path.",
+      "context": [
+        "{{cookiecutter.repo_name}}/scripts/article/metadata.py",
+        "docs/improvement-plan.md#6-compatibility-and-migration"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/scripts/article/migrate.py",
+        "{{cookiecutter.repo_name}}/docs/migrating-to-v2.md",
+        "{{cookiecutter.repo_name}}/tests/test_migrate.py"
+      ],
+      "steps": [
+        "Detect v1 metadata, write a backup, map author/license/version fields to v2, and regenerate derived files.",
+        "Support --dry-run and --check; never overwrite without a backup or --yes.",
+        "Document manual review points (multi-author splitting, affiliations, ORCID).",
+        "Test a legacy fixture end-to-end and assert idempotence."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_migrate.py -q"
+        }
+      ],
+      "done": "A v1 fixture migrates with a backup, passes validation, and a second run is a no-op.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T37",
+      "phase": "P5",
+      "order": 37,
+      "title": "Data and analysis pipeline (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T27"
+      ],
+      "why": "Empirical manuscripts need a reproducible path from data to figures/tables.",
+      "context": [
+        "docs/improvement-plan.md#5-scientificstructural-extensions-v22-510-days-optional"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/data/**",
+        "{{cookiecutter.repo_name}}/analysis/**",
+        "{{cookiecutter.repo_name}}/Makefile",
+        "{{cookiecutter.repo_name}}/tests/test_analysis.py"
+      ],
+      "steps": [
+        "Add opt-in data/ and analysis/ directories with a lockfile (uv or renv) and checksums.",
+        "Add make analysis that regenerates figures/tables into paper/figures and paper/tables.",
+        "Do not run analysis in make pdf unless the user opts in; fail clearly when the env is missing.",
+        "Test the pipeline with a tiny fixture dataset."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_analysis.py -q"
+        }
+      ],
+      "done": "make analysis is reproducible from a clean checkout and its outputs are gitignored or checked intentionally.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T38",
+      "phase": "P5",
+      "order": 38,
+      "title": "Journal class adapters (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T27"
+      ],
+      "why": "Submission targets have different class files and front matter; guessing is worse than an explicit adapter.",
+      "context": [
+        "docs/improvement-plan.md#5-scientificstructural-extensions-v22-510-days-optional"
+      ],
+      "touch": [
+        "cookiecutter.json",
+        "{{cookiecutter.repo_name}}/paper/preamble/**",
+        "{{cookiecutter.repo_name}}/tests/test_journals.py"
+      ],
+      "steps": [
+        "Add optional journal choices (elsarticle, acmart, IEEEtran) without making any of them the default.",
+        "Provide vendored classes/templates only when their licenses allow it; otherwise document installation.",
+        "Add a submission checklist per journal.",
+        "Test the render matrix; skip PDF builds when the class is unavailable."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_journals.py -q"
+        }
+      ],
+      "done": "Every adapter renders and documents its requirements; the default perspective output is unchanged.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T39",
+      "phase": "P5",
+      "order": 39,
+      "title": "Reviewer mode and response letters (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T27"
+      ],
+      "why": "Revision workflows are common and easy to standardize.",
+      "context": [
+        "{{cookiecutter.repo_name}}/paper/article.tex"
+      ],
+      "touch": [
+        "{{cookiecutter.repo_name}}/paper/article.tex",
+        "{{cookiecutter.repo_name}}/templates/**",
+        "{{cookiecutter.repo_name}}/tests/test_review_mode.py"
+      ],
+      "steps": [
+        "Add a review_mode choice that enables line numbers, anonymization and a changed-text marker.",
+        "Add response-letter and cover-letter templates with generated metadata.",
+        "Ensure anonymous mode removes authors, acknowledgements and identifying links.",
+        "Test both modes for leaked identity fields."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_review_mode.py -q"
+        }
+      ],
+      "done": "Anonymous mode leaks no identity; review mode builds and is documented.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T40",
+      "phase": "P5",
+      "order": 40,
+      "title": "Devcontainer (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T02"
+      ],
+      "why": "A pinned environment removes the 'works on my machine' TeX/Pandoc problem.",
+      "context": [
+        "docs/improvement-plan.md#5-scientificstructural-extensions-v22-510-days-optional"
+      ],
+      "touch": [
+        ".devcontainer/**",
+        "Dockerfile",
+        "docs/devcontainer.md",
+        "tests/test_devcontainer.py"
+      ],
+      "steps": [
+        "Create a devcontainer with TeX Live, pandoc, Python 3.10+, git and the dev extras.",
+        "Pin image digests and document the build; do not make it required for local builds.",
+        "Add VS Code tasks for make pdf/validate/test.",
+        "Add a static test for the config; the real docker build stays opt-in."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_devcontainer.py -q"
+        }
+      ],
+      "done": "The devcontainer config is valid and documented; normal builds do not depend on Docker.",
+      "requires": [],
+      "network": true,
+      "notes": ""
+    },
+    {
+      "id": "T41",
+      "phase": "P5",
+      "order": 41,
+      "title": "REUSE/SPDX compliance (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T14"
+      ],
+      "why": "Per-file licensing is needed if the template is shared publicly.",
+      "context": [
+        "docs/improvement-plan.md#5-scientificstructural-extensions-v22-510-days-optional"
+      ],
+      "touch": [
+        "LICENSES/**",
+        "REUSE.toml",
+        "{{cookiecutter.repo_name}}/LICENSES/**",
+        "tests/test_reuse.py"
+      ],
+      "steps": [
+        "Add SPDX headers or a REUSE.toml mapping for template files, scripts and paper content.",
+        "Vendor license texts under LICENSES/ and keep them in sync with T14.",
+        "Add an opt-in reuse lint target; do not gate the default build on the reuse tool.",
+        "Test that every tracked file is covered by a mapping or header."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_reuse.py -q"
+        }
+      ],
+      "done": "Every tracked file has a license mapping; reuse lint passes when the tool is installed.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T42",
+      "phase": "P5",
+      "order": 42,
+      "title": "Template upgrade path (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T36"
+      ],
+      "why": "Generated repos need a supported way to pick up template fixes without losing local edits.",
+      "context": [
+        "docs/improvement-plan.md#6-compatibility-and-migration"
+      ],
+      "touch": [
+        "hooks/post_gen_project.py",
+        "docs/upgrading.md",
+        "{{cookiecutter.repo_name}}/template.json",
+        "tests/test_upgrade.py"
+      ],
+      "steps": [
+        "Evaluate cruft vs Copier against the constraint that generated repos stay archival.",
+        "Stamp template_version and a minimal template context into the generated repo.",
+        "Document a three-way-merge upgrade and a manual fallback; never auto-merge.",
+        "Test that the stamp is written and that upgrade instructions match actual files."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_upgrade.py -q"
+        }
+      ],
+      "done": "A generated repo records its template version and has a tested upgrade procedure.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    },
+    {
+      "id": "T43",
+      "phase": "P6",
+      "order": 43,
+      "title": "Read-only MCP adapter (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T24"
+      ],
+      "why": "Agents can consume the CLI contract without making MCP part of the build.",
+      "context": [
+        "docs/improvement-plan.md#adr-004--mcp-is-optional-separate-and-gated",
+        "mcp/"
+      ],
+      "touch": [
+        "mcp/**",
+        "docs/mcp.md",
+        "tests/test_mcp_readonly.py"
+      ],
+      "steps": [
+        "Create a separate optional package under mcp/ that imports the core or shells out to the CLI --json; never the inverse.",
+        "Expose read-only tools/resources: validate, status, metadata plan, diagnostics, file reads limited to the repo.",
+        "Add path allowlisting, output size limits and no secret/env leakage.",
+        "Test parity between the MCP output and the CLI JSON for the same fixture."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_mcp_readonly.py -q"
+        }
+      ],
+      "done": "MCP is installable as an extra, read-only by default, and byte-parity with CLI JSON.",
+      "requires": [],
+      "network": true,
+      "notes": ""
+    },
+    {
+      "id": "T44",
+      "phase": "P6",
+      "order": 44,
+      "title": "MCP mutating tools with confirmation (optional)",
+      "effort": "M",
+      "optional": true,
+      "depends_on": [
+        "T43",
+        "T33"
+      ],
+      "why": "Write operations are useful but dangerous; they need an explicit plan/confirm protocol.",
+      "context": [
+        "docs/improvement-plan.md#adr-004--mcp-is-optional-separate-and-gated"
+      ],
+      "touch": [
+        "mcp/**",
+        "tests/test_mcp_mutations.py"
+      ],
+      "steps": [
+        "Add plan/confirm tokens for metadata writes, release apply and migrate; tokens expire and are single-use.",
+        "Refuse writes outside the repo, enforce timeouts, and append an audit log.",
+        "Never expose network or shell passthrough.",
+        "Test refusal paths: stale token, path escape, missing confirmation."
+      ],
+      "verify": [
+        {
+          "cmd": "python3 -m pytest tests/test_mcp_mutations.py -q"
+        }
+      ],
+      "done": "Every mutation requires a fresh confirmation and is confined to the repo.",
+      "requires": [],
+      "network": false,
+      "notes": ""
+    }
+  ]
+}
