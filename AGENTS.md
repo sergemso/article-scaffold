@@ -31,6 +31,10 @@ Then read only the files listed under `READ` in the task card. The card is
 self-contained. If you need more context, use `rg` to find it; do not read the
 whole repository or the whole improvement plan.
 
+Once T02 is done, run `make setup` (or activate the venv it creates) before
+tasks whose card says `pytest`; `agentctl` shells out to `python3`, so it must
+see the same environment.
+
 ---
 
 ## 2. The only lifecycle you need
@@ -116,7 +120,7 @@ A normal `done` creates **one task commit** plus a tiny
 
 ## 5. Context discipline (important for cold starts)
 
-* The card lists at most a handful of files. Read those first.
+* The card lists at most a handful of files. Read those first. A `path#section` entry means read that section; it is not a literal filename.
 * Prefer `rg -n "symbol" path` over opening large files.
 * Do not read `docs/improvement-plan.md` end to end; the card quotes what you
   need. Use it only to resolve a design question.

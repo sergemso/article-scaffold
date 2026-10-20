@@ -137,9 +137,12 @@ def journal(action: str, task_id: str, note: str = "", lines: list[str] | None =
 
 
 def git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", *args], cwd=ROOT, capture_output=True, text=True, check=False
-    )
+    try:
+        return subprocess.run(
+            ["git", *args], cwd=ROOT, capture_output=True, text=True, check=False
+        )
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(["git", *args], 127, "", "git not found")
 
 
 def git_out(*args: str) -> str:
@@ -731,7 +734,10 @@ def cmd_next(args) -> int:
     state = load_state(tasks, create=False)
     task, resume = next_action(tasks, state, include_optional=args.include_optional)
     if task is None:
-        print("No ready tasks. Run: python3 plan/agentctl.py status")
+        print("No ready tasks.")
+        if not args.include_optional:
+            print("All non-optional tasks may be done; pass --include-optional to see P5/P6.")
+        print("Run: python3 plan/agentctl.py status")
         return 0
     entry = entry_for(state, task["id"])
     if args.json:

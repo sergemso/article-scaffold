@@ -939,7 +939,8 @@
       "touch": [
         "{{cookiecutter.repo_name}}/scripts/article/metadata.py",
         "{{cookiecutter.repo_name}}/metadata.yaml",
-        "tests/test_metadata_v2.py"
+        "tests/test_metadata_v2.py",
+        "{{cookiecutter.repo_name}}/schemas/**"
       ],
       "steps": [
         "Add authors: as a list of mappings (name, given, family, orcid, affiliations, corresponding, email) and affiliations: as an id->mapping map.",
@@ -1250,7 +1251,7 @@
       "touch": [
         "{{cookiecutter.repo_name}}/scripts/article/release.py",
         "{{cookiecutter.repo_name}}/scripts/article/cli.py",
-        "{{cookiecutter.repo_name}}/tests/test_release.py",
+        "tests/test_release.py",
         "{{cookiecutter.repo_name}}/docs/releasing.md"
       ],
       "steps": [
@@ -1287,7 +1288,7 @@
       "touch": [
         "{{cookiecutter.repo_name}}/Makefile",
         "{{cookiecutter.repo_name}}/scripts/article/tools.py",
-        "{{cookiecutter.repo_name}}/tests/test_tools.py"
+        "tests/test_tools.py"
       ],
       "steps": [
         "Add make diff (latexdiff between two refs), arxiv (flatten and sanitize), wordcount, spell, watch and figures.",
@@ -1323,7 +1324,7 @@
       "touch": [
         "{{cookiecutter.repo_name}}/.github/workflows/**",
         "{{cookiecutter.repo_name}}/Makefile",
-        "{{cookiecutter.repo_name}}/tests/test_reproducible.py"
+        "tests/test_reproducible.py"
       ],
       "steps": [
         "Build twice with a fixed SOURCE_DATE_EPOCH and compare PDF hashes; document any allowed variance.",
@@ -1360,7 +1361,7 @@
       "touch": [
         "{{cookiecutter.repo_name}}/scripts/article/migrate.py",
         "{{cookiecutter.repo_name}}/docs/migrating-to-v2.md",
-        "{{cookiecutter.repo_name}}/tests/test_migrate.py"
+        "tests/test_migrate.py"
       ],
       "steps": [
         "Detect v1 metadata, write a backup, map author/license/version fields to v2, and regenerate derived files.",
@@ -1396,7 +1397,7 @@
         "{{cookiecutter.repo_name}}/data/**",
         "{{cookiecutter.repo_name}}/analysis/**",
         "{{cookiecutter.repo_name}}/Makefile",
-        "{{cookiecutter.repo_name}}/tests/test_analysis.py"
+        "tests/test_analysis.py"
       ],
       "steps": [
         "Add opt-in data/ and analysis/ directories with a lockfile (uv or renv) and checksums.",
@@ -1431,7 +1432,7 @@
       "touch": [
         "cookiecutter.json",
         "{{cookiecutter.repo_name}}/paper/preamble/**",
-        "{{cookiecutter.repo_name}}/tests/test_journals.py"
+        "tests/test_journals.py"
       ],
       "steps": [
         "Add optional journal choices (elsarticle, acmart, IEEEtran) without making any of them the default.",
@@ -1466,7 +1467,7 @@
       "touch": [
         "{{cookiecutter.repo_name}}/paper/article.tex",
         "{{cookiecutter.repo_name}}/templates/**",
-        "{{cookiecutter.repo_name}}/tests/test_review_mode.py"
+        "tests/test_review_mode.py"
       ],
       "steps": [
         "Add a review_mode choice that enables line numbers, anonymization and a changed-text marker.",
