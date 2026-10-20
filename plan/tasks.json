@@ -71,7 +71,8 @@
         "Configure pytest (testpaths=tests) and ruff (line length, target py310); do not add runtime dependencies for generated repos.",
         "Add a root Makefile with setup, test, lint, and doctor targets; setup installs the dev extra.",
         "Add .editorconfig, .gitattributes (* text=auto eol=lf, *.pdf/*.docx binary), and docs/dev-setup.md.",
-        "Add tests/test_smoke.py so pytest has at least one test before the render helper exists."
+        "Add tests/test_smoke.py so pytest has at least one test before the render helper exists.",
+        "Run make setup, then make test; if the environment has no pip/uv, block with the missing tool instead of skipping tests."
       ],
       "verify": [
         {
@@ -79,9 +80,12 @@
         },
         {
           "cmd": "make -n test >/dev/null"
+        },
+        {
+          "cmd": "make test"
         }
       ],
-      "done": "make setup is documented; make test runs the smoke test; no runtime dep was added to the template.",
+      "done": "make setup and make test pass; no runtime dep was added to the template.",
       "requires": [
         "python3",
         "git",
