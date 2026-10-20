@@ -64,12 +64,14 @@
         ".editorconfig",
         ".gitattributes",
         "tests/test_smoke.py",
-        "docs/dev-setup.md"
+        "docs/dev-setup.md",
+        ".gitignore"
       ],
       "steps": [
         "Create pyproject.toml with project metadata and a [project.optional-dependencies] dev extra: pytest, cookiecutter, pyyaml, cffconvert, jsonschema, ruff.",
         "Configure pytest (testpaths=tests) and ruff (line length, target py310); do not add runtime dependencies for generated repos.",
         "Add a root Makefile with setup, test, lint, and doctor targets; setup installs the dev extra.",
+        "Add a root .gitignore for .venv/, __pycache__/, .pytest_cache/, .ruff_cache/, build/ and *.pyc so verify artifacts never enter a task diff.",
         "Add .editorconfig, .gitattributes (* text=auto eol=lf, *.pdf/*.docx binary), and docs/dev-setup.md.",
         "Add tests/test_smoke.py so pytest has at least one test before the render helper exists.",
         "Run make setup, then make test; if the environment has no pip/uv, block with the missing tool instead of skipping tests.",
@@ -77,7 +79,7 @@
       ],
       "verify": [
         {
-          "cmd": "python3 -c \"import pathlib; assert pathlib.Path('pyproject.toml').is_file(); assert pathlib.Path('.editorconfig').is_file(); assert pathlib.Path('tests/test_smoke.py').is_file()\""
+          "cmd": "python3 -c \"import pathlib; assert pathlib.Path('pyproject.toml').is_file(); assert pathlib.Path('.editorconfig').is_file(); assert pathlib.Path('tests/test_smoke.py').is_file(); assert pathlib.Path('.gitignore').is_file()\""
         },
         {
           "cmd": "make -n test >/dev/null"
