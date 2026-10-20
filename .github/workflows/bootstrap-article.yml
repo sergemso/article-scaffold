@@ -45,11 +45,11 @@ on:
       author_name:
         description: "Author full name"
         required: false
-        default: "Sergei A. Strebulaev"
+        default: "Your Name"
       author_orcid:
-        description: "ORCID (no URL prefix, e.g. 0009-0006-2710-8910)"
+        description: "Optional ORCID (no URL prefix, e.g. 0000-0000-0000-0000)"
         required: false
-        default: "0009-0006-2710-8910"
+        default: ""
       author_affiliation:
         description: "Author affiliation"
         required: false

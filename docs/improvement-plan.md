@@ -1,7 +1,7 @@
 # article-scaffold — improvement plan
 
 Status: accepted 2026-10-21; executable tasks in `plan/tasks.json`
-Owner: Sergei
+Owner: maintainer
 Last updated: 2026-10-21
 
 > **Decisions settled 2026-10-21.** The answers to §10 are recorded in
@@ -441,9 +441,9 @@ matches `metadata.yaml`; no package-order warnings.
       “three extensions”).
 - [ ] Add `CONTRIBUTING.md` for the template (how to test a change).
 - [ ] Add badges (build, DOI, license) derived from metadata.
-- [ ] Neutral defaults: document `sergemso`/personal ORCID as defaults, or
-      read them from `~/.cookiecutterrc`; don't ship personal data as the
-      only default.
+- [ ] Neutral defaults: ship placeholders, read personal values from an
+      optional user config (for example `~/.config/article-scaffold/config.yaml`);
+      never ship personal data as the only default.
 
 Acceptance: a new contributor can render, test and build using only README
 + CONTRIBUTING; docs match behavior.

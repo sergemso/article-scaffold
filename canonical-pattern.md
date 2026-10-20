@@ -1,6 +1,6 @@
 # Canonical article-repo pattern
 
-This document analyses the structure of `sergemso/articles.ai_governance` and
+This document analyses the structure of a real article repository and
 extracts the canonical pattern it implicitly follows. It then describes the
 companion `article-scaffold/` cookiecutter template, which bootstraps new
 article repos following the same pattern with three extensions: a single
@@ -375,9 +375,9 @@ and exits 0 rather than blocking the push.
 
 ### 3.6 Defaults
 
-The scaffold defaults match the original repo's values: license is
-CC-BY-4.0, author is *Sergei A. Strebulaev* with ORCID
-*0009-0006-2710-8910* and affiliation *Independent Researcher*, the
+The scaffold defaults are neutral placeholders: license is CC-BY-4.0, the
+author name and ORCID are left for the user to fill in (an ORCID is
+optional), and the affiliation defaults to *Independent Researcher*. The
 default branch is `master`, and the repo naming convention is
 `articles.<topic>`. Every default is overridable at the cookiecutter
 prompt; the user is free to change the author, ORCID, license, or
@@ -503,8 +503,8 @@ The scaffold is deliberately minimal. It does not:
 
 ## 6. Summary
 
-The canonical article-repo pattern extracted from
-`sergemso/articles.ai_governance` has six load-bearing conventions:
+The canonical article-repo pattern extracted from the source article
+repository has six load-bearing conventions:
 
 1. **Repository naming** as `articles.<topic>` for sortability and
    self-description.

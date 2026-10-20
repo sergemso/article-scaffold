@@ -2,7 +2,7 @@
 
 A [Cookiecutter](https://github.com/cookiecutter/cookiecutter) template that
 scaffolds a new LaTeX article repository following the canonical structure
-extracted from `sergemso/articles.ai_governance`.
+extracted from a real article repository.
 
 > **Design rationale:** see [`canonical-pattern.md`](./canonical-pattern.md)
 > for the full analysis of the source repo's structure, the issues fixed in
@@ -58,8 +58,8 @@ gh workflow run bootstrap-article.yml \
   -f topic=ai_governance \
   -f title="From AI Scaling to AI Governance" \
   -f subtitle="Technological Revolutions and the Political Economy of Deployment" \
-  -f author_name="Sergei A. Strebulaev" \
-  -f author_orcid="0009-0006-2710-8910" \
+  -f author_name="Your Name" \
+  -f author_orcid="" \
   -f version="3.0.0" \
   -f version_label="v3 preprint" \
   -f license="CC-BY-4.0" \
@@ -89,12 +89,12 @@ Cookiecutter will prompt for:
 | ------------------ | ------------------------------------ | ------------------------------------------------ |
 | `topic`            | `subject_slug`                      | Short slug; becomes the suffix of `repo_name`.   |
 | `repo_name`        | `articles.<topic>`                   | Conforms to the existing repo naming pattern.    |
-| `github_user`      | `sergemso`                           | Used in repo URL and README badge.               |
+| `github_user`      | `your-github-user`                   | Used in repo URL and README badge.               |
 | `title`            | `Untitled Manuscript`                | Full manuscript title.                           |
 | `subtitle`         | *(empty)*                            | Optional subtitle.                                |
 | `manuscript_type`  | `Perspective / Review Essay`         | Free-text label in README.                        |
-| `author_name`      | `Sergei A. Strebulaev`               | Full name; family/given split is auto-derived.   |
-| `author_orcid`     | `0009-0006-2710-8910`                | ORCID, no URL prefix.                             |
+| `author_name`      | `Your Name`                         | Full name; family/given split is auto-derived.   |
+| `author_orcid`     | *(empty)*                           | Optional ORCID, no URL prefix.                   |
 | `author_affiliation` | `Independent Researcher`           | Free-text affiliation.                           |
 | `version`          | `1.0.0`                              | Semver-ish; goes in CITATION.cff + .zenodo.json. |
 | `version_label`    | `v1 preprint`                        | Human label; shown in article.tex \date{}.       |
@@ -151,8 +151,8 @@ articles.<topic>/
 
 ## Design rationale
 
-This template extracts and codifies the canonical structure of
-`sergemso/articles.ai_governance`. See `canonical-pattern.md` (sibling
+This template extracts and codifies the canonical structure of a real
+article repository. See `canonical-pattern.md` (sibling
 file) for the full analysis of that structure and the rationale for each
 choice.
 
