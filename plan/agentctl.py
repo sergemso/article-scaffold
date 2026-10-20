@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fnmatch
+import hashlib
 import json
 import os
 import shutil
@@ -95,6 +96,10 @@ def atomic_write_json(path: Path, data) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, path)
+
+
+def plan_digest() -> str:
+    return hashlib.sha256(TASKS_PATH.read_bytes()).hexdigest()
 
 
 @contextlib.contextmanager
@@ -280,6 +285,7 @@ def default_state(tasks: list[dict]) -> dict:
     return {
         "schema": SCHEMA,
         "plan_version": load_json(TASKS_PATH).get("plan_version", "0"),
+        "plan_hash": plan_digest(),
         "created": now,
         "updated": now,
         "tasks": entries,
@@ -574,6 +580,7 @@ def cmd_init(args) -> int:
     with locked():
         existed = STATE_PATH.is_file()
         state = load_state(tasks, create=True)
+        state["plan_hash"] = plan_digest()
         save_state(state)
     print(f"{'kept' if existed else 'created'} {STATE_PATH.relative_to(ROOT)}")
     print(f"tasks: {len(tasks)}")
@@ -624,6 +631,8 @@ def cmd_doctor(args) -> int:
         unknown = set(state.get("tasks", {})) - {t["id"] for t in tasks}
         for tid in sorted(unknown):
             check("WARN", f"state has unknown task {tid}")
+        if state.get("plan_hash") != plan_digest():
+            check("WARN", "tasks.json changed since state init; review the diff, then run: init")
         for task in tasks:
             entry = state["tasks"].get(task["id"], {})
             if entry.get("status") not in STATUSES:

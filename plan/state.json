@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-20T22:31:21Z",
+  "updated": "2026-10-20T22:40:33Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -540,5 +540,6 @@
       "notes": [],
       "steps_done": []
     }
-  }
+  },
+  "plan_hash": "7bd8e1ac66078cd3802244f22d026768d3a7357eee9fca084c9f41a6435ec097"
 }
