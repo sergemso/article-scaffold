@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "article-scaffold"
+version = "1.0.0"
+description = "Cookiecutter template for reproducible LaTeX article repositories"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "cookiecutter>=2.6",
+  "PyYAML>=6",
+  "cffconvert>=2.0",
+  # cffconvert 2.0 pins jsonschema<4; Draft 7 validation is enough for the
+  # CFF/metadata schemas used here.
+  "jsonschema>=3.2,<4",
+  "ruff>=0.6",
+]
+
+[tool.setuptools]
+# The template itself is Jinja, not an importable package. An editable install
+# exists only to put the dev tools in .venv; never package the template tree.
+packages = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

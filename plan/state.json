@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-20T23:05:42Z",
+  "updated": "2026-10-20T23:24:31Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -68,14 +68,81 @@
       "steps_done": []
     },
     "T02": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-20T23:24:31Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-20T23:24:28Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "325c75d7a3b609d4526928b47e29a453ddc9674c",
+          "checks": [
+            {
+              "cmd": "python3 -c \"import pathlib; assert pathlib.Path('pyproject.toml').is_file(); assert pathlib.Path('.editorconfig').is_file(); assert pathlib.Path('tests/test_smoke.py').is_file(); assert pathlib.Path('.gitignore').is_file()\"",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "",
+              "at": "2026-10-20T23:24:28Z"
+            },
+            {
+              "cmd": "make -n test >/dev/null",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "",
+              "at": "2026-10-20T23:24:28Z"
+            },
+            {
+              "cmd": "make test",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".venv/bin/python -m pytest \n============================= test session starts ==============================\nplatform linux -- Python 3.10.12, pytest-9.1.1, pluggy-1.7.0\nrootdir: /home/ubuntu/projects/sergemso/article-scaffold\nconfigfile: pyproject.toml\ntestpaths: tests\ncollected 3 items\n\ntests/test_smoke.py ...                                                  [100%]\n\n============================== 3 passed in 0.02s ===============================\n",
+              "at": "2026-10-20T23:24:28Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-20T23:24:31Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "325c75d7a3b609d4526928b47e29a453ddc9674c",
+          "checks": [
+            {
+              "cmd": "python3 -c \"import pathlib; assert pathlib.Path('pyproject.toml').is_file(); assert pathlib.Path('.editorconfig').is_file(); assert pathlib.Path('tests/test_smoke.py').is_file(); assert pathlib.Path('.gitignore').is_file()\"",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "",
+              "at": "2026-10-20T23:24:30Z"
+            },
+            {
+              "cmd": "make -n test >/dev/null",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "",
+              "at": "2026-10-20T23:24:30Z"
+            },
+            {
+              "cmd": "make test",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".venv/bin/python -m pytest \n============================= test session starts ==============================\nplatform linux -- Python 3.10.12, pytest-9.1.1, pluggy-1.7.0\nrootdir: /home/ubuntu/projects/sergemso/article-scaffold\nconfigfile: pyproject.toml\ntestpaths: tests\ncollected 3 items\n\ntests/test_smoke.py ...                                                  [100%]\n\n============================== 3 passed in 0.02s ===============================\n",
+              "at": "2026-10-20T23:24:31Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "pyproject/Makefile/tests/docs added; make setup + make test pass; lint runs but reports pre-existing findings to be fixed in Phase 1"
+      ],
       "steps_done": []
     },
     "T03": {

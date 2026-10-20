@@ -1,0 +1,18 @@
+# Local dev environment and test artifacts
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging / build output
+build/
+dist/
+*.egg-info/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
