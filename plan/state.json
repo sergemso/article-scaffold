@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-20T23:30:08Z",
+  "updated": "2026-10-20T23:32:21Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -300,14 +300,49 @@
       "steps_done": []
     },
     "T06": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-20T23:32:21Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-20T23:32:20Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "f1090e0efec374d0a5d8099987938ee141997ab6",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_abstract.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..                                                                       [100%]\n2 passed in 0.64s\n",
+              "at": "2026-10-20T23:32:20Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-20T23:32:21Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "f1090e0efec374d0a5d8099987938ee141997ab6",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_abstract.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..                                                                       [100%]\n2 passed in 0.65s\n",
+              "at": "2026-10-20T23:32:21Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "abstract/abstract_note/keywords single-source; sentinels for abstract, README masthead, CHANGES, backmatter; idempotent generator"
+      ],
       "steps_done": []
     },
     "T07": {

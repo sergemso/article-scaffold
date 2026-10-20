@@ -45,6 +45,17 @@ TITLE_BLOCK_START = "% METADATA:TITLE_BLOCK:START"
 TITLE_BLOCK_END = "% METADATA:TITLE_BLOCK:END"
 README_CITATION_START = "<!-- BIBTEX:CITATION:START -->"
 README_CITATION_END = "<!-- BIBTEX:CITATION:END -->"
+README_META_START = "<!-- README:META:START -->"
+README_META_END = "<!-- README:META:END -->"
+ABSTRACT_PATH = REPO_ROOT / "paper" / "sections" / "00_abstract.tex"
+ABSTRACT_START = "% ABSTRACT:START"
+ABSTRACT_END = "% ABSTRACT:END"
+BACKMATTER_PATH = REPO_ROOT / "paper" / "sections" / "08_backmatter.tex"
+BACKMATTER_VERSION_START = "% BACKMATTER:VERSION:START"
+BACKMATTER_VERSION_END = "% BACKMATTER:VERSION:END"
+CHANGES_PATH = REPO_ROOT / "CHANGES.md"
+CHANGES_CURRENT_START = "<!-- CHANGES:CURRENT:START -->"
+CHANGES_CURRENT_END = "<!-- CHANGES:CURRENT:END -->"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -58,9 +69,16 @@ def load_metadata() -> dict:
         sys.exit(1)
     with METADATA_PATH.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    # Normalise: split keywords, parse date
+    # Normalise: accept either a comma-separated string or a YAML list.
     raw_keywords = data.get("keywords", "") or ""
-    data["_keywords_list"] = [k.strip() for k in raw_keywords.split(",") if k.strip()]
+    if isinstance(raw_keywords, list):
+        data["_keywords_list"] = [str(k).strip() for k in raw_keywords if str(k).strip()]
+    else:
+        data["_keywords_list"] = [
+            k.strip() for k in str(raw_keywords).split(",") if k.strip()
+        ]
+    data["_abstract"] = data.get("abstract") or data.get("description") or ""
+    data["_abstract_note"] = data.get("abstract_note") or ""
     raw_date = data.get("date", "")
     if isinstance(raw_date, date):
         data["_date_iso"] = raw_date.isoformat()
@@ -171,7 +189,7 @@ def gen_citation_cff(m: dict) -> str:
 def gen_zenodo_json(m: dict) -> str:
     obj = {
         "title": m.get("title", ""),
-        "description": m.get("description", "") or m.get("abstract", ""),
+        "description": m.get("_abstract", "") or m.get("description", ""),
         "creators": [
             {
                 "name": m["_author_full"],
@@ -254,6 +272,75 @@ def gen_readme_bibtex_block(m: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def gen_readme_meta_block(m: dict) -> str:
+    lines = [README_META_START, f"# {m.get('title', '')}"]
+    if m.get("subtitle"):
+        lines.append(f"## {m['subtitle']}")
+    lines.extend(
+        [
+            "",
+            f"**Manuscript type:** {m.get('manuscript_type', '')}",
+            f"**Version:** {m.get('version_label', '')} ({m['_date_iso']})",
+            f"**License:** {m.get('license', '')}",
+            f"**Target deposit:** {m.get('target_deposit', '')} (preprint)",
+        ]
+    )
+    if m.get("_doi"):
+        lines.append(f"**DOI:** {m['_doi']}")
+    lines.extend(["", "## Abstract", "", m["_abstract"], README_META_END])
+    return "\n".join(lines) + "\n"
+
+
+def gen_abstract_block(m: dict) -> str:
+    abstract = latex_escape(m["_abstract"])
+    note = latex_escape(m["_abstract_note"])
+    keywords = ", ".join(latex_escape(k) for k in m["_keywords_list"])
+    lines = [
+        ABSTRACT_START,
+        r"\begin{abstract}",
+        r"\noindent",
+        abstract,
+        r"\end{abstract}",
+        "",
+        r"\bigskip",
+        r"\noindent\textbf{A note on evidence.} " + note,
+        "",
+        r"\medskip",
+        r"\noindent\textbf{Keywords:} " + keywords + ".",
+        ABSTRACT_END,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def gen_backmatter_version_block(m: dict) -> str:
+    lines = [
+        BACKMATTER_VERSION_START,
+        r"\section*{Version Statement}",
+        "",
+        f"This is version~{latex_escape(m.get('version', ''))} of the manuscript, dated",
+        f"{latex_escape(m['_date_iso'])}, prepared for {latex_escape(m.get('target_deposit', ''))}",
+        "deposit as a preprint.",
+        BACKMATTER_VERSION_END,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def gen_changes_current_block(m: dict) -> str:
+    lines = [
+        CHANGES_CURRENT_START,
+        f"## {m.get('version_label', '')} - {m['_date_iso']} (current)",
+        CHANGES_CURRENT_END,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def write_if_changed(path: Path, text: str) -> bool:
+    if path.is_file() and path.read_text(encoding="utf-8") == text:
+        return False
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
 # ─────────────────────────────────────────────────────────────
 # Block replacement
 # ─────────────────────────────────────────────────────────────
@@ -283,30 +370,64 @@ def main() -> int:
     m = load_metadata()
 
     # CITATION.cff — full rewrite
-    CITATION_PATH.write_text(gen_citation_cff(m), encoding="utf-8")
-    print(f"  wrote {CITATION_PATH.relative_to(REPO_ROOT)}")
+    if write_if_changed(CITATION_PATH, gen_citation_cff(m)):
+        print(f"  wrote {CITATION_PATH.relative_to(REPO_ROOT)}")
 
     # .zenodo.json — full rewrite
-    ZENODO_PATH.write_text(gen_zenodo_json(m), encoding="utf-8")
-    print(f"  wrote {ZENODO_PATH.relative_to(REPO_ROOT)}")
+    if write_if_changed(ZENODO_PATH, gen_zenodo_json(m)):
+        print(f"  wrote {ZENODO_PATH.relative_to(REPO_ROOT)}")
 
     # article.tex — replace title block
     article_text = ARTICLE_TEX_PATH.read_text(encoding="utf-8")
-    new_title_block = gen_article_tex_title_block(m)
     new_article_text = replace_block(
-        article_text, TITLE_BLOCK_START, TITLE_BLOCK_END, new_title_block
+        article_text, TITLE_BLOCK_START, TITLE_BLOCK_END, gen_article_tex_title_block(m)
     )
-    ARTICLE_TEX_PATH.write_text(new_article_text, encoding="utf-8")
-    print(f"  updated {ARTICLE_TEX_PATH.relative_to(REPO_ROOT)} (title block)")
+    if write_if_changed(ARTICLE_TEX_PATH, new_article_text):
+        print(f"  updated {ARTICLE_TEX_PATH.relative_to(REPO_ROOT)} (title block)")
 
-    # README.md — replace citation block
-    readme_text = README_PATH.read_text(encoding="utf-8")
-    new_bibtex_block = gen_readme_bibtex_block(m)
-    new_readme = replace_block(
-        readme_text, README_CITATION_START, README_CITATION_END, new_bibtex_block
+    # 00_abstract.tex — replace abstract and keywords
+    abstract_text = ABSTRACT_PATH.read_text(encoding="utf-8")
+    new_abstract_text = replace_block(
+        abstract_text, ABSTRACT_START, ABSTRACT_END, gen_abstract_block(m)
     )
-    README_PATH.write_text(new_readme, encoding="utf-8")
-    print(f"  updated {README_PATH.relative_to(REPO_ROOT)} (citation block)")
+    if write_if_changed(ABSTRACT_PATH, new_abstract_text):
+        print(f"  updated {ABSTRACT_PATH.relative_to(REPO_ROOT)} (abstract)")
+
+    # 08_backmatter.tex — replace version statement
+    backmatter_text = BACKMATTER_PATH.read_text(encoding="utf-8")
+    new_backmatter_text = replace_block(
+        backmatter_text,
+        BACKMATTER_VERSION_START,
+        BACKMATTER_VERSION_END,
+        gen_backmatter_version_block(m),
+    )
+    if write_if_changed(BACKMATTER_PATH, new_backmatter_text):
+        print(f"  updated {BACKMATTER_PATH.relative_to(REPO_ROOT)} (version)")
+
+    # CHANGES.md — replace current-release heading
+    changes_text = CHANGES_PATH.read_text(encoding="utf-8")
+    new_changes_text = replace_block(
+        changes_text,
+        CHANGES_CURRENT_START,
+        CHANGES_CURRENT_END,
+        gen_changes_current_block(m),
+    )
+    if write_if_changed(CHANGES_PATH, new_changes_text):
+        print(f"  updated {CHANGES_PATH.relative_to(REPO_ROOT)} (current release)")
+
+    # README.md — replace masthead and citation blocks
+    readme_text = README_PATH.read_text(encoding="utf-8")
+    new_readme = replace_block(
+        readme_text, README_META_START, README_META_END, gen_readme_meta_block(m)
+    )
+    new_readme = replace_block(
+        new_readme,
+        README_CITATION_START,
+        README_CITATION_END,
+        gen_readme_bibtex_block(m),
+    )
+    if write_if_changed(README_PATH, new_readme):
+        print(f"  updated {README_PATH.relative_to(REPO_ROOT)} (masthead + citation)")
 
     print("\nDone. Review with `git diff` before committing.")
     return 0

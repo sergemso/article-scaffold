@@ -63,3 +63,11 @@ history after work has started.
 - tojson applied to YAML/JSON/CFF; hostile title/abstract/subtitle/keywords parse; special metadata generation passes
 - verify: passed
 - scope: clean
+
+## 2026-10-20T23:32:19Z — T06 — claim
+- owner=agent ttl=120m
+
+## 2026-10-20T23:32:21Z — T06 — done
+- abstract/abstract_note/keywords single-source; sentinels for abstract, README masthead, CHANGES, backmatter; idempotent generator
+- verify: passed
+- scope: clean

@@ -1,3 +1,4 @@
+<!-- README:META:START -->
 # {{ cookiecutter.title }}
 {%- if cookiecutter.subtitle %}
 ## {{ cookiecutter.subtitle }}
@@ -14,6 +15,7 @@
 ## Abstract
 
 {{ cookiecutter.abstract }}
+<!-- README:META:END -->
 
 ## Repository Structure
 

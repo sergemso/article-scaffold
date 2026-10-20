@@ -1,6 +1,8 @@
 # Version History
 
+<!-- CHANGES:CURRENT:START -->
 ## {{ cookiecutter.version_label }} - {{ cookiecutter.date }} (current)
+<!-- CHANGES:CURRENT:END -->
 Initial scaffolded version. No substantive changes yet recorded.
 
 <!--

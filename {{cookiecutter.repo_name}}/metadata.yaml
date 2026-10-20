@@ -18,6 +18,11 @@ subtitle: {{ cookiecutter.subtitle | tojson }}
 {% endif %}
 manuscript_type: {{ cookiecutter.manuscript_type | tojson }}
 
+# The abstract is the single source for the LaTeX abstract block, the README
+# masthead, and the Zenodo description. Edit it here, then run `make metadata`.
+abstract: {{ cookiecutter.abstract | tojson }}
+abstract_note: "Replace this paragraph with a transparency note about the evidence base used in the manuscript. If the paper draws on industry data, single-source datasets, or non-peer-reviewed sources, state that here and note the limitations. If the paper uses only peer-reviewed sources and primary documents, you can delete this paragraph entirely."
+
 author:
   name: {{ cookiecutter.author_name | tojson }}
   orcid: {{ cookiecutter.author_orcid | tojson }}
@@ -36,13 +41,15 @@ github_user: {{ cookiecutter.github_user | tojson }}
 repo_name: {{ cookiecutter.repo_name | tojson }}
 repo_url: {{ ("https://github.com/" ~ cookiecutter.github_user ~ "/" ~ cookiecutter.repo_name) | tojson }}
 
-# Comma-separated; the generator splits on commas and trims whitespace.
+# Comma-separated; the generator also accepts a YAML list.
 keywords: {{ cookiecutter.keywords | tojson }}
 
-# Free-text description used in .zenodo.json.
-# Defaults to the same text as the abstract; replace with a longer
-# Zenodo-specific description if needed.
+# Legacy alias kept for older generated repos; the generator prefers `abstract`.
 description: {{ cookiecutter.abstract | tojson }}
+
+# Zenodo uses the abstract as its description. Keep a separate `description`
+# only if you need a longer, deposit-specific text; the generator prefers
+# `abstract` when both are present.
 
 # Used by .zenodo.json `references`. Each entry should be a short,
 # human-readable citation. Optional — leave empty list for a fresh repo.
