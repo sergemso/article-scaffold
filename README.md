@@ -10,6 +10,12 @@ extracted from `sergemso/articles.ai_governance`.
 > *how-to-use* doc; `canonical-pattern.md` is the *why-it's-structured-this-way*
 > doc.
 
+> **Agent workflow:** this repository is being hardened with an
+> agent-executable plan. Start at [`AGENTS.md`](./AGENTS.md), then run
+> `python3 plan/agentctl.py doctor` and
+> `python3 plan/agentctl.py next --card`. Progress and evidence live in
+> `plan/state.json` and `plan/journal.md`, not in chat history.
+
 ## Two ways to bootstrap a new article repo
 
 **Option A — Locally with `cookiecutter`:**
