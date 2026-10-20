@@ -1,8 +1,14 @@
 # article-scaffold — improvement plan
 
-Status: draft for review
+Status: accepted 2026-10-21; executable tasks in `plan/tasks.json`
 Owner: Sergei
 Last updated: 2026-10-21
+
+> **Decisions settled 2026-10-21.** The answers to §10 are recorded in
+> [`plan/decisions.md`](./plan/decisions.md). Where this document conflicts
+> with that file or `plan/tasks.json`, the plan wins. Key changes: empirical
+> is core, the v2 break has **no automated migration tool**, the license
+> matrix is **CC-BY-4.0 + MIT**, and journal classes remain parked.
 
 This plan consolidates the review findings (correctness bugs, SSOT leaks, CI
 and DX gaps) with the proposed core/CLI/MCP architecture. It is ordered by
@@ -84,7 +90,8 @@ what lets CLI, CI, and MCP stay in sync, and it is tested by parity fixtures.
 - v2.0 (breaking): replace `author:` with `authors:` + `affiliations:`,
   add `license`/`code_license`, `manuscript_kind`, `citation_style`,
   `default_branch`, `publication_type`.
-- A `article migrate` command upgrades v1 metadata in place and regenerates.
+- The v2 break is accepted, but there is **no** automated migration tool:
+  `docs/migrating-to-v2.md` gives a tested manual mapping and backup steps.
 
 Backward compatibility: the loader accepts both `author:` (mapping) and
 `authors:` (list) for the whole v2 line; deprecation warning for one minor
@@ -243,10 +250,11 @@ Acceptance:
 #### 1.3 License selection
 
 - [ ] Make `license` a Cookiecutter **choice** variable:
-      `CC-BY-4.0` (default), `CC-BY-SA-4.0`, `CC0-1.0`, `MIT`.
+      `CC-BY-4.0` (default) and `MIT`.
 - [ ] Ship `licenses/` with the full text of each; copy the selected one to
       `LICENSE` (or render `{% include %}`), plus the correct README link.
-- [ ] Add `code_license` (default `MIT`) and `LICENSE-CODE` for `scripts/`.
+- [ ] Fix the code license to `MIT`; emit `LICENSE-CODE` when the paper
+      license is `CC-BY-4.0`, and a single `LICENSE` when the paper is MIT.
 - [ ] Remove the hardcoded CC-BY text/link.
 
 Acceptance: for each license choice, `LICENSE` matches the choice, README
@@ -592,8 +600,9 @@ Target: core coverage ≥ 80%; every fixed bug gets a regression fixture.
 - v1.1: behavior fixes only; shims preserved; existing repos can adopt
   manually or via `cruft update` once Phase 5 lands.
 - v2.0: metadata schema v2 (authors/affiliations/license/kind). Ship
-  `article migrate` + `docs/migrating-to-v2.md`; keep the old `author:` and
-  `license` shapes readable through v2.x.
+  `docs/migrating-to-v2.md` with a tested **manual** mapping; no automated
+  migration command. Keep the old `author:` and `license` shapes readable
+  through v2.x.
 - Deprecation: one minor release with warnings before removal.
 - MCP: independent version (0.x); it targets the CLI JSON contract, not the
   template internals, so it survives template majors.
@@ -605,7 +614,7 @@ Target: core coverage ≥ 80%; every fixed bug gets a regression fixture.
 | Risk | Mitigation |
 | --- | --- |
 | Escaping bugs (LaTeX is full of edge cases) | Central escaper + table-driven tests + one real build per context; `title_tex` escape hatch |
-| Breaking existing generated repos | Semver, shims, `article migrate`, migration doc, no forced upgrade |
+| Breaking existing generated repos | Semver, shims, manual migration guide, no forced upgrade |
 | Template complexity grows past “five-minute bootstrap” | Keep core stdlib+PyYAML; CLI < 800 LOC; choices default to current behavior; gate Phase 5 |
 | CI time/cost | Build only 1–2 matrix cells; everything else parse/validate; cache where possible |
 | Network tests flake | Separate non-blocking job; cache vocabulary responses |
@@ -676,7 +685,7 @@ Target: core coverage ≥ 80%; every fixed bug gets a regression fixture.
 
 ---
 
-## 10. Open questions (answer before Phase 1 or 2)
+## 10. Open questions (answered 2026-10-21 — see `plan/decisions.md`)
 
 1. **Audience:** personal template only, or shared/public? Affects default
    neutrality, docs, and how much migration tooling is worth building.
