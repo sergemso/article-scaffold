@@ -907,6 +907,8 @@ def cmd_done(args) -> int:
             fail("refusing to mark done; move the change to its own task or pass --allow-outside-scope")
 
         commit = entry.get("commit")
+        if outside:
+            entry["notes"] = (entry.get("notes", []) + ["SCOPE OVERRIDE: " + ", ".join(outside)])[-20:]
         if args.skip_verify:
             entry["notes"] = (entry.get("notes", []) + ["DONE WITHOUT VERIFY: " + (args.note or "")])[-20:]
         elif args.note:
@@ -937,7 +939,13 @@ def cmd_done(args) -> int:
             proc = git("commit", "-m", message, "-m", body, "--allow-empty")
             if proc.returncode != 0:
                 print(proc.stdout + proc.stderr, file=sys.stderr)
-                fail("task commit failed; state is marked done on disk but has no commit")
+                # Do not leave a done-without-commit state: it would make a
+                # retry look like "already done" and silently skip the commit.
+                entry["status"] = "in_progress"
+                entry["commit"] = None
+                save_state(state)
+                journal("commit_failed", args.task, "task commit failed; status restored")
+                fail("task commit failed; state restored to in_progress, fix the hook and rerun done")
             commit = head_sha()
             entry["commit"] = commit
             save_state(state)
