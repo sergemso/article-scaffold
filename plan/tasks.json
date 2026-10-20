@@ -238,7 +238,7 @@
         "Add abstract and abstract_note to metadata.yaml; store keywords as a YAML list or a documented comma-separated string.",
         "Replace the body of 00_abstract.tex with % ABSTRACT:START/END sentinels and a placeholder body; the generator owns the content between them.",
         "Add README:META:START/END, BACKMATTER:VERSION:START/END and CHANGES:CURRENT:START/END sentinels so later drift checks have stable targets.",
-        "Extend generate-metadata.py to write the abstract (LaTeX-escaped) and keywords from metadata.yaml, leaving files untouched when already correct.",
+        "Extend generate-metadata.py to write the abstract (LaTeX-escaped), keywords, README masthead and CHANGES current-release block from metadata.yaml, leaving files untouched when already correct.",
         "Add tests that mutate metadata.yaml and check the sentinels update without duplicating content."
       ],
       "verify": [
