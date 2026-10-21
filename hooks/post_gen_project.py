@@ -10,6 +10,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:  # pragma: no cover - exercised only without PyYAML
+    print(
+        "ERROR: PyYAML is required to install the selected license and "
+        "generate derived metadata; install it with `pip install pyyaml`.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 
 def main() -> None:
     project_dir = Path.cwd()
@@ -47,7 +57,45 @@ def main() -> None:
             dst.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             print("Installed pre-push hook -> .git/hooks/pre-push")
 
-    # 4. Generate derived metadata from metadata.yaml.
+    # 4. Install the selected paper license and the MIT code license.
+    metadata_path = project_dir / "metadata.yaml"
+    licenses_dir = project_dir / "licenses"
+    if not metadata_path.is_file():
+        print("ERROR: metadata.yaml not found; cannot select a license.", file=sys.stderr)
+        sys.exit(1)
+    try:
+        metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        print(f"ERROR: metadata.yaml is not valid YAML: {exc}", file=sys.stderr)
+        sys.exit(1)
+    paper_license = str((metadata or {}).get("license", "")).strip()
+    if paper_license == "CC-BY-4.0":
+        paper_source = licenses_dir / "CC-BY-4.0.txt"
+        code_source = licenses_dir / "MIT.txt"
+    elif paper_license == "MIT":
+        paper_source = licenses_dir / "MIT.txt"
+        code_source = None
+    else:
+        print(
+            "ERROR: unsupported license "
+            f"{paper_license!r}; expected CC-BY-4.0 or MIT.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not paper_source.is_file():
+        print(f"ERROR: vendored license text missing: {paper_source}", file=sys.stderr)
+        sys.exit(1)
+    shutil.copyfile(paper_source, project_dir / "LICENSE")
+    if code_source is not None:
+        shutil.copyfile(code_source, project_dir / "LICENSE-CODE")
+    else:
+        (project_dir / "LICENSE-CODE").unlink(missing_ok=True)
+    if code_source is not None:
+        print(f"Installed {paper_license} paper license and MIT code license")
+    else:
+        print(f"Installed {paper_license} paper and code license")
+
+    # 5. Generate derived metadata from metadata.yaml.
     generator = project_dir / "scripts" / "generate-metadata.py"
     if generator.is_file():
         print("Generating derived metadata from metadata.yaml...")
@@ -72,7 +120,7 @@ def main() -> None:
     else:
         print("WARNING: scripts/generate-metadata.py not found; skipping metadata generation.")
 
-    # 5. Friendly next-steps banner.
+    # 6. Friendly next-steps banner.
     print()
     print("────────────────────────────────────────────────────────────")
     print(" Scaffolding complete.")

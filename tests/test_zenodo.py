@@ -14,6 +14,16 @@ def _load(project: Path) -> dict:
     return json.loads((project / ".zenodo.json").read_text())
 
 
+def _set_license(project: Path, value: str) -> dict:
+    path = project / "metadata.yaml"
+    metadata = yaml.safe_load(path.read_text())
+    metadata["license"] = value
+    path.write_text(yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True))
+    result = run(project, "make", "metadata")
+    assert result.returncode == 0, result.stderr + result.stdout
+    return _load(project)
+
+
 def test_default_deposit_shape(tmp_path: Path) -> None:
     data = _load(render(tmp_path=tmp_path))
     assert data["title"] == "A Test Manuscript"
@@ -86,12 +96,14 @@ def test_multiple_creators(tmp_path: Path) -> None:
     ],
 )
 def test_license_mapping(tmp_path: Path, spdx: str, zenodo_id: str) -> None:
-    data = _load(render(tmp_path=tmp_path, license=spdx))
+    # The cookiecutter prompt only offers CC-BY-4.0 and MIT, but the generator
+    # still maps other SPDX ids if metadata.yaml is edited later.
+    data = _set_license(render(tmp_path=tmp_path), spdx)
     assert data["license"] == zenodo_id
 
 
 def test_unknown_license_is_omitted(tmp_path: Path) -> None:
-    data = _load(render(tmp_path=tmp_path, license="Proprietary"))
+    data = _set_license(render(tmp_path=tmp_path), "Proprietary")
     assert "license" not in data
 
 
