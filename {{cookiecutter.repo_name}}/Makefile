@@ -1,4 +1,4 @@
-.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check analysis analysis-check
+.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check analysis analysis-check diff arxiv wordcount spell watch figures
 
 PAPER_DIR = paper
 
@@ -147,3 +147,26 @@ clean:
 	rm -f $(PAPER_DIR)/article.pdf
 	rm -f manuscript.docx manuscript.html manuscript.pdf
 	@echo "Build artifacts cleaned"
+
+# ─────────────────────────────────────────────────────────────
+# Authoring tools — not part of pdf/CI unless explicitly invoked
+# Each target fails with an actionable message if its tool is missing.
+# ─────────────────────────────────────────────────────────────
+
+diff:
+	python3 -m scripts.article diff --old-ref=$(OLD_REF) --new-ref=$(NEW_REF) --output=$(OUTPUT)
+
+arxiv:
+	python3 -m scripts.article arxiv --output=$(OUTPUT)
+
+wordcount:
+	python3 -m scripts.article wordcount
+
+spell:
+	python3 -m scripts.article spell
+
+watch:
+	python3 -m scripts.article watch
+
+figures:
+	python3 -m scripts.article figures

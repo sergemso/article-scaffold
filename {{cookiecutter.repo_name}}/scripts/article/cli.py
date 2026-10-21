@@ -310,6 +310,84 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
 
+def _tool_plan(args: argparse.Namespace, tool_name: str) -> int:
+    """Dispatch to a tool plan from core."""
+    root = _root(args)
+    try:
+        plan_func = core.TOOL_PLANS[tool_name]
+    except KeyError:
+        payload = {"ok": False, "command": tool_name, "error": f"unknown tool: {tool_name}"}
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(f"ERROR: unknown tool: {tool_name}", file=sys.stderr)
+        return core.ExitCode.USAGE
+
+    try:
+        plan = plan_func(_root(args), dry_run=args.dry_run)
+    except Exception as exc:
+        payload = {"ok": False, "command": tool_name, "error": f"plan construction failed: {exc}"}
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(f"ERROR: {payload['error']}", file=sys.stderr)
+        return core.ExitCode.DIAGNOSTICS
+
+    payload: dict[str, Any] = {
+        "ok": True,
+        "command": tool_name,
+        "plan": plan.to_dict(),
+        "dry_run": args.dry_run,
+    }
+    if args.dry_run:
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(" ".join(plan.command))
+        return core.ExitCode.OK
+
+    executable = shutil.which(plan.command[0])
+    if executable is None:
+        payload.update(
+            {
+                "ok": False,
+                "error": f"required tool not found: {plan.command[0]}",
+            }
+        )
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(f"ERROR: {payload['error']}", file=sys.stderr)
+        return core.ExitCode.DIAGNOSTICS
+
+    result = subprocess.run(
+        list(plan.command),
+        cwd=root / plan.cwd,
+        capture_output=True,
+        text=True,
+    )
+    payload.update(
+        {
+            "ok": result.returncode == 0,
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+    )
+    if args.json:
+        _emit_json(payload)
+    else:
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+    return core.ExitCode.OK if result.returncode == 0 else core.ExitCode.DIAGNOSTICS
+
+
+def _add_common(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(
         prog="python3 -m scripts.article",
@@ -380,6 +458,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="confirm release application (required with --apply)",
     )
     release.set_defaults(func=_release)
+
+    # Tool subcommands
+    diff = subparsers.add_parser("diff", help="generate latexdiff between two refs")
+    _add_common(diff)
+    diff.add_argument("--old-ref", default="HEAD~1", help="old git ref (default: HEAD~1)")
+    diff.add_argument("--new-ref", default="HEAD", help="new git ref (default: HEAD)")
+    diff.add_argument("--output", help="output PDF filename")
+    diff.add_argument("--dry-run", action="store_true", help="print command without running")
+    diff.set_defaults(func=lambda a: _tool_plan(a, "diff"))
+
+    arxiv = subparsers.add_parser("arxiv", help="create arXiv submission zip")
+    _add_common(arxiv)
+    arxiv.add_argument("--output", default="arxiv-submission.zip", help="output zip filename")
+    arxiv.add_argument("--dry-run", action="store_true", help="print command without running")
+    arxiv.set_defaults(func=lambda a: _tool_plan(a, "arxiv"))
+
+    wordcount = subparsers.add_parser("wordcount", help="count words with texcount")
+    _add_common(wordcount)
+    wordcount.add_argument("--dry-run", action="store_true", help="print command without running")
+    wordcount.set_defaults(func=lambda a: _tool_plan(a, "wordcount"))
+
+    spell = subparsers.add_parser("spell", help="spell-check with aspell")
+    _add_common(spell)
+    spell.add_argument("--dry-run", action="store_true", help="print command without running")
+    spell.set_defaults(func=lambda a: _tool_plan(a, "spell"))
+
+    watch = subparsers.add_parser("watch", help="live-reload PDF on changes")
+    _add_common(watch)
+    watch.add_argument("--dry-run", action="store_true", help="print command without running")
+    watch.set_defaults(func=lambda a: _tool_plan(a, "watch"))
+
+    figures = subparsers.add_parser("figures", help="list figure files with metadata")
+    _add_common(figures)
+    figures.add_argument("--dry-run", action="store_true", help="print command without running")
+    figures.set_defaults(func=lambda a: _tool_plan(a, "figures"))
+
     return parser
 
 

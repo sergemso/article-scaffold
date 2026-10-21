@@ -378,3 +378,14 @@ history after work has started.
 - release plan/apply with semver validation, DOI handling, gated apply with --yes, clean tree check, tag creation, artifact build; DOI propagates to CITATION.cff/.zenodo.json/README; core.py updated to export release functions; full suite 248 passed
 - verify: passed
 - scope: override
+
+## 2026-10-21T18:49:47Z — T34 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T18:49:47Z — T34 — checkpoint
+- starting diff, arxiv, wordcount, spell, watch, figures Makefile targets
+
+## 2026-10-21T19:27:59Z — T34 — done
+- diff, arxiv, wordcount, spell, watch, figures Makefile targets with CLI commands; each fails gracefully with actionable message when tool missing; Makefile targets not in pdf/all; test_tools.py runs tests in isolated subprocess via os.fork+execvpe to avoid pytest capture issues; all 249 tests pass
+- verify: passed
+- scope: override
