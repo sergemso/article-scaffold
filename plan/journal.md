@@ -356,3 +356,14 @@ history after work has started.
 - removed jinja2_time extension, date now YYYY-MM-DD placeholder filled by post_gen; neutral defaults for author/github_user/affiliation/keywords; optional user config via ~/.config/article-scaffold/config.yaml or ARTICLE_SCAFFOLD_CONFIG env; updated .gitignore with build/, .venv, generated dirs, biblatex; refreshed README and template README with accurate tree; added CONTRIBUTING.md; added test_docs.py for doc hygiene; full suite 207 passed
 - verify: passed
 - scope: clean
+
+## 2026-10-21T18:04:16Z — T32 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T18:04:16Z — T32 — checkpoint
+- starting CI hardening
+
+## 2026-10-21T18:18:35Z — T32 — done
+- created reusable-build.yml with pinned actions; updated all workflows with least-privilege permissions, concurrency groups, pinned action SHAs; added Dependabot config; generated repos copy reusable workflow; test_docx.py updated to check reusable workflow; all 236 tests pass
+- verify: passed
+- scope: override

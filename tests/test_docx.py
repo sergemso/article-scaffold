@@ -58,15 +58,16 @@ def test_docx_embeds_figure_from_paper_figures(tmp_path: Path) -> None:
 def test_docx_uses_shared_resource_path_and_reference_doc(tmp_path: Path) -> None:
     project = render(tmp_path=tmp_path)
     makefile = (project / "Makefile").read_text()
-    workflow = (project / ".github" / "workflows" / "build-artifacts.yml").read_text()
+    (project / ".github" / "workflows" / "build-artifacts.yml").read_text()
+    reusable = (project / ".github" / "workflows" / "reusable-build.yml").read_text()
 
     assert "DOCX_RESOURCE_PATH = paper:paper/figures:." in makefile
     assert "--resource-path=$(DOCX_RESOURCE_PATH)" in makefile
-    assert "--resource-path=/workspace/paper:/workspace/paper/figures:/workspace" in workflow
+    assert "--resource-path=/workspace/paper:/workspace/paper/figures:/workspace" in reusable
     assert "REFERENCE_DOCX ?= reference.docx" in makefile
     assert "--reference-doc=$(REFERENCE_DOCX)" in makefile
-    assert "reference.docx" in workflow
-    assert "pandoc/core:3.1" in workflow
+    assert "reference.docx" in reusable
+    assert "pandoc/core:3.1" in reusable
 
     for shared in (
         "--from=latex",
@@ -75,4 +76,4 @@ def test_docx_uses_shared_resource_path_and_reference_doc(tmp_path: Path) -> Non
         "paper/article.tex",
     ):
         assert shared in makefile
-        assert shared in workflow
+        assert shared in reusable

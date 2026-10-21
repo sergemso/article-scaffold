@@ -1,0 +1,152 @@
+# Reusable workflow to build PDF and DOCX artifacts.
+# Called by build-artifacts.yml and release.yml in generated repositories,
+# and by template tests in the scaffold repository.
+#
+# Usage:
+#   uses: ./.github/workflows/reusable-build.yml
+#   with:
+#     texlive-version: "2024"
+#     pandoc-image: "pandoc/core:3.1"
+#     artifact-retention-days: "7"
+#     upload-pdf: "true"
+#     upload-docx: "true"
+
+name: Reusable Build
+
+"on":
+  workflow_call:
+    inputs:
+      texlive-version:
+        description: "TeX Live version for xu-cheng/texlive-action"
+        type: string
+        required: false
+        default: "2024"
+      pandoc-image:
+        description: "Pandoc Docker image tag"
+        type: string
+        required: false
+        default: "pandoc/core:3.1"
+      artifact-retention-days:
+        description: "Artifact retention in days"
+        type: string
+        required: false
+        default: "7"
+      upload-pdf:
+        description: "Whether to build and upload PDF"
+        type: string
+        required: false
+        default: "true"
+      upload-docx:
+        description: "Whether to build and upload DOCX"
+        type: string
+        required: false
+        default: "true"
+
+concurrency:
+  group: reusable-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-docx:
+    name: Build DOCX via Pandoc
+    if: ${{ inputs.upload-docx == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build DOCX with Pandoc
+        run: |
+          set -e
+          REFERENCE_ARGS=""
+          if [ -f reference.docx ]; then
+            REFERENCE_ARGS="--reference-doc=/workspace/reference.docx"
+          fi
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            ${{ inputs.pandoc-image }} \
+            --output=/workspace/manuscript.docx \
+            --from=latex \
+            --to=docx \
+            --citeproc \
+            --bibliography=paper/refs.bib \
+            --resource-path=/workspace/paper:/workspace/paper/figures:/workspace \
+            $REFERENCE_ARGS \
+            paper/article.tex
+
+      - name: Verify DOCX output
+        run: |
+          if [ ! -f manuscript.docx ]; then
+            echo "::error::Pandoc did not produce manuscript.docx"
+            exit 1
+          fi
+          SIZE=$(stat -c%s manuscript.docx)
+          echo "Built manuscript.docx ($SIZE bytes)"
+          if [ "$SIZE" -lt 10240 ]; then
+            echo "::error::DOCX is suspiciously small ($SIZE bytes)"
+            exit 1
+          fi
+
+      - name: Upload DOCX artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.6.1
+        with:
+          name: manuscript-docx
+          path: manuscript.docx
+          retention-days: ${{ inputs.artifact-retention-days }}
+          if-no-files-found: error
+
+  build-pdf:
+    name: Build PDF via pdflatex
+    if: ${{ inputs.upload-pdf == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Compile LaTeX with TeX Live
+        uses: xu-cheng/texlive-action@db739573b2c9b0f5c60c69f1f1b0b6d1c5f8c8c0 # v2.0.2
+        with:
+          texlive-version: ${{ inputs.texlive-version }}
+          run: |
+            cd paper
+            latexmk -pdf -interaction=nonstopmode -file-line-error -halt-on-error article.tex
+            test -f build/article.pdf
+            cp build/article.pdf ../manuscript.pdf
+
+      - name: Verify PDF output
+        run: |
+          if [ ! -f manuscript.pdf ]; then
+            echo "::error::pdflatex did not produce manuscript.pdf"
+            exit 1
+          fi
+          SIZE=$(stat -c%s manuscript.pdf)
+          echo "Built manuscript.pdf ($SIZE bytes)"
+          if [ "$SIZE" -lt 20480 ]; then
+            echo "::error::PDF is suspiciously small ($SIZE bytes)"
+            exit 1
+          fi
+          if grep -q "There were undefined references" paper/article.log; then
+            echo "::error::Some citations remain undefined - bibtex may have failed"
+            echo "::group::Last 30 lines of article.log"
+            tail -30 paper/article.log
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.6.1
+        with:
+          name: manuscript-pdf
+          path: manuscript.pdf
+          retention-days: ${{ inputs.artifact-retention-days }}
+          if-no-files-found: error
