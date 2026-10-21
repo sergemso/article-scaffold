@@ -860,7 +860,7 @@
       "attempts": 1,
       "lease": null,
       "last_checkpoint": "2026-10-21T11:31:33Z",
-      "commit": null,
+      "commit": "d6419f0821c5e31ae7d5fac0cbc50f67426d112f",
       "seeded": false,
       "evidence": [
         {
