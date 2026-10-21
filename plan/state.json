@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T12:46:35Z",
+  "updated": "2026-10-21T12:54:05Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1328,14 +1328,51 @@
       "steps_done": []
     },
     "T28": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T12:54:05Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T12:54:02Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "7c66f34405a604b91df89fcced3bab23f7c25a21",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_pre_gen.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".............                                                            [100%]\n13 passed in 2.76s\n",
+              "at": "2026-10-21T12:54:02Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T12:54:05Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "7c66f34405a604b91df89fcced3bab23f7c25a21",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_pre_gen.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".............                                                            [100%]\n13 passed in 2.11s\n",
+              "at": "2026-10-21T12:54:05Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "pre-gen validator for slug/repo/semver/ORCID/license/DOI/title; plain-language __prompts__; API tests valid/invalid and empty ORCID; full suite 172 passed",
+        "SCOPE OVERRIDE: tests/test_cff.py",
+        "invalid contexts fail before rendering with one field-specific ERROR each; empty ORCID accepted; prompts labelled; --no-input green; adjusted the old float-like CFF regression to edit metadata after rendering because 1.0 is intentionally not semver (recorded in decisions.md)"
+      ],
       "steps_done": []
     },
     "T29": {

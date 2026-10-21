@@ -18,6 +18,40 @@
   "doi": "",
   "keywords": "research, methodology",
   "abstract": "Replace this placeholder with the manuscript abstract. State the question, the contribution, the evidence base, and the limitations. The abstract is the first thing a reader sees and the only thing many readers will read, so it should be a self-contained summary of the argument, not a teaser for it.",
+  "__prompts__": {
+    "topic": "Topic slug (lowercase letters, digits, hyphens, or underscores)",
+    "repo_name": "Repository name (default: articles.<topic>)",
+    "github_user": "GitHub user or organization",
+    "title": "Manuscript title",
+    "subtitle": "Subtitle (optional)",
+    "manuscript_type": "Manuscript type label (free text)",
+    "manuscript_kind": {
+      "__prompt__": "Manuscript kind",
+      "perspective": "Perspective essay (default)",
+      "empirical": "Empirical study (methods and results)",
+      "review": "Review essay"
+    },
+    "citation_style": {
+      "__prompt__": "Citation style",
+      "numeric": "Numeric citations (default; cite/plain)",
+      "author-year": "Author-year citations (natbib/apalike)"
+    },
+    "author_name": "Author name",
+    "author_orcid": "ORCID iD (optional; leave empty if none)",
+    "author_affiliation": "Primary affiliation (optional)",
+    "version": "Version (semantic versioning, e.g. 1.0.0)",
+    "version_label": "Version label shown on the title page",
+    "date": "Manuscript date (YYYY-MM-DD)",
+    "license": {
+      "__prompt__": "Paper license",
+      "CC-BY-4.0": "Creative Commons Attribution 4.0",
+      "MIT": "MIT"
+    },
+    "target_deposit": "Target deposit (for example Zenodo)",
+    "doi": "DOI (optional; enter a bare DOI or leave empty)",
+    "keywords": "Keywords (comma-separated)",
+    "abstract": "Abstract"
+  },
   "_extensions": [
     "jinja2_time.TimeExtension"
   ],

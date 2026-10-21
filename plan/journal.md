@@ -301,3 +301,14 @@ history after work has started.
 - 6 kind/style combinations render; perspective+numeric generated article/references/CFF/Zenodo/README byte-identical to T26; empirical PDF and HTML build; scope extension recorded in decisions.md because metadata state and renderers live in core after T21/T23
 - verify: passed
 - scope: override
+
+## 2026-10-21T12:53:58Z — T28 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T12:53:58Z — T28 — checkpoint
+- pre-gen validator for slug/repo/semver/ORCID/license/DOI/title; plain-language __prompts__; API tests valid/invalid and empty ORCID; full suite 172 passed
+
+## 2026-10-21T12:54:05Z — T28 — done
+- invalid contexts fail before rendering with one field-specific ERROR each; empty ORCID accepted; prompts labelled; --no-input green; adjusted the old float-like CFF regression to edit metadata after rendering because 1.0 is intentionally not semver (recorded in decisions.md)
+- verify: passed
+- scope: override

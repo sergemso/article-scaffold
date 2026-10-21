@@ -44,6 +44,10 @@ task scope changes.
   passthrough, the placeholder methods/results/discussion prose (literal
   `\input` was active LaTeX text), and adds `paper/tables/`. The alternative
   would have been a second task for state that the matrix cannot work without.
+* **T28 scope extension (2026-10-21).** Pre-generation now rejects `version:
+  1.0` as non-semver. The existing CFF float-like-version regression therefore
+  edits `metadata.yaml` after rendering and reruns `make metadata`, preserving
+  coverage of the generator without weakening the new input contract.
 
 ## Architecture decisions already firm
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from conftest import SPECIAL_ABSTRACT, SPECIAL_TITLE, render
+from conftest import SPECIAL_ABSTRACT, SPECIAL_TITLE, render, run
 
 CFFCONVERT = Path(sys.executable).with_name("cffconvert")
 
@@ -41,7 +41,18 @@ def test_default_cff_has_valid_types_and_string_version(tmp_path: Path) -> None:
 
 
 def test_version_that_looks_like_a_float_stays_a_string(tmp_path: Path) -> None:
-    cff = _load(render(tmp_path=tmp_path, version="1.0"))
+    # Pre-generation rejects non-semver input, but a repository may already
+    # contain an older version string. The generator must still quote it.
+    project = render(tmp_path=tmp_path)
+    metadata_path = project / "metadata.yaml"
+    metadata = yaml.safe_load(metadata_path.read_text())
+    metadata["version"] = "1.0"
+    metadata_path.write_text(yaml.safe_dump(metadata, sort_keys=False))
+
+    result = run(project, "make", "metadata")
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    cff = _load(project)
     assert cff["version"] == "1.0"
     assert isinstance(cff["version"], str)
 
