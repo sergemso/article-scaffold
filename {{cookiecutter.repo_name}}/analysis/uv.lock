@@ -1,0 +1,5 @@
+version = 1
+requires-python = ">=3.10"
+
+# The default analysis has no third-party dependencies. The optional `heavy`
+# extra is declared in pyproject.toml and installed only on explicit request.

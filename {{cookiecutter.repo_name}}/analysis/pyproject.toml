@@ -1,0 +1,18 @@
+[project]
+name = "article-analysis"
+version = "0.1.0"
+description = "Reproducible empirical analysis for the manuscript"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+# The default pipeline is stdlib-only. Heavy scientific packages are installed
+# only when a user opts in (`uv sync --extra heavy` or pip install -e '.[heavy]').
+heavy = [
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "pandas>=2.2",
+]
+
+[tool.uv]
+package = false

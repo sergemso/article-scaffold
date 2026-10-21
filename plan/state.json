@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T12:54:05Z",
+  "updated": "2026-10-21T17:09:40Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1464,14 +1464,67 @@
       "steps_done": []
     },
     "T37": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T17:09:40Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T17:09:11Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "99dcd78de1ead3d9ef67e8ff94a65f2ef5f2b0ab",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_analysis.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".......                                                                  [100%]\n7 passed in 10.00s\n",
+              "at": "2026-10-21T17:09:11Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T17:09:18Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "99dcd78de1ead3d9ef67e8ff94a65f2ef5f2b0ab",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_analysis.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".......                                                                  [100%]\n7 passed in 6.13s\n",
+              "at": "2026-10-21T17:09:18Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T17:09:40Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "99dcd78de1ead3d9ef67e8ff94a65f2ef5f2b0ab",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_analysis.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".......                                                                  [100%]\n7 passed in 8.61s\n",
+              "at": "2026-10-21T17:09:40Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "starting empirical data/analysis pipeline",
+        "SCOPE OVERRIDE: {{cookiecutter.repo_name}}/paper/sections/03_results.tex",
+        "data/ and analysis/ directories with uv.lock, checksums, stdlib-only pipeline, make analysis, make analysis-check, paper/tables and paper/figures outputs consumed by empirical manuscript via InputIfFileExists in 03_results.tex; full suite 179 passed"
+      ],
       "steps_done": []
     },
     "T38": {

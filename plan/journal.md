@@ -312,3 +312,14 @@ history after work has started.
 - invalid contexts fail before rendering with one field-specific ERROR each; empty ORCID accepted; prompts labelled; --no-input green; adjusted the old float-like CFF regression to edit metadata after rendering because 1.0 is intentionally not semver (recorded in decisions.md)
 - verify: passed
 - scope: override
+
+## 2026-10-21T13:48:03Z — T37 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T13:48:03Z — T37 — checkpoint
+- starting empirical data/analysis pipeline
+
+## 2026-10-21T17:09:40Z — T37 — done
+- data/ and analysis/ directories with uv.lock, checksums, stdlib-only pipeline, make analysis, make analysis-check, paper/tables and paper/figures outputs consumed by empirical manuscript via InputIfFileExists in 03_results.tex; full suite 179 passed
+- verify: passed
+- scope: override

@@ -1,4 +1,4 @@
-.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check
+.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check analysis analysis-check
 
 PAPER_DIR = paper
 
@@ -90,6 +90,19 @@ html:
 quick:
 	cd $(PAPER_DIR) && pdflatex -interaction=nonstopmode article.tex
 	@echo "Quick (single-pass) PDF built — cross-refs may be wrong"
+
+# ─────────────────────────────────────────────────────────────
+# Empirical analysis — explicit, reproducible, and never part of `pdf`.
+# Outputs are written to paper/figures/ and paper/tables/; the manuscript
+# includes them conditionally so a clean checkout still builds before the
+# first analysis run. Heavy scientific packages are an opt-in extra.
+# ─────────────────────────────────────────────────────────────
+
+analysis:
+	@python3 analysis/analyze.py
+
+analysis-check:
+	@python3 analysis/analyze.py --check
 
 # ─────────────────────────────────────────────────────────────
 # Local validation — same checks as .github/workflows/validate-latex.yml
