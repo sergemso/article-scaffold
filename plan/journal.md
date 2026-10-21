@@ -103,3 +103,10 @@ history after work has started.
 - check mode prints unified diff and exits 1; metadata-check target; CI checks default and special renders; drift, missing-file, read-only and pdf no-write tests; CFF strings JSON-escaped
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:07:13Z — G1 — gate
+- T05–T10 complete: structured escaping, abstract SSOT, PDF metadata, single-pass escaper, post-gen generation, metadata --check
+- `make test`: 41 passed, 1 xfailed (CFF type, T11), 5 xpassed
+- `audit`: 10 done, no scope or evidence errors
+- `plan/STATUS.md` rendered
+- CFF strings are JSON-escaped so hostile input remains parseable; schema type is T11

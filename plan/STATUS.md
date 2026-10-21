@@ -1,11 +1,11 @@
 # Implementation status
 
-Updated: 2026-10-20T23:27:02Z
+Updated: 2026-10-21T11:06:56Z
 
 | Phase | Done | Total |
 |---|---|---|
 | P0 | 4 | 4 |
-| P1.1 | 0 | 6 |
+| P1.1 | 6 | 6 |
 | P1.2 | 0 | 3 |
 | P1.3 | 0 | 1 |
 | P1.4 | 0 | 3 |
@@ -28,4 +28,4 @@ _none_
 
 ## Next
 
-- `T05` Escape structured metadata with tojson
+- `T11` Rewrite CFF generation
