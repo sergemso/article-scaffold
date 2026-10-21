@@ -32,6 +32,9 @@ packages = []
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+  "network: opt-in checks that resolve external Zenodo/CFF services (RUN_NETWORK=1)",
+]
 
 [tool.ruff]
 line-length = 100
