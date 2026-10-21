@@ -30,16 +30,22 @@ jobs:
       - name: Build DOCX with Pandoc
         run: |
           set -e
+          REFERENCE_ARGS=""
+          if [ -f reference.docx ]; then
+            REFERENCE_ARGS="--reference-doc=/workspace/reference.docx"
+          fi
           docker run --rm \
             -v "$PWD:/workspace" \
-            -w /workspace/paper \
-            pandoc/latex:3.1 \
+            -w /workspace \
+            pandoc/core:3.1 \
             --output=/workspace/manuscript.docx \
             --from=latex \
             --to=docx \
             --citeproc \
-            --bibliography=refs.bib \
-            article.tex
+            --bibliography=paper/refs.bib \
+            --resource-path=/workspace/paper:/workspace/paper/figures:/workspace \
+            $REFERENCE_ARGS \
+            paper/article.tex
 
       - name: Verify output
         run: |

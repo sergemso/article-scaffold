@@ -207,3 +207,14 @@ history after work has started.
 - all inputs flow through env and quoted shell vars; slug/repo/semver/license/visibility/owner validation; explicit cookiecutter context; refuse existing repo; explicit topics; contents:read; YAML parser tests
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:38:19Z — T20 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:38:20Z — T20 — checkpoint
+- pandoc resource path covers paper, paper/figures, root; optional reference.docx; pinned pandoc/core:3.1; DOCX media test
+
+## 2026-10-21T11:38:23Z — T20 — done
+- resource-path shared by make/CI; optional reference doc; pinned pandoc/core; DOCX embeds figures and leaves PDF images untouched
+- verify: passed
+- scope: clean

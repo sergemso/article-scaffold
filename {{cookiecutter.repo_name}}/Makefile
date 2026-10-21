@@ -2,6 +2,18 @@
 
 PAPER_DIR = paper
 
+# Pandoc is optional; the DOCX target is skipped by CI if it is unavailable.
+PANDOC ?= pandoc
+
+# Optional Word reference template at the repository root. Put a
+# reference.docx there to control DOCX styles; it is never used by the PDF.
+REFERENCE_DOCX ?= reference.docx
+
+# Pandoc does not read LaTeX \graphicspath, so point it at every place a
+# figure may live. Paths are relative to the repository root, where `make`
+# runs; the PDF build still uses paper/article.tex's \graphicspath unchanged.
+DOCX_RESOURCE_PATH = paper:paper/figures:.
+
 all: pdf
 
 # ─────────────────────────────────────────────────────────────
@@ -13,14 +25,31 @@ pdf:
 	@echo "PDF built: $(PAPER_DIR)/article.pdf"
 
 docx:
-	cd $(PAPER_DIR) && pandoc \
-		--output=../manuscript.docx \
+	@CITEPROC=""; \
+	if $(PANDOC) --help 2>/dev/null | grep -q -- '--citeproc'; then \
+		CITEPROC="--citeproc"; \
+	elif command -v pandoc-citeproc >/dev/null 2>&1; then \
+		CITEPROC="--filter pandoc-citeproc"; \
+	fi; \
+	REFERENCE=""; \
+	if [ -f "$(REFERENCE_DOCX)" ]; then \
+		REFERENCE="--reference-doc=$(REFERENCE_DOCX)"; \
+	fi; \
+	BIBLIOGRAPHY=""; \
+	if [ -n "$$CITEPROC" ]; then \
+		BIBLIOGRAPHY="--bibliography=paper/refs.bib"; \
+	fi; \
+	$(PANDOC) \
+		--output=manuscript.docx \
 		--from=latex \
 		--to=docx \
-		--citeproc \
-		--bibliography=refs.bib \
-		article.tex
+		$$CITEPROC \
+		$$BIBLIOGRAPHY \
+		--resource-path=$(DOCX_RESOURCE_PATH) \
+		$$REFERENCE \
+		paper/article.tex
 	@echo "DOCX built: manuscript.docx"
+	@echo "Figures are read in place through --resource-path; PDF sources are not modified."
 
 quick:
 	cd $(PAPER_DIR) && pdflatex -interaction=nonstopmode article.tex
