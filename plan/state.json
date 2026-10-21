@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T12:06:45Z",
+  "updated": "2026-10-21T12:10:15Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1232,14 +1232,51 @@
       "steps_done": []
     },
     "T26": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T12:10:15Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T12:10:12Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "6fa5382d08a3b4890088cdc203527a1087f25038",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_authors_render.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..                                                                       [100%]\n2 passed in 2.70s\n",
+              "at": "2026-10-21T12:10:12Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T12:10:15Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "6fa5382d08a3b4890088cdc203527a1087f25038",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_authors_render.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..                                                                       [100%]\n2 passed in 2.56s\n",
+              "at": "2026-10-21T12:10:15Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "multi-author LaTeX \\author/\\thanks, CFF/Zenodo/README/BibTeX from _authors, ORCID/ROR links, 3-author consistency and PDF test",
+        "SCOPE OVERRIDE: {{cookiecutter.repo_name}}/scripts/article/metadata.py",
+        "3-author fixture agrees across LaTeX/CFF/Zenodo/README; ORCID/ROR links where supported; PDF builds with latexmk; core metadata.py touched because T23 moved renderers out of the legacy shim (recorded in decisions.md)"
+      ],
       "steps_done": []
     },
     "T27": {

@@ -279,3 +279,14 @@ history after work has started.
 - v2 and v1 metadata load through one normalized model; ORCID checksum/ROR shape/duplicates/corresponding diagnostics; default generated files byte-identical; metadata schema published
 - verify: passed
 - scope: clean
+
+## 2026-10-21T12:10:08Z — T26 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T12:10:08Z — T26 — checkpoint
+- multi-author LaTeX \author/\thanks, CFF/Zenodo/README/BibTeX from _authors, ORCID/ROR links, 3-author consistency and PDF test
+
+## 2026-10-21T12:10:15Z — T26 — done
+- 3-author fixture agrees across LaTeX/CFF/Zenodo/README; ORCID/ROR links where supported; PDF builds with latexmk; core metadata.py touched because T23 moved renderers out of the legacy shim (recorded in decisions.md)
+- verify: passed
+- scope: override

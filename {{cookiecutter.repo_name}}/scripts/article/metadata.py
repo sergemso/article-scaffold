@@ -585,23 +585,126 @@ def _q(value: object) -> str:
     return json.dumps(str(value), ensure_ascii=False)
 
 
+def _authors(metadata: dict) -> list[dict]:
+    """Return the normalized author list, with a manual-dict fallback."""
+    authors = metadata.get("_authors")
+    if isinstance(authors, list) and authors:
+        return authors
+    full = _text(metadata.get("_author_full")) or "Unknown"
+    return [
+        {
+            "name": full,
+            "given": _text(metadata.get("_author_given")),
+            "family": _text(metadata.get("_author_family")) or full,
+            "orcid": _text(metadata.get("_author_orcid")),
+            "email": "",
+            "affiliations": [],
+            "affiliation_names": [
+                name
+                for name in [_text(metadata.get("_author_affiliation"))]
+                if name
+            ],
+            "corresponding": False,
+            "ror": "",
+        }
+    ]
+
+
+def _author_affiliations(metadata: dict, author: dict) -> list[dict]:
+    affiliation_map = metadata.get("_affiliations") or {}
+    resolved: list[dict] = []
+    for affiliation_id in author.get("affiliations", []):
+        affiliation = affiliation_map.get(str(affiliation_id))
+        if isinstance(affiliation, dict):
+            resolved.append(affiliation)
+    if resolved:
+        return resolved
+    return [
+        {"id": "", "name": name, "ror": ""}
+        for name in author.get("affiliation_names", [])
+        if name
+    ]
+
+
+def _cff_author(metadata: dict, author: dict) -> dict[str, object]:
+    family = author.get("family") or author.get("name") or "Unknown"
+    entry: dict[str, object] = {"family-names": family}
+    if author.get("given"):
+        entry["given-names"] = author["given"]
+    if author.get("orcid"):
+        entry["orcid"] = f"https://orcid.org/{author['orcid']}"
+    affiliation_names = [
+        affiliation.get("name", "")
+        for affiliation in _author_affiliations(metadata, author)
+        if affiliation.get("name")
+    ]
+    if affiliation_names:
+        entry["affiliation"] = "; ".join(affiliation_names)
+    return entry
+
+
+def _latex_author_block(metadata: dict, author: dict) -> str:
+    name = latex_escape(author.get("name", ""))
+    if author.get("corresponding"):
+        note = "Corresponding author"
+        if author.get("email"):
+            email = latex_escape(author["email"])
+            note += ": \\href{mailto:" + author["email"] + "}{" + email + "}"
+        name += "\\thanks{" + note + "}"
+
+    lines = [name]
+    for affiliation in _author_affiliations(metadata, author):
+        affiliation_name = latex_escape(affiliation.get("name", ""))
+        if affiliation.get("ror"):
+            affiliation_name = (
+                "\\href{" + affiliation["ror"] + "}{" + affiliation_name + "}"
+            )
+        lines.append("\\small " + affiliation_name)
+    if author.get("orcid"):
+        orcid = author["orcid"]
+        lines.append(
+            "\\small \\href{https://orcid.org/"
+            + orcid
+            + "}{\\texttt{ORCID: "
+            + orcid
+            + "}}"
+        )
+    return "\\\\\n".join(lines)
+
+
+def _readme_author(metadata: dict, author: dict) -> str:
+    name = author.get("name", "") or "Unknown"
+    if author.get("orcid"):
+        name = f"[{name}](https://orcid.org/{author['orcid']})"
+    affiliations = []
+    for affiliation in _author_affiliations(metadata, author):
+        affiliation_name = affiliation.get("name", "")
+        if not affiliation_name:
+            continue
+        if affiliation.get("ror"):
+            affiliation_name = (
+                f"[{affiliation_name}]({affiliation['ror']})"
+            )
+        affiliations.append(affiliation_name)
+    if affiliations:
+        name += " (" + ", ".join(affiliations) + ")"
+    if author.get("corresponding"):
+        name += " †"
+    return name
+
+
 def gen_citation_cff(metadata: dict) -> str:
     """Build a CFF 1.2.0 record with PyYAML, never by hand-formatting."""
-    family = metadata.get("_author_family") or "Unknown"
-    author: dict[str, object] = {"family-names": family}
-    if metadata.get("_author_given"):
-        author["given-names"] = metadata["_author_given"]
-    if metadata.get("_author_orcid"):
-        author["orcid"] = f"https://orcid.org/{metadata['_author_orcid']}"
-    if metadata.get("_author_affiliation"):
-        author["affiliation"] = metadata["_author_affiliation"]
+    cff_authors = [
+        _cff_author(metadata, author) for author in _authors(metadata)
+    ]
 
     data: dict[str, object] = {
         "cff-version": "1.2.0",
         "message": "If you use this manuscript or its scaffold, please cite it as below.",
         "title": metadata.get("title", ""),
         "type": "software",
-        "authors": [author],
+        "authors": cff_authors,
     }
     if metadata.get("subtitle"):
         data["subtitle"] = metadata["subtitle"]
@@ -633,7 +736,7 @@ def gen_citation_cff(metadata: dict) -> str:
     preferred: dict[str, object] = {
         "type": "unpublished",
         "title": metadata.get("title", ""),
-        "authors": [dict(author)],
+        "authors": [dict(author) for author in cff_authors],
     }
     if metadata.get("version_label") or metadata.get("target_deposit"):
         preferred["notes"] = (
@@ -718,9 +821,13 @@ def gen_article_tex_title_block(metadata: dict) -> str:
     subtitle = (
         latex_escape(metadata.get("subtitle", "")) if metadata.get("subtitle") else ""
     )
-    author = latex_escape(metadata["_author_full"])
-    affiliation = latex_escape(metadata["_author_affiliation"])
-    orcid = metadata["_author_orcid"]
+    authors = _authors(metadata)
+    author_blocks = [
+        _latex_author_block(metadata, author) for author in authors
+    ]
+    author_names = ", ".join(
+        latex_escape(author.get("name", "")) for author in authors
+    )
     version_label = metadata.get("version_label", "")
     date_iso = metadata["_date_iso"]
     out = [TITLE_BLOCK_START]
@@ -729,15 +836,13 @@ def gen_article_tex_title_block(metadata: dict) -> str:
         title_inner += "\\\\[0.3em] \\large " + subtitle
     title_inner += " }"
     out.append("\\title{" + title_inner + "}")
-    out.append("\\author{ " + author + "\\\\")
-    out.append("\\small " + affiliation + "\\\\")
-    out.append("\\small \\texttt{ORCID: " + orcid + "}}")
+    out.append("\\author{ " + " \\and ".join(author_blocks) + "}")
     out.append("\\date{\\small " + version_label + " — " + date_iso + "}")
     keywords = ", ".join(latex_escape(keyword) for keyword in metadata["_keywords_list"])
     subject = latex_escape(metadata.get("manuscript_type", ""))
     out.append("\\hypersetup{")
     out.append("  pdftitle={ " + title_for_pdf + " },")
-    out.append("  pdfauthor={ " + author + " },")
+    out.append("  pdfauthor={ " + author_names + " },")
     out.append("  pdfsubject={ " + subject + " },")
     out.append("  pdfkeywords={ " + keywords + " }")
     out.append("}")
@@ -751,7 +856,9 @@ def gen_readme_bibtex_block(metadata: dict) -> str:
         r"[^A-Za-z0-9]", "_", metadata.get("version_label", "")
     )
     key = f"{topic}_{version_label}"
-    author = metadata["_author_full"]
+    author = " and ".join(
+        author.get("name", "") or "Unknown" for author in _authors(metadata)
+    )
     title = metadata.get("title", "")
     year = metadata["_date_iso"][:4] if metadata["_date_iso"] else ""
     version_label_raw = metadata.get("version_label", "")
@@ -790,11 +897,29 @@ def gen_readme_meta_block(metadata: dict) -> str:
             "",
             f"**Manuscript type:** {metadata.get('manuscript_type', '')}",
             f"**Version:** {metadata.get('version_label', '')} ({metadata['_date_iso']})",
+            "**Authors:** "
+            + ", ".join(
+                _readme_author(metadata, author) for author in _authors(metadata)
+            ),
             f"**License:** {metadata.get('license', '')}",
             "**Code license:** MIT",
             f"**Target deposit:** {metadata.get('target_deposit', '')} (preprint)",
         ]
     )
+    corresponding = [
+        author for author in _authors(metadata) if author.get("corresponding")
+    ]
+    if corresponding:
+        details = []
+        for author in corresponding:
+            name = author.get("name", "") or "Unknown"
+            if author.get("email"):
+                details.append(
+                    f"{name} ([{author['email']}](mailto:{author['email']}))"
+                )
+            else:
+                details.append(name)
+        lines.append(f"**Corresponding author(s):** {', '.join(details)}")
     if metadata.get("_doi"):
         lines.append(f"**DOI:** {metadata['_doi']}")
     lines.extend(["", "## Abstract", "", metadata["_abstract"], README_META_END])

@@ -34,6 +34,10 @@ task scope changes.
 * **T38** (journal classes) remains `optional: true` and must not be started
   without a new decision.
 * **T28** validates ORCID only when one is supplied; an empty ORCID is valid.
+* **T26 scope extension (2026-10-21).** After T21/T23 the metadata renderers
+  live in `scripts/article/metadata.py`, not the deprecated
+  `generate-metadata.py` shim. T26 therefore also changes that core module;
+  the shim stays a re-export only.
 
 ## Architecture decisions already firm
 
