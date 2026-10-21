@@ -294,12 +294,13 @@ jobs:
             --description="Article manuscript repository scaffolded from article-scaffold."
 
           # Set topics explicitly so the new repo is discoverable and the
-          # bootstrap result is reproducible.
-          gh repo edit "$REPO_FULL" \
+          # bootstrap result is reproducible. Continue on error if token lacks
+          # permission to edit topics (requires admin:repo_hook or repo scope).
+          (gh repo edit "$REPO_FULL" \
             --add-topic article \
             --add-topic manuscript \
             --add-topic latex \
-            --add-topic research
+            --add-topic research) || true
 
           # Add `origin` with the token embedded in the URL so raw `git push`
           # authenticates non-interactively. We do not echo the URL.
