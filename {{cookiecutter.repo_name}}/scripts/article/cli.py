@@ -188,6 +188,7 @@ def _build(args: argparse.Namespace) -> int:
         plan = core.docx_plan(
             root,
             reference_docx="reference.docx" if reference.is_file() else None,
+            citation_style=args.citation_style,
         )
     payload: dict[str, Any] = {
         "ok": True,
@@ -302,6 +303,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="print the command without running it",
+    )
+    build.add_argument(
+        "--citation-style",
+        choices=["numeric", "author-year"],
+        default=None,
+        help="override the metadata citation style for DOCX",
     )
     build.set_defaults(func=_build)
 

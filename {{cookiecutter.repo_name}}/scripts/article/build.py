@@ -47,6 +47,7 @@ def docx_plan(
     pandoc: str = "pandoc",
     reference_docx: str | None = None,
     citeproc: bool = True,
+    citation_style: str | None = None,
 ) -> BuildPlan:
     """Plan a DOCX build with the same resource path as ``make docx``."""
     del root
@@ -58,6 +59,8 @@ def docx_plan(
     ]
     if citeproc:
         command.extend(["--citeproc", "--bibliography=paper/refs.bib"])
+    if citation_style:
+        command.append(f"--metadata=citation-style={citation_style}")
     command.extend(
         [
             "--resource-path=paper:paper/figures:.",

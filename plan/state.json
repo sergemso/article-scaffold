@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T12:10:15Z",
+  "updated": "2026-10-21T12:46:35Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1280,14 +1280,51 @@
       "steps_done": []
     },
     "T27": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T12:46:35Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T12:46:32Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "9d001d000099b1bc27eb1a630ffa547327918b72",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_matrix.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".......                                                                  [100%]\n7 passed in 3.02s\n",
+              "at": "2026-10-21T12:46:32Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T12:46:35Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "9d001d000099b1bc27eb1a630ffa547327918b72",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_matrix.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".......                                                                  [100%]\n7 passed in 2.37s\n",
+              "at": "2026-10-21T12:46:35Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "kind/style choices, conditional empirical sections/packages/tables path, natbib/apalike vs cite/plain, DOCX/HTML style passthrough, 6-cell render matrix; default perspective output byte-identical",
+        "SCOPE OVERRIDE: {{cookiecutter.repo_name}}/metadata.yaml, {{cookiecutter.repo_name}}/paper/sections/02_methods.tex, {{cookiecutter.repo_name}}/paper/sections/03_results.tex, {{cookiecutter.repo_name}}/paper/sections/04_discussion.tex, {{cookiecutter.repo_name}}/scripts/article/build.py, {{cookiecutter.repo_name}}/scripts/article/cli.py, {{cookiecutter.repo_name}}/scripts/article/metadata.py, {{cookiecutter.repo_name}}/paper/tables/README.md",
+        "6 kind/style combinations render; perspective+numeric generated article/references/CFF/Zenodo/README byte-identical to T26; empirical PDF and HTML build; scope extension recorded in decisions.md because metadata state and renderers live in core after T21/T23"
+      ],
       "steps_done": []
     },
     "T28": {

@@ -5,6 +5,8 @@
   "title": "Untitled Manuscript",
   "subtitle": "",
   "manuscript_type": "Perspective / Review Essay",
+  "manuscript_kind": ["perspective", "empirical", "review"],
+  "citation_style": ["numeric", "author-year"],
   "author_name": "Your Name",
   "author_orcid": "",
   "author_affiliation": "Independent Researcher",

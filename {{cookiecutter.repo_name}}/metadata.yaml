@@ -19,6 +19,8 @@ subtitle: {{ cookiecutter.subtitle | tojson }}
 # subtitle: ""  # optional; uncomment and fill if needed
 {% endif %}
 manuscript_type: {{ cookiecutter.manuscript_type | tojson }}
+manuscript_kind: {{ cookiecutter.manuscript_kind | tojson }}
+citation_style: {{ cookiecutter.citation_style | tojson }}
 
 # The abstract is the single source for the LaTeX abstract block, the README
 # masthead, and the Zenodo description. Edit it here, then run `make metadata`.

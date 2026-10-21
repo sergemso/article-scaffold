@@ -290,3 +290,14 @@ history after work has started.
 - 3-author fixture agrees across LaTeX/CFF/Zenodo/README; ORCID/ROR links where supported; PDF builds with latexmk; core metadata.py touched because T23 moved renderers out of the legacy shim (recorded in decisions.md)
 - verify: passed
 - scope: override
+
+## 2026-10-21T12:46:28Z — T27 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T12:46:28Z — T27 — checkpoint
+- kind/style choices, conditional empirical sections/packages/tables path, natbib/apalike vs cite/plain, DOCX/HTML style passthrough, 6-cell render matrix; default perspective output byte-identical
+
+## 2026-10-21T12:46:35Z — T27 — done
+- 6 kind/style combinations render; perspective+numeric generated article/references/CFF/Zenodo/README byte-identical to T26; empirical PDF and HTML build; scope extension recorded in decisions.md because metadata state and renderers live in core after T21/T23
+- verify: passed
+- scope: override

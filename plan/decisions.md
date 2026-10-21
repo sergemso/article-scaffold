@@ -38,6 +38,12 @@ task scope changes.
   live in `scripts/article/metadata.py`, not the deprecated
   `generate-metadata.py` shim. T26 therefore also changes that core module;
   the shim stays a re-export only.
+* **T27 scope extension (2026-10-21).** The kind/style selections must persist
+  in `metadata.yaml` and be normalized by the core loader. T27 therefore also
+  touches `metadata.yaml`, `scripts/article/metadata.py`, the build/CLI style
+  passthrough, the placeholder methods/results/discussion prose (literal
+  `\input` was active LaTeX text), and adds `paper/tables/`. The alternative
+  would have been a second task for state that the matrix cannot work without.
 
 ## Architecture decisions already firm
 

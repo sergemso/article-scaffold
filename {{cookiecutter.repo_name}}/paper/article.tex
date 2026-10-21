@@ -16,12 +16,14 @@
 \usepackage{tabularx}
 \usepackage{ragged2e}
 \usepackage{graphicx}
-\usepackage{cite}
+{% if cookiecutter.citation_style == "numeric" %}\usepackage{cite}{% else %}\usepackage[round]{natbib}{% endif %}
 \usepackage{url}
 \usepackage{xcolor}
 \usepackage{enumitem}
 \usepackage{float}
-% Load hyperref LAST — it patches many commands (\cite, \ref, \section, etc.)
+{% if cookiecutter.manuscript_kind == "empirical" %}\usepackage{threeparttable}
+\usepackage{caption}
+{% endif %}% Load hyperref LAST — it patches many commands (\cite, \ref, \section, etc.)
 % and must run after cite, url, and other packages that touch the same hooks.
 \usepackage{hyperref}
 
@@ -51,9 +53,12 @@
 {% raw %}\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
 \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}{% endraw %}
 
-% Figure path — looks in paper/figures/ for \includegraphics{...}
+{% if cookiecutter.manuscript_kind == "empirical" %}% Figure path — looks in paper/figures/ for \includegraphics{...}.
+% Empirical projects also read generated tables from paper/tables/.
+\graphicspath{ {figures/}{tables/} }
+{% else %}% Figure path — looks in paper/figures/ for \includegraphics{...}
 \graphicspath{ {figures/} }
-
+{% endif %}
 % ─────────────────────────────────────────────────────────────
 % Title block
 % ─────────────────────────────────────────────────────────────
@@ -87,14 +92,21 @@
 \input{sections/01_introduction}
 
 % ─────────────────────────────────────────────────────────────
-% Optional structural sections. Uncomment (or duplicate and rename)
+{% if cookiecutter.manuscript_kind == "empirical" %}% Structural sections. Empirical manuscripts include methods and results
+% by default; perspective and review essays keep them optional.
+% Generated tables live in paper/tables/ and are included from results.
+% ─────────────────────────────────────────────────────────────
+\input{sections/02_methods}
+\input{sections/03_results}
+\input{sections/04_discussion}
+{% else %}% Optional structural sections. Uncomment (or duplicate and rename)
 % as needed. The numbered-prefix convention (NN_name) keeps
 % section ordering stable across renames; see CHANGES.md.
 % ─────────────────────────────────────────────────────────────
 % \input{sections/02_methods}
 % \input{sections/03_results}
 % \input{sections/04_discussion}
-
+{% endif %}
 \input{sections/05_conclusion}
 \input{sections/08_backmatter}
 \input{sections/09_references}

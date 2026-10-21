@@ -1,9 +1,14 @@
-.PHONY: pdf docx quick clean all validate hooks metadata metadata-check
+.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check
 
 PAPER_DIR = paper
 
-# Pandoc is optional; the DOCX target is skipped by CI if it is unavailable.
+# Pandoc is optional; the DOCX/HTML targets are skipped by CI if unavailable.
 PANDOC ?= pandoc
+
+# Read the selected citation style from metadata.yaml so DOCX and HTML use the
+# same choice as the LaTeX bibliography. The fallback keeps make usable before
+# the first metadata regeneration.
+CITATION_STYLE ?= $(shell python3 -c 'import yaml; print((yaml.safe_load(open("metadata.yaml")) or {}).get("citation_style", "numeric"))' 2>/dev/null || echo numeric)
 
 # Optional Word reference template at the repository root. Put a
 # reference.docx there to control DOCX styles; it is never used by the PDF.
@@ -13,6 +18,10 @@ REFERENCE_DOCX ?= reference.docx
 # figure may live. Paths are relative to the repository root, where `make`
 # runs; the PDF build still uses paper/article.tex's \graphicspath unchanged.
 DOCX_RESOURCE_PATH = paper:paper/figures:.
+# Empirical projects may also include generated tables in paper/tables/.
+ifneq ($(wildcard paper/tables),)
+DOCX_RESOURCE_PATH := $(DOCX_RESOURCE_PATH):paper/tables
+endif
 
 all: pdf
 
@@ -28,7 +37,7 @@ pdf:
 # repositories usable with pre-2.11 pandoc (which has no --citeproc).
 docx:
 	@if $(PANDOC) --help 2>/dev/null | grep -q -- '--citeproc'; then \
-		python3 -m scripts.article build docx; \
+		python3 -m scripts.article build docx --citation-style=$(CITATION_STYLE); \
 	else \
 		CITEPROC=""; \
 		if command -v pandoc-citeproc >/dev/null 2>&1; then \
@@ -48,12 +57,35 @@ docx:
 			--to=docx \
 			$$CITEPROC \
 			$$BIBLIOGRAPHY \
+			--metadata=citation-style=$(CITATION_STYLE) \
 			--resource-path=$(DOCX_RESOURCE_PATH) \
 			$$REFERENCE \
 			paper/article.tex; \
 	fi
 	@echo "DOCX built: manuscript.docx"
 	@echo "Figures are read in place through --resource-path; PDF sources are not modified."
+
+html:
+	@CITEPROC=""; \
+	if $(PANDOC) --help 2>/dev/null | grep -q -- '--citeproc'; then \
+		CITEPROC="--citeproc"; \
+	elif command -v pandoc-citeproc >/dev/null 2>&1; then \
+		CITEPROC="--filter pandoc-citeproc"; \
+	fi; \
+	BIBLIOGRAPHY=""; \
+	if [ -n "$$CITEPROC" ]; then \
+		BIBLIOGRAPHY="--bibliography=paper/refs.bib"; \
+	fi; \
+	$(PANDOC) \
+		--output=manuscript.html \
+		--from=latex \
+		--to=html5 \
+		$$CITEPROC \
+		$$BIBLIOGRAPHY \
+		--metadata=citation-style=$(CITATION_STYLE) \
+		--resource-path=$(DOCX_RESOURCE_PATH) \
+		paper/article.tex
+	@echo "HTML built: manuscript.html"
 
 quick:
 	cd $(PAPER_DIR) && pdflatex -interaction=nonstopmode article.tex
@@ -97,5 +129,5 @@ metadata-check:
 
 clean:
 	cd $(PAPER_DIR) && latexmk -C || rm -f *.aux *.bbl *.blg *.log *.out *.toc *.lof *.lot *.fls *.fdb_latexmk *.synctex.gz *.pdf
-	rm -f manuscript.docx manuscript.pdf
+	rm -f manuscript.docx manuscript.html manuscript.pdf
 	@echo "Build artifacts cleaned"

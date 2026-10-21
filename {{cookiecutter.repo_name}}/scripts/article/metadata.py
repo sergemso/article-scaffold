@@ -78,7 +78,12 @@ E_METADATA_UNKNOWN_AFFILIATION = "E024"
 E_METADATA_ROR = "E025"
 E_METADATA_SHAPE = "E026"
 E_METADATA_SCHEMA = "E027"
+E_METADATA_KIND = "E028"
+E_METADATA_CITATION_STYLE = "E029"
 W_METADATA_LEGACY_AUTHOR = "W020"
+
+MANUSCRIPT_KINDS = {"perspective", "empirical", "review"}
+CITATION_STYLES = {"numeric", "author-year"}
 
 
 def valid_orcid(value: object) -> bool:
@@ -475,6 +480,32 @@ def normalize_metadata(data: dict) -> dict:
     normalized = dict(data)
     diagnostics = Diagnostics()
     schema = _metadata_schema(normalized, diagnostics)
+    manuscript_kind = _text(normalized.get("manuscript_kind"))
+    if not manuscript_kind:
+        manuscript_type = _text(normalized.get("manuscript_type")).lower()
+        if "empirical" in manuscript_type:
+            manuscript_kind = "empirical"
+        elif "review" in manuscript_type:
+            manuscript_kind = "review"
+        else:
+            manuscript_kind = "perspective"
+    if manuscript_kind not in MANUSCRIPT_KINDS:
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_KIND,
+            f"manuscript_kind must be one of {sorted(MANUSCRIPT_KINDS)}, "
+            f"got: {manuscript_kind}",
+        )
+    citation_style = _text(normalized.get("citation_style")) or "numeric"
+    if citation_style not in CITATION_STYLES:
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_CITATION_STYLE,
+            f"citation_style must be one of {sorted(CITATION_STYLES)}, "
+            f"got: {citation_style}",
+        )
     affiliations = _normalize_affiliations(normalized.get("affiliations"), diagnostics)
     authors = _normalize_authors(
         normalized,
@@ -519,6 +550,8 @@ def normalize_metadata(data: dict) -> dict:
         "affiliation_names": [],
     }
     normalized["_metadata_schema"] = schema
+    normalized["_manuscript_kind"] = manuscript_kind
+    normalized["_citation_style"] = citation_style
     normalized["_affiliations"] = affiliations
     normalized["_authors"] = authors
     normalized["_author_full"] = first["name"] or "Unknown"
