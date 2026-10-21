@@ -114,6 +114,28 @@ def load_metadata() -> dict:
     data["_author_full"] = full_name
     data["_author_orcid"] = orcid
     data["_author_affiliation"] = affiliation
+    # Zenodo creators: a list of {name, orcid?, affiliation?}. Older metadata
+    # files only have `author`; fall back to that single creator.
+    raw_creators = data.get("creators")
+    creators: list[dict[str, str]] = []
+    if isinstance(raw_creators, list):
+        for item in raw_creators:
+            if isinstance(item, dict):
+                creators.append(
+                    {
+                        "name": str(item.get("name", "")).strip(),
+                        "orcid": str(item.get("orcid", "")).strip(),
+                        "affiliation": str(item.get("affiliation", "")).strip(),
+                    }
+                )
+            elif item:
+                creators.append({"name": str(item).strip(), "orcid": "", "affiliation": ""})
+    creators = [c for c in creators if c["name"]]
+    if not creators:
+        creators = [
+            {"name": full_name or "Unknown", "orcid": orcid, "affiliation": affiliation}
+        ]
+    data["_creators"] = creators
     # Repo URL
     data["_repo_url"] = (
         f"https://github.com/{data.get('github_user','')}/{data.get('repo_name','')}"
@@ -233,30 +255,89 @@ def gen_citation_cff(m: dict) -> str:
     return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
 
 
+ZENODO_LICENSE_IDS = {
+    "CC-BY-4.0": "cc-by-4.0",
+    "CC-BY-SA-4.0": "cc-by-sa-4.0",
+    "CC-BY-NC-4.0": "cc-by-nc-4.0",
+    "CC-BY-ND-4.0": "cc-by-nd-4.0",
+    "CC-BY-NC-SA-4.0": "cc-by-nc-sa-4.0",
+    "CC-BY-NC-ND-4.0": "cc-by-nc-nd-4.0",
+    "CC0-1.0": "cc-zero",
+    "MIT": "mit",
+    "Apache-2.0": "apache-2.0",
+    "GPL-3.0": "gpl-3.0",
+    "GPL-3.0-only": "gpl-3.0",
+    "GPL-3.0-or-later": "gpl-3.0",
+    "LGPL-3.0": "lgpl-3.0",
+    "BSD-3-Clause": "bsd-3-clause",
+    "BSD-2-Clause": "bsd-2-clause",
+}
+
+
+def zenodo_license_id(value: object) -> str | None:
+    """Map an SPDX id to Zenodo's vocabulary, or return None if unknown."""
+    if not value:
+        return None
+    key = str(value).strip()
+    if key in ZENODO_LICENSE_IDS:
+        return ZENODO_LICENSE_IDS[key]
+    for spdx, zenodo_id in ZENODO_LICENSE_IDS.items():
+        if spdx.lower() == key.lower():
+            return zenodo_id
+    return None
+
+
 def gen_zenodo_json(m: dict) -> str:
-    obj = {
+    creators = []
+    for creator in m.get("_creators", []):
+        entry = {"name": creator["name"]}
+        if creator.get("orcid"):
+            entry["orcid"] = creator["orcid"]
+        if creator.get("affiliation"):
+            entry["affiliation"] = creator["affiliation"]
+        creators.append(entry)
+
+    publication_type = str(m.get("publication_type", "")).strip().lower()
+    if publication_type not in {"preprint", "article"}:
+        manuscript_type = str(m.get("manuscript_type", "")).lower()
+        publication_type = "article" if "article" in manuscript_type else "preprint"
+
+    raw_communities = m.get("communities") or []
+    if isinstance(raw_communities, str):
+        raw_communities = [c.strip() for c in raw_communities.split(",") if c.strip()]
+    communities = []
+    for community in raw_communities:
+        identifier = (
+            community.get("identifier")
+            if isinstance(community, dict)
+            else str(community)
+        )
+        if identifier:
+            communities.append({"identifier": str(identifier)})
+
+    obj: dict[str, object] = {
         "title": m.get("title", ""),
         "description": m.get("_abstract", "") or m.get("description", ""),
-        "creators": [
-            {
-                "name": m["_author_full"],
-                "orcid": m["_author_orcid"],
-                "affiliation": m["_author_affiliation"],
-            }
-        ],
-        "keywords": m["_keywords_list"],
-        "license": m.get("license", ""),
+        "creators": creators,
+        "keywords": list(m.get("_keywords_list", [])),
         "upload_type": "publication",
-        "publication_type": "preprint",
-        "access_right": "open",
-        "version": m.get("version", ""),
-        "language": "en",
-        "communities": [{"identifier": c} for c in m.get("communities", []) or []],
-        "related_identifiers": [],
-        "references": m.get("references", []) or [],
+        "publication_type": publication_type,
+        "access_right": str(m.get("access_right", "open") or "open"),
+        "version": str(m.get("version", "")),
+        "language": str(m.get("language", "en") or "en"),
+        "communities": communities,
     }
+    license_id = zenodo_license_id(m.get("license"))
+    if license_id:
+        obj["license"] = license_id
     if m.get("_doi"):
         obj["doi"] = m["_doi"]
+    related = m.get("related_identifiers") or []
+    if related:
+        obj["related_identifiers"] = related
+    references = m.get("references") or []
+    if references:
+        obj["references"] = references
     return json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
 
 

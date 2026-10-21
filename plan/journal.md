@@ -118,3 +118,11 @@ history after work has started.
 - CFF generated with yaml.safe_dump; root type software, preferred-citation unpublished; version/date strings; abstract, keywords, DOI identifiers, authors; empty optionals omitted; cffconvert validates
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:12:00Z — T12 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:12:08Z — T12 — done
+- Zenodo JSON via json.dumps; SPDX->Zenodo license map; communities default []; publication_type explicit; creators list with optional orcid/affiliation; empty doi/related_identifiers omitted; 11 tests
+- verify: passed
+- scope: clean

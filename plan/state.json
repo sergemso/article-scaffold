@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:09:59Z",
+  "updated": "2026-10-21T11:12:08Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -576,14 +576,49 @@
       "steps_done": []
     },
     "T12": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:12:08Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:12:04Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "5c13c9f6e0da12f3129a863595eff79d9bca69b7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_zenodo.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...........                                                              [100%]\n11 passed in 3.65s\n",
+              "at": "2026-10-21T11:12:04Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:12:08Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "5c13c9f6e0da12f3129a863595eff79d9bca69b7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_zenodo.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...........                                                              [100%]\n11 passed in 2.92s\n",
+              "at": "2026-10-21T11:12:08Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Zenodo JSON via json.dumps; SPDX->Zenodo license map; communities default []; publication_type explicit; creators list with optional orcid/affiliation; empty doi/related_identifiers omitted; 11 tests"
+      ],
       "steps_done": []
     },
     "T13": {

@@ -3,9 +3,9 @@
   "description": {{ cookiecutter.abstract | tojson }},
   "creators": [
     {
-      "name": {{ cookiecutter.author_name | tojson }},
-      "orcid": {{ cookiecutter.author_orcid | tojson }},
-      "affiliation": {{ cookiecutter.author_affiliation | tojson }}
+      "name": {{ cookiecutter.author_name | tojson }}{% if cookiecutter.author_orcid %},
+      "orcid": {{ cookiecutter.author_orcid | tojson }}{% endif %}{% if cookiecutter.author_affiliation %},
+      "affiliation": {{ cookiecutter.author_affiliation | tojson }}{% endif %}
     }
   ],
   "keywords": [
@@ -13,20 +13,12 @@
     {{ kw.strip() | tojson }}{% if not loop.last %},{% endif %}
 {%- endfor %}
   ],
-  "license": {{ cookiecutter.license | tojson }},
+  "license": {{ cookiecutter.license | lower | tojson }},
   "upload_type": "publication",
-  "publication_type": "preprint",
+  "publication_type": "{% if 'article' in cookiecutter.manuscript_type | lower %}article{% else %}preprint{% endif %}",
   "access_right": "open",
   "version": {{ cookiecutter.version | tojson }},
   "language": "en",
-  "communities": [
-    {
-      "identifier": "technology"
-    },
-    {
-      "identifier": "political-science"
-    }
-  ],
-  "related_identifiers": [],
-  "references": []
+  "communities": []{% if cookiecutter.doi %},
+  "doi": {{ cookiecutter.doi | tojson }}{% endif %}
 }
