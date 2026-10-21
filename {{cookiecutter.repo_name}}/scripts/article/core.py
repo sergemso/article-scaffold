@@ -31,6 +31,7 @@ from .metadata import (
     write_expected,
     zenodo_license_id,
 )
+from .release import apply_release, plan_release
 from .validate import validate_paper
 
 CORE_VERSION = "1.0.0"
@@ -80,6 +81,7 @@ __all__ = [
     "ExitCode",
     "OutputDrift",
     "RepoPaths",
+    "apply_release",
     "collect_expected",
     "compare_outputs",
     "count_unescaped",
@@ -96,6 +98,7 @@ __all__ = [
     "load_metadata",
     "normalize_metadata",
     "pdf_plan",
+    "plan_release",
     "replace_block",
     "strip_comments",
     "validate_paper",

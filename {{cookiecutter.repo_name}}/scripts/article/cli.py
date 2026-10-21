@@ -243,17 +243,67 @@ def _build(args: argparse.Namespace) -> int:
 
 
 def _release(args: argparse.Namespace) -> int:
-    payload = {
-        "ok": False,
-        "command": "release",
-        "error": "release plan/apply is not implemented until the release task",
-        "dry_run": args.dry_run,
-    }
+    root = _root(args)
+
+    if args.apply:
+        if not args.yes:
+            payload = {
+                "ok": False,
+                "command": "release",
+                "error": "release apply requires explicit --yes flag",
+                "dry_run": False,
+            }
+            if args.json:
+                _emit_json(payload)
+            else:
+                print("ERROR: release apply requires explicit --yes flag", file=sys.stderr)
+            return core.ExitCode.USAGE
+
+        result = core.apply_release(root, yes=True)
+        payload = {"ok": result["ok"], "command": "release", "apply": True}
+        if not result["ok"]:
+            payload["error"] = result.get("error", "unknown error")
+        else:
+            payload.update({k: v for k, v in result.items() if k != "ok"})
+        if args.json:
+            _emit_json(payload)
+        else:
+            if not result["ok"]:
+                print(f"ERROR: {result.get('error', 'unknown error')}", file=sys.stderr)
+            else:
+                print(result.get("message", "Release applied successfully"))
+        return core.ExitCode.OK if result["ok"] else core.ExitCode.DIAGNOSTICS
+
+    # Plan mode (default)
+    plan = core.plan_release(_root(args))
+
+    payload = {"ok": plan.get("ok", False), "command": "release", "dry_run": args.dry_run}
+    if "plan" in plan:
+        payload["plan"] = plan["plan"]
+    elif "error" in plan:
+        payload["error"] = plan["error"]
+
     if args.json:
         _emit_json(payload)
     else:
-        print(f"ERROR: {payload['error']}", file=sys.stderr)
-    return core.ExitCode.DIAGNOSTICS
+        if not plan.get("ok", False):
+            print(f"ERROR: {plan.get('error', 'unknown error')}", file=sys.stderr)
+        else:
+            p = plan["plan"]
+            print(f"version: {p['version']}")
+            print(f"tag: {p['tag']}")
+            if p.get("doi"):
+                print(f"DOI: {p['doi']}")
+            print(f"artifacts: {', '.join(p['artifact_list']) or '(none)'}")
+            print("checks:")
+            for check, passed in p["checks"].items():
+                status = "PASS" if passed else "FAIL"
+                print(f"  {check}: {status}")
+            if p.get("dry_run_diff"):
+                print("dry-run diff:")
+                for item in p["dry_run_diff"]:
+                    print(f"  {item}")
+    return core.ExitCode.OK if plan.get("ok", False) else core.ExitCode.DIAGNOSTICS
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
@@ -318,6 +368,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="show the release plan without applying it",
+    )
+    release.add_argument(
+        "--apply",
+        action="store_true",
+        help="apply the release (requires --yes)",
+    )
+    release.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm release application (required with --apply)",
     )
     release.set_defaults(func=_release)
     return parser

@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T18:18:35Z",
+  "updated": "2026-10-21T18:49:25Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1615,14 +1615,67 @@
       "steps_done": []
     },
     "T33": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T18:49:25Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T18:48:53Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "57de26958ecef56fc25e86f168142c06edbc75c7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_release.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "............                                                             [100%]\n12 passed in 11.94s\n",
+              "at": "2026-10-21T18:48:53Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T18:49:07Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "57de26958ecef56fc25e86f168142c06edbc75c7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_release.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "............                                                             [100%]\n12 passed in 12.46s\n",
+              "at": "2026-10-21T18:49:07Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T18:49:25Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "57de26958ecef56fc25e86f168142c06edbc75c7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_release.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "............                                                             [100%]\n12 passed in 11.62s\n",
+              "at": "2026-10-21T18:49:25Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "starting release plan/apply and DOI handling",
+        "SCOPE OVERRIDE: {{cookiecutter.repo_name}}/scripts/article/core.py",
+        "release plan/apply with semver validation, DOI handling, gated apply with --yes, clean tree check, tag creation, artifact build; DOI propagates to CITATION.cff/.zenodo.json/README; core.py updated to export release functions; full suite 248 passed"
+      ],
       "steps_done": []
     },
     "T34": {

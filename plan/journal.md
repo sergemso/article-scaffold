@@ -367,3 +367,14 @@ history after work has started.
 - created reusable-build.yml with pinned actions; updated all workflows with least-privilege permissions, concurrency groups, pinned action SHAs; added Dependabot config; generated repos copy reusable workflow; test_docx.py updated to check reusable workflow; all 236 tests pass
 - verify: passed
 - scope: override
+
+## 2026-10-21T18:19:11Z — T33 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T18:19:12Z — T33 — checkpoint
+- starting release plan/apply and DOI handling
+
+## 2026-10-21T18:49:25Z — T33 — done
+- release plan/apply with semver validation, DOI handling, gated apply with --yes, clean tree check, tag creation, artifact build; DOI propagates to CITATION.cff/.zenodo.json/README; core.py updated to export release functions; full suite 248 passed
+- verify: passed
+- scope: override
