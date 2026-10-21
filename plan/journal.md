@@ -262,3 +262,9 @@ history after work has started.
 - article status --json is offline/read-only, schema-valid, robust for unborn/detached git and invalid metadata; docs publish exit codes and versioned fields
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:57:36Z — G2 gate — passed
+- make test: 136 passed, 3 skipped (network opt-in)
+- audit: 44 tasks, 24 done; no consistency errors
+- rendered plan/STATUS.md
+- T20–T24: DOCX resources, vendored core, JSON CLI, delegation, status contract

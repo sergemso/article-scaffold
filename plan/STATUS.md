@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: 2026-10-21T11:25:19Z
+Updated: 2026-10-21T11:56:22Z
 
 | Phase | Done | Total |
 |---|---|---|
@@ -9,10 +9,10 @@ Updated: 2026-10-21T11:25:19Z
 | P1.2 | 3 | 3 |
 | P1.3 | 1 | 1 |
 | P1.4 | 3 | 3 |
-| P1.5 | 0 | 1 |
-| P1.6 | 0 | 1 |
-| P1.7 | 0 | 1 |
-| P2 | 0 | 4 |
+| P1.5 | 1 | 1 |
+| P1.6 | 1 | 1 |
+| P1.7 | 1 | 1 |
+| P2 | 4 | 4 |
 | P3 | 0 | 9 |
 | P4 | 0 | 4 |
 | P5 | 0 | 5 |
@@ -28,4 +28,4 @@ _none_
 
 ## Next
 
-- `T18` Fix git init and pre-push hook installation
+- `T25` Add the v2 authors/affiliations loader
