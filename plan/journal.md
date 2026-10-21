@@ -196,3 +196,14 @@ history after work has started.
 - nested render creates its own .git; hook installed once via scripts/githooks/core.hooksPath; make hooks idempotent; missing git warns without failing render
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:34:56Z — T19 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:34:56Z — T19 — checkpoint
+- workflow inputs moved to env; validation before cookiecutter/gh; explicit no-input context; idempotent repo creation; topics/permissions; parser tests
+
+## 2026-10-21T11:34:58Z — T19 — done
+- all inputs flow through env and quoted shell vars; slug/repo/semver/license/visibility/owner validation; explicit cookiecutter context; refuse existing repo; explicit topics; contents:read; YAML parser tests
+- verify: passed
+- scope: clean

@@ -63,7 +63,7 @@ on:
         required: false
         default: "v1 preprint"
       license:
-        description: "SPDX license identifier"
+        description: "SPDX license identifier (CC-BY-4.0 or MIT)"
         required: false
         default: "CC-BY-4.0"
       target_deposit:
@@ -120,25 +120,83 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Validate inputs
+        id: validate
+        env:
+          TOPIC: ${{ inputs.topic }}
+          VERSION: ${{ inputs.version }}
+          LICENSE: ${{ inputs.license }}
+          REPO_VISIBILITY: ${{ inputs.repo_visibility }}
+          NEW_REPO_OWNER: ${{ inputs.new_repo_owner }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$TOPIC" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+            echo "::error::topic must be a lowercase slug (letters, digits, _ or -)."
+            exit 1
+          fi
+
+          REPO_NAME="articles.${TOPIC}"
+          if ! [[ "$REPO_NAME" =~ ^articles\.[a-z0-9][a-z0-9_-]*$ ]]; then
+            echo "::error::repo_name must match articles.<topic> with a lowercase slug."
+            exit 1
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version must be semver, for example 1.0.0 or 1.0.0-rc.1."
+            exit 1
+          fi
+
+          case "$LICENSE" in
+            CC-BY-4.0|MIT) ;;
+            *)
+              echo "::error::license must be CC-BY-4.0 or MIT."
+              exit 1
+              ;;
+          esac
+
+          case "$REPO_VISIBILITY" in
+            public|private) ;;
+            *)
+              echo "::error::repo_visibility must be public or private."
+              exit 1
+              ;;
+          esac
+
+          OWNER="${NEW_REPO_OWNER:-$ACTOR}"
+          if ! [[ "$OWNER" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$ ]]; then
+            echo "::error::new_repo_owner is not a valid GitHub user or organization name."
+            exit 1
+          fi
+
+          echo "repo_name=$REPO_NAME" >> "$GITHUB_OUTPUT"
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+
       - name: Install cookiecutter + deps
         run: pip install cookiecutter jinja2-time pyyaml
-
-      - name: Resolve new repo owner
-        id: owner
-        run: |
-          OWNER="${{ inputs.new_repo_owner }}"
-          if [ -z "$OWNER" ]; then
-            OWNER="${{ github.actor }}"
-          fi
-          echo "owner=$OWNER" >> $GITHUB_OUTPUT
-          echo "Will create repo under: $OWNER"
 
       - name: Render template via cookiecutter
         id: cookiecutter
         env:
           TOPIC: ${{ inputs.topic }}
+          TITLE: ${{ inputs.title }}
+          SUBTITLE: ${{ inputs.subtitle }}
+          MANUSCRIPT_TYPE: ${{ inputs.manuscript_type }}
+          AUTHOR_NAME: ${{ inputs.author_name }}
+          AUTHOR_ORCID: ${{ inputs.author_orcid }}
+          AUTHOR_AFFILIATION: ${{ inputs.author_affiliation }}
+          VERSION: ${{ inputs.version }}
+          VERSION_LABEL: ${{ inputs.version_label }}
+          LICENSE: ${{ inputs.license }}
+          TARGET_DEPOSIT: ${{ inputs.target_deposit }}
+          DOI: ${{ inputs.doi }}
+          KEYWORDS: ${{ inputs.keywords }}
+          ABSTRACT: ${{ inputs.abstract }}
+          OWNER: ${{ steps.validate.outputs.owner }}
+          REPO_NAME: ${{ steps.validate.outputs.repo_name }}
         run: |
-          set -e
+          set -euo pipefail
           OUTPUT_DIR="$(mktemp -d)"
           # `--no-input` so cookiecutter does not prompt; all values come
           # from the workflow inputs (passed as positional key=value pairs).
@@ -146,46 +204,51 @@ jobs:
           # not need to think about it.
           cookiecutter --no-input --output-dir "$OUTPUT_DIR" . \
             topic="$TOPIC" \
-            title="${{ inputs.title }}" \
-            subtitle="${{ inputs.subtitle }}" \
-            manuscript_type="${{ inputs.manuscript_type }}" \
-            author_name="${{ inputs.author_name }}" \
-            author_orcid="${{ inputs.author_orcid }}" \
-            author_affiliation="${{ inputs.author_affiliation }}" \
-            version="${{ inputs.version }}" \
-            version_label="${{ inputs.version_label }}" \
+            title="$TITLE" \
+            subtitle="$SUBTITLE" \
+            manuscript_type="$MANUSCRIPT_TYPE" \
+            author_name="$AUTHOR_NAME" \
+            author_orcid="$AUTHOR_ORCID" \
+            author_affiliation="$AUTHOR_AFFILIATION" \
+            version="$VERSION" \
+            version_label="$VERSION_LABEL" \
             date="$(date -u +%Y-%m-%d)" \
-            license="${{ inputs.license }}" \
-            target_deposit="${{ inputs.target_deposit }}" \
-            doi="${{ inputs.doi }}" \
-            keywords="${{ inputs.keywords }}" \
-            github_user="${{ steps.owner.outputs.owner }}" \
-            abstract="${{ inputs.abstract }}"
+            license="$LICENSE" \
+            target_deposit="$TARGET_DEPOSIT" \
+            doi="$DOI" \
+            keywords="$KEYWORDS" \
+            github_user="$OWNER" \
+            abstract="$ABSTRACT"
 
-          REPO_NAME="articles.${TOPIC}"
           PROJECT_DIR="$OUTPUT_DIR/$REPO_NAME"
-          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
-          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "repo_name=$REPO_NAME" >> "$GITHUB_OUTPUT"
           echo "Rendered to: $PROJECT_DIR"
           echo "---"
           find "$PROJECT_DIR" -type f | sort
 
       - name: Verify rendered repo validates
+        env:
+          PROJECT_DIR: ${{ steps.cookiecutter.outputs.project_dir }}
         run: |
-          cd "${{ steps.cookiecutter.outputs.project_dir }}"
+          cd "$PROJECT_DIR"
           make validate
 
       - name: Configure git identity
+        env:
+          ACTOR: ${{ github.actor }}
         run: |
-          git config --global user.name  "${{ github.actor }}"
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --global user.name "$ACTOR"
+          git config --global user.email "${ACTOR}@users.noreply.github.com"
 
       - name: Stage initial commit
+        env:
+          PROJECT_DIR: ${{ steps.cookiecutter.outputs.project_dir }}
         run: |
-          cd "${{ steps.cookiecutter.outputs.project_dir }}"
+          cd "$PROJECT_DIR"
           # cookiecutter's post_gen_project.py hook already initialized git
-          # on the `master` branch, made scripts executable, and installed
-          # the pre-push hook into .git/hooks/.
+          # on `master`, made scripts executable, and installed the pre-push
+          # hook through scripts/githooks (core.hooksPath).
           git add .
           git commit -m "initial scaffold (from article-scaffold workflow)"
 
@@ -193,23 +256,48 @@ jobs:
         id: create
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          PROJECT_DIR: ${{ steps.cookiecutter.outputs.project_dir }}
+          OWNER: ${{ steps.validate.outputs.owner }}
+          REPO_NAME: ${{ steps.validate.outputs.repo_name }}
+          REPO_VISIBILITY: ${{ inputs.repo_visibility }}
+          SKIP_PRE_PUSH: ${{ inputs.skip_pre_push_hook }}
         run: |
-          cd "${{ steps.cookiecutter.outputs.project_dir }}"
+          set -euo pipefail
+          cd "$PROJECT_DIR"
           set +x   # never print the token-bearing remote URL to logs
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::Secret GH_PAT is not set. See the workflow file for setup instructions."
             exit 1
           fi
-          REPO_FULL="${{ steps.owner.outputs.owner }}/${{ steps.cookiecutter.outputs.repo_name }}"
+          REPO_FULL="${OWNER}/${REPO_NAME}"
 
-          # Create the empty repo on GitHub. --source=. would set up an
-          # `origin` remote, but the URL it creates is HTTPS and `git push`
-          # below would prompt for credentials (the GH_TOKEN env var is
-          # visible to `gh` but NOT to raw `git`). We create without --source
-          # and inject the token into the remote URL ourselves.
-          gh repo create "$REPO_FULL" \
-            --${{ inputs.repo_visibility }} \
+          case "$REPO_VISIBILITY" in
+            public) VISIBILITY_FLAG="--public" ;;
+            private) VISIBILITY_FLAG="--private" ;;
+            *)
+              echo "::error::repo_visibility must be public or private."
+              exit 1
+              ;;
+          esac
+
+          # Refuse to overwrite an existing repository. This makes a rerun
+          # fail clearly instead of creating a duplicate or pushing into an
+          # unrelated repository.
+          if gh repo view "$REPO_FULL" >/dev/null 2>&1; then
+            echo "::error::Repository $REPO_FULL already exists; refusing to overwrite."
+            exit 1
+          fi
+
+          gh repo create "$REPO_FULL" "$VISIBILITY_FLAG" \
             --description="Article manuscript repository scaffolded from article-scaffold."
+
+          # Set topics explicitly so the new repo is discoverable and the
+          # bootstrap result is reproducible.
+          gh repo edit "$REPO_FULL" \
+            --add-topic article \
+            --add-topic manuscript \
+            --add-topic latex \
+            --add-topic research
 
           # Add `origin` with the token embedded in the URL so raw `git push`
           # authenticates non-interactively. We do not echo the URL.
@@ -218,8 +306,8 @@ jobs:
 
           # Push the initial commit. By default the pre-push hook runs
           # `make validate` again — harmless (we already validated) but
-          # adds ~5 s. The user can opt out via `skip_pre_push_hook`.
-          if [ "${{ inputs.skip_pre_push_hook }}" = "true" ]; then
+          # adds a few seconds. The user can opt out via skip_pre_push_hook.
+          if [ "$SKIP_PRE_PUSH" = "true" ]; then
             git push --no-verify -u origin master
           else
             git push -u origin master
@@ -231,24 +319,34 @@ jobs:
           # helper (or the user's local auth).
           git remote set-url origin "https://github.com/${REPO_FULL}.git"
 
-          echo "repo_url=https://github.com/$REPO_FULL" >> $GITHUB_OUTPUT
-          echo "::notice::Created ${{ inputs.repo_visibility }} repo at https://github.com/$REPO_FULL"
+          echo "repo_url=https://github.com/$REPO_FULL" >> "$GITHUB_OUTPUT"
+          echo "::notice::Created ${REPO_VISIBILITY} repo at https://github.com/$REPO_FULL"
 
       - name: Write job summary
         if: always()
+        env:
+          REPO_URL: ${{ steps.create.outputs.repo_url }}
+          OWNER: ${{ steps.validate.outputs.owner }}
+          REPO_NAME: ${{ steps.validate.outputs.repo_name }}
+          REPO_VISIBILITY: ${{ inputs.repo_visibility }}
+          VERSION: ${{ inputs.version }}
+          VERSION_LABEL: ${{ inputs.version_label }}
+          AUTHOR_NAME: ${{ inputs.author_name }}
+          AUTHOR_ORCID: ${{ inputs.author_orcid }}
+          TOPIC: ${{ inputs.topic }}
         run: |
           {
             echo "## Bootstrap result"
             echo ""
-            if [ -n "${{ steps.create.outputs.repo_url }}" ]; then
+            if [ -n "$REPO_URL" ]; then
               echo "| Field | Value |"
               echo "|-------|-------|"
-              echo "| Repo | [\`${{ steps.owner.outputs.owner }}/${{ steps.cookiecutter.outputs.repo_name }}\`](${{ steps.create.outputs.repo_url }}) |"
-              echo "| Visibility | \`${{ inputs.repo_visibility }}\` |"
+              echo "| Repo | [\`${OWNER}/${REPO_NAME}\`](${REPO_URL}) |"
+              echo "| Visibility | \`${REPO_VISIBILITY}\` |"
               echo "| Default branch | \`master\` |"
-              echo "| Version | \`${{ inputs.version }}\` (${{ inputs.version_label }}) |"
-              echo "| Author | ${{ inputs.author_name }} (ORCID ${{ inputs.author_orcid }}) |"
-              echo "| Topic slug | \`${{ inputs.topic }}\` |"
+              echo "| Version | \`${VERSION}\` (${VERSION_LABEL}) |"
+              echo "| Author | ${AUTHOR_NAME} (ORCID ${AUTHOR_ORCID}) |"
+              echo "| Topic slug | \`${TOPIC}\` |"
               echo ""
               echo "### Next steps"
               echo ""
@@ -264,4 +362,4 @@ jobs:
               echo "Common failure: the \`GH_PAT\` secret is missing or does not have \`repo\` scope."
               echo "Add it under Settings → Secrets and variables → Actions → New repository secret."
             fi
-          } >> $GITHUB_STEP_SUMMARY
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:31:33Z",
+  "updated": "2026-10-21T11:34:58Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -903,14 +903,50 @@
       "steps_done": []
     },
     "T19": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:34:58Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:34:57Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "160652be85ff21f2c10f4e3801dbfcac5769d9f1",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_bootstrap.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 0.27s\n",
+              "at": "2026-10-21T11:34:57Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:34:58Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "160652be85ff21f2c10f4e3801dbfcac5769d9f1",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_bootstrap.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 0.24s\n",
+              "at": "2026-10-21T11:34:58Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "workflow inputs moved to env; validation before cookiecutter/gh; explicit no-input context; idempotent repo creation; topics/permissions; parser tests",
+        "all inputs flow through env and quoted shell vars; slug/repo/semver/license/visibility/owner validation; explicit cookiecutter context; refuse existing repo; explicit topics; contents:read; YAML parser tests"
+      ],
       "steps_done": []
     },
     "T20": {
