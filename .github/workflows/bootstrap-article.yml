@@ -342,7 +342,7 @@ jobs:
           TOPIC: ${{ inputs.topic }}
         run: |
           {
-            echo "## Bootstrap result"
+            echo "  ## Bootstrap result"
             echo ""
             if [ -n "$REPO_URL" ]; then
               echo "| Field | Value |"
@@ -355,7 +355,7 @@ jobs:
               echo "| Author | ${AUTHOR_NAME} (ORCID ${AUTHOR_ORCID}) |"
               echo "| Topic slug | \`${TOPIC}\` |"
               echo ""
-              echo "### Next steps"
+              echo "  ##  # Next steps"
               echo ""
               echo "1. \`git clone\` the new repo locally."
               echo "2. (Optional) Edit \`metadata.yaml\` to refine title/keywords/etc."
