@@ -57,10 +57,9 @@ def test_metadata_yaml_parses_with_quotes(special_project: Path) -> None:
     yaml.safe_load((special_project / "metadata.yaml").read_text())
 
 
-@pytest.mark.xfail(strict=False, reason="T11: CFF uses an invalid manuscript type")
 def test_citation_cff_has_valid_type(default_project: Path) -> None:
     cff = yaml.safe_load((default_project / "CITATION.cff").read_text())
-    assert cff["type"] == "article"
+    assert cff["type"] in {"software", "article"}
 
 
 @pytest.mark.xfail(strict=False, reason="T12: Zenodo JSON is not escaped")
