@@ -95,3 +95,11 @@ history after work has started.
 - post_gen runs generator with sys.executable; fails loudly on PyYAML; render+metadata is clean for default, DOI and hostile fixtures
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:06:45Z — T10 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:06:56Z — T10 — done
+- check mode prints unified diff and exits 1; metadata-check target; CI checks default and special renders; drift, missing-file, read-only and pdf no-write tests; CFF strings JSON-escaped
+- verify: passed
+- scope: clean

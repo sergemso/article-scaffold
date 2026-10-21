@@ -1,4 +1,4 @@
-.PHONY: pdf docx quick clean all validate metadata
+.PHONY: pdf docx quick clean all validate metadata metadata-check
 
 PAPER_DIR = paper
 
@@ -44,6 +44,9 @@ validate:
 metadata:
 	@python3 scripts/generate-metadata.py
 	@echo "Metadata-derived files regenerated."
+
+metadata-check:
+	@python3 scripts/generate-metadata.py --check
 
 # ─────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T05:23:30Z",
+  "updated": "2026-10-21T11:06:56Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -484,14 +484,49 @@
       "steps_done": []
     },
     "T10": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:06:56Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:06:49Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "1d0735c51e317110f132dfc0d3ccdfbe61711e34",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_drift.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 2.50s\n",
+              "at": "2026-10-21T11:06:49Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:06:56Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "1d0735c51e317110f132dfc0d3ccdfbe61711e34",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_drift.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 2.40s\n",
+              "at": "2026-10-21T11:06:56Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "check mode prints unified diff and exits 1; metadata-check target; CI checks default and special renders; drift, missing-file, read-only and pdf no-write tests; CFF strings JSON-escaped"
+      ],
       "steps_done": []
     },
     "T11": {

@@ -5,8 +5,11 @@ generate-metadata.py — regenerate derived metadata from metadata.yaml.
 Reads  metadata.yaml  and writes:
   - CITATION.cff
   - .zenodo.json
-  - paper/article.tex    (only the METADATA:TITLE_BLOCK:START ... :END block)
-  - README.md            (only the BIBTEX:CITATION:START ... :END block)
+  - paper/article.tex    (METADATA:TITLE_BLOCK block)
+  - paper/sections/00_abstract.tex (ABSTRACT block)
+  - paper/sections/08_backmatter.tex (BACKMATTER:VERSION block)
+  - README.md            (README:META and BIBTEX:CITATION blocks)
+  - CHANGES.md           (CHANGES:CURRENT block)
 
 Idempotent: re-running with the same metadata.yaml produces byte-identical
 output. Lines outside the sentinel-marked blocks are preserved, so manual
@@ -14,10 +17,13 @@ edits to README.md or article.tex prose survive a regeneration.
 
 Usage:
     python scripts/generate-metadata.py
+    python scripts/generate-metadata.py --check   # exit 1 on drift, write nothing
 """
 
 from __future__ import annotations
 
+import argparse
+import difflib
 import json
 import re
 import sys
@@ -154,37 +160,42 @@ def latex_escape(text: str, already_tex: bool = False) -> str:
 # ─────────────────────────────────────────────────────────────
 
 
+def _q(value: object) -> str:
+    """A JSON/YAML string literal, safe for quotes and unicode."""
+    return json.dumps(str(value), ensure_ascii=False)
+
+
 def gen_citation_cff(m: dict) -> str:
     lines = []
     lines.append("cff-version: 1.2.0")
     lines.append('message: "If you use this manuscript, please cite it as below."')
     lines.append("authors:")
-    lines.append(f"- family-names: {m['_author_family']}")
-    lines.append(f"  given-names: {m['_author_given']}")
+    lines.append(f"- family-names: {_q(m['_author_family'])}")
+    lines.append(f"  given-names: {_q(m['_author_given'])}")
     if m.get("_author_orcid"):
-        lines.append(f'  orcid: "https://orcid.org/{m["_author_orcid"]}"')
-    lines.append(f'title: "{m.get("title","")}"')
+        lines.append(f"  orcid: {_q('https://orcid.org/' + m['_author_orcid'])}")
+    lines.append(f"title: {_q(m.get('title', ''))}")
     if m.get("subtitle"):
-        lines.append(f'subtitle: "{m["subtitle"]}"')
-    lines.append(f'version: {m.get("version","")}')
-    lines.append(f'date-released: {m["_date_iso"]}')
-    lines.append(f'url: "{m["_repo_url"]}"')
-    lines.append(f'repository-code: "{m["_repo_url"]}"')
-    lines.append(f'license: {m.get("license","")}')
+        lines.append(f"subtitle: {_q(m['subtitle'])}")
+    lines.append(f"version: {_q(m.get('version', ''))}")
+    lines.append(f"date-released: {_q(m['_date_iso'])}")
+    lines.append(f"url: {_q(m['_repo_url'])}")
+    lines.append(f"repository-code: {_q(m['_repo_url'])}")
+    lines.append(f"license: {_q(m.get('license', ''))}")
     lines.append("type: manuscript")
     if m.get("_doi"):
-        lines.append(f'doi: "{m["_doi"]}"')
+        lines.append(f"doi: {_q(m['_doi'])}")
     lines.append("keywords:")
     for kw in m["_keywords_list"]:
-        lines.append(f'- "{kw}"')
+        lines.append(f"- {_q(kw)}")
     lines.append("preferred-citation:")
     lines.append("  type: manuscript")
-    lines.append(f'  title: "{m.get("title","")}"')
+    lines.append(f"  title: {_q(m.get('title', ''))}")
     lines.append("  authors:")
-    lines.append(f"  - family-names: {m['_author_family']}")
-    lines.append(f"    given-names: {m['_author_given']}")
+    lines.append(f"  - family-names: {_q(m['_author_family'])}")
+    lines.append(f"    given-names: {_q(m['_author_given'])}")
     if m.get("_author_orcid"):
-        lines.append(f'    orcid: "https://orcid.org/{m["_author_orcid"]}"')
+        lines.append(f"    orcid: {_q('https://orcid.org/' + m['_author_orcid'])}")
     year = m["_date_iso"][:4] if m["_date_iso"] else ""
     month = m["_date_iso"][5:7] if len(m["_date_iso"]) >= 7 else ""
     lines.append(f"  year: {year}")
@@ -193,8 +204,8 @@ def gen_citation_cff(m: dict) -> str:
             lines.append(f"  month: {int(month)}")
         except ValueError:
             pass
-    notes = f'{m.get("version_label","")}, deposited on {m.get("target_deposit","")}'
-    lines.append(f'  notes: "{notes}"')
+    notes = f'{m.get("version_label", "")}, deposited on {m.get("target_deposit", "")}'
+    lines.append(f"  notes: {_q(notes)}")
     return "\n".join(lines) + "\n"
 
 
@@ -390,68 +401,115 @@ def replace_block(text: str, start_marker: str, end_marker: str, new_block: str)
 # ─────────────────────────────────────────────────────────────
 
 
-def main() -> int:
-    m = load_metadata()
+def _read_required(path: Path) -> str:
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"required file is missing: {path.relative_to(REPO_ROOT)}"
+        )
+    return path.read_text(encoding="utf-8")
 
-    # CITATION.cff — full rewrite
-    if write_if_changed(CITATION_PATH, gen_citation_cff(m)):
-        print(f"  wrote {CITATION_PATH.relative_to(REPO_ROOT)}")
 
-    # .zenodo.json — full rewrite
-    if write_if_changed(ZENODO_PATH, gen_zenodo_json(m)):
-        print(f"  wrote {ZENODO_PATH.relative_to(REPO_ROOT)}")
+def collect_expected(m: dict) -> dict[Path, str]:
+    """Return the exact content each generated file should have."""
+    outputs: dict[Path, str] = {
+        CITATION_PATH: gen_citation_cff(m),
+        ZENODO_PATH: gen_zenodo_json(m),
+    }
 
-    # article.tex — replace title block
-    article_text = ARTICLE_TEX_PATH.read_text(encoding="utf-8")
-    new_article_text = replace_block(
-        article_text, TITLE_BLOCK_START, TITLE_BLOCK_END, gen_article_tex_title_block(m)
+    outputs[ARTICLE_TEX_PATH] = replace_block(
+        _read_required(ARTICLE_TEX_PATH),
+        TITLE_BLOCK_START,
+        TITLE_BLOCK_END,
+        gen_article_tex_title_block(m),
     )
-    if write_if_changed(ARTICLE_TEX_PATH, new_article_text):
-        print(f"  updated {ARTICLE_TEX_PATH.relative_to(REPO_ROOT)} (title block)")
-
-    # 00_abstract.tex — replace abstract and keywords
-    abstract_text = ABSTRACT_PATH.read_text(encoding="utf-8")
-    new_abstract_text = replace_block(
-        abstract_text, ABSTRACT_START, ABSTRACT_END, gen_abstract_block(m)
+    outputs[ABSTRACT_PATH] = replace_block(
+        _read_required(ABSTRACT_PATH),
+        ABSTRACT_START,
+        ABSTRACT_END,
+        gen_abstract_block(m),
     )
-    if write_if_changed(ABSTRACT_PATH, new_abstract_text):
-        print(f"  updated {ABSTRACT_PATH.relative_to(REPO_ROOT)} (abstract)")
-
-    # 08_backmatter.tex — replace version statement
-    backmatter_text = BACKMATTER_PATH.read_text(encoding="utf-8")
-    new_backmatter_text = replace_block(
-        backmatter_text,
+    outputs[BACKMATTER_PATH] = replace_block(
+        _read_required(BACKMATTER_PATH),
         BACKMATTER_VERSION_START,
         BACKMATTER_VERSION_END,
         gen_backmatter_version_block(m),
     )
-    if write_if_changed(BACKMATTER_PATH, new_backmatter_text):
-        print(f"  updated {BACKMATTER_PATH.relative_to(REPO_ROOT)} (version)")
-
-    # CHANGES.md — replace current-release heading
-    changes_text = CHANGES_PATH.read_text(encoding="utf-8")
-    new_changes_text = replace_block(
-        changes_text,
+    outputs[CHANGES_PATH] = replace_block(
+        _read_required(CHANGES_PATH),
         CHANGES_CURRENT_START,
         CHANGES_CURRENT_END,
         gen_changes_current_block(m),
     )
-    if write_if_changed(CHANGES_PATH, new_changes_text):
-        print(f"  updated {CHANGES_PATH.relative_to(REPO_ROOT)} (current release)")
 
-    # README.md — replace masthead and citation blocks
-    readme_text = README_PATH.read_text(encoding="utf-8")
-    new_readme = replace_block(
-        readme_text, README_META_START, README_META_END, gen_readme_meta_block(m)
+    readme = _read_required(README_PATH)
+    readme = replace_block(
+        readme, README_META_START, README_META_END, gen_readme_meta_block(m)
     )
-    new_readme = replace_block(
-        new_readme,
+    readme = replace_block(
+        readme,
         README_CITATION_START,
         README_CITATION_END,
         gen_readme_bibtex_block(m),
     )
-    if write_if_changed(README_PATH, new_readme):
-        print(f"  updated {README_PATH.relative_to(REPO_ROOT)} (masthead + citation)")
+    outputs[README_PATH] = readme
+    return outputs
+
+
+def check_outputs(expected: dict[Path, str]) -> int:
+    """Compare expected content with disk; print unified diffs; return 0/1."""
+    drift = False
+    for path, expected_text in expected.items():
+        rel = path.relative_to(REPO_ROOT)
+        if not path.is_file():
+            print(f"ERROR: missing {rel}", file=sys.stderr)
+            drift = True
+            continue
+        actual = path.read_text(encoding="utf-8")
+        if actual == expected_text:
+            continue
+        drift = True
+        print(f"drift: {rel}", file=sys.stderr)
+        diff = difflib.unified_diff(
+            actual.splitlines(keepends=True),
+            expected_text.splitlines(keepends=True),
+            fromfile=f"{rel} (on disk)",
+            tofile=f"{rel} (expected from metadata.yaml)",
+        )
+        sys.stderr.writelines(diff)
+    if drift:
+        print(
+            "\nmetadata-check: generated files are out of date; run `make metadata`.",
+            file=sys.stderr,
+        )
+        return 1
+    print("metadata-check: generated files are up to date.")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Regenerate derived metadata from metadata.yaml."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="compare generated files with disk and exit 1 on drift; write nothing",
+    )
+    args = parser.parse_args(argv)
+
+    m = load_metadata()
+    try:
+        expected = collect_expected(m)
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    if args.check:
+        return check_outputs(expected)
+
+    for path, text in expected.items():
+        if write_if_changed(path, text):
+            print(f"  updated {path.relative_to(REPO_ROOT)}")
 
     print("\nDone. Review with `git diff` before committing.")
     return 0

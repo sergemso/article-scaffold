@@ -97,6 +97,9 @@ jobs:
       - name: Check metadata drift on the default render
         run: |
           DEFAULT=$(sed -n '1p' /tmp/render/paths)
+          SPECIAL=$(sed -n '2p' /tmp/render/paths)
+          make -C "$DEFAULT" metadata-check
+          make -C "$SPECIAL" metadata-check
           git -C "$DEFAULT" add -A
           git -C "$DEFAULT" \
             -c user.name=CI \
