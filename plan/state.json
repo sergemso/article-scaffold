@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:14:12Z",
+  "updated": "2026-10-21T11:17:55Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -668,14 +668,50 @@
       "steps_done": []
     },
     "T14": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:17:55Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:17:50Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "057cc755c5baec5f2c6ecf6852406bc8fe2ca702",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_license.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "....                                                                     [100%]\n4 passed in 0.80s\n",
+              "at": "2026-10-21T11:17:50Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:17:55Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "057cc755c5baec5f2c6ecf6852406bc8fe2ca702",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_license.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "....                                                                     [100%]\n4 passed in 0.73s\n",
+              "at": "2026-10-21T11:17:55Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "license choice restricted; vendored texts; hook installs LICENSE/LICENSE-CODE; README and metadata updated; render-matrix test added",
+        "CC-BY-4.0/MIT choice; full texts vendored and copied by post-gen; LICENSE-CODE MIT for CC-BY, single MIT for MIT; README links and metadata SPDX ids; render matrix tests"
+      ],
       "steps_done": []
     },
     "T15": {

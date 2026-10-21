@@ -1,27 +1,8 @@
-Creative Commons Attribution 4.0 International License ({{ cookiecutter.license }})
+The full text of the selected paper license is installed by the
+post-generation hook from the vendored texts in `licenses/`.
 
-Copyright (c) {{ cookiecutter.date[:4] }} {{ cookiecutter.author_name }}
+- CC-BY-4.0: `licenses/CC-BY-4.0.txt`
+- MIT: `licenses/MIT.txt`
 
-You are free to:
-
-  Share — copy and redistribute the material in any medium or format for
-  any purpose, even commercially.
-
-  Adapt — remix, transform, and build upon the material for any purpose,
-  even commercially.
-
-  The licensor cannot revoke these freedoms as long as you follow the
-  license terms.
-
-Under the following terms:
-
-  Attribution — You must give appropriate credit, provide a link to the
-  license, and indicate if changes were made. You may do so in any
-  reasonable manner, but not in any way that suggests the licensor endorses
-  you or your use.
-
-  No additional restrictions — You may not apply legal terms or
-  technological measures that legally restrict others from doing anything
-  the license permits.
-
-Full license text: https://creativecommons.org/licenses/by/4.0/legalcode
+When the paper is CC-BY-4.0, the code license (MIT) is installed as
+`LICENSE-CODE`. When the paper is MIT, `LICENSE` is the single MIT license.

@@ -422,6 +422,7 @@ def gen_readme_meta_block(m: dict) -> str:
             f"**Manuscript type:** {m.get('manuscript_type', '')}",
             f"**Version:** {m.get('version_label', '')} ({m['_date_iso']})",
             f"**License:** {m.get('license', '')}",
+            "**Code license:** MIT",
             f"**Target deposit:** {m.get('target_deposit', '')} (preprint)",
         ]
     )

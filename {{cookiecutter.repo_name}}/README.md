@@ -7,6 +7,7 @@
 **Manuscript type:** {{ cookiecutter.manuscript_type }}
 **Version:** {{ cookiecutter.version_label }} ({{ cookiecutter.date }})
 **License:** {{ cookiecutter.license }}
+**Code license:** MIT
 **Target deposit:** {{ cookiecutter.target_deposit }} (preprint)
 {%- if cookiecutter.doi %}
 **DOI:** {{ cookiecutter.doi }}
@@ -22,7 +23,10 @@
 ```
 {{ cookiecutter.repo_name }}/
 ├── README.md
-├── LICENSE                    # {{ cookiecutter.license }}
+├── LICENSE                    # {{ cookiecutter.license }} paper license
+{%- if cookiecutter.license == "CC-BY-4.0" %}
+├── LICENSE-CODE               # MIT code license
+{%- endif %}
 ├── CITATION.cff               # Citation metadata (regenerated from metadata.yaml)
 ├── .zenodo.json               # Zenodo deposit metadata (regenerated from metadata.yaml)
 ├── metadata.yaml              # Single source of truth for metadata
@@ -119,8 +123,10 @@ make clean      # removes LaTeX build artifacts + manuscript.docx + manuscript.p
 
 ## License
 
-This work is licensed under a
-[Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/).
+- Manuscript: [{{ cookiecutter.license }}](LICENSE)
+{%- if cookiecutter.license == "CC-BY-4.0" %}
+- Code: [MIT](LICENSE-CODE)
+{%- endif %}
 
 ## Conflicts of Interest
 

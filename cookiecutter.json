@@ -11,7 +11,7 @@
   "version": "1.0.0",
   "version_label": "v1 preprint",
   "date": "{% now 'local', '%Y-%m-%d' %}",
-  "license": "CC-BY-4.0",
+  "license": ["CC-BY-4.0", "MIT"],
   "target_deposit": "Zenodo",
   "doi": "",
   "keywords": "research, methodology",

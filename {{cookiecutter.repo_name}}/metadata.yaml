@@ -33,6 +33,8 @@ version_label: {{ cookiecutter.version_label | tojson }}
 date: {{ cookiecutter.date | tojson }}
 
 license: {{ cookiecutter.license | tojson }}
+# The scaffold code is always MIT; the paper may be CC-BY-4.0 or MIT.
+license_code: "MIT"
 target_deposit: {{ cookiecutter.target_deposit | tojson }}
 doi: {{ cookiecutter.doi | tojson }}   # fill after deposit; leave empty for pre-deposit
 

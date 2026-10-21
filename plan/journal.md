@@ -134,3 +134,14 @@ history after work has started.
 - Offline CFF/Zenodo type+schema checks; cffconvert offline; network tests gated by RUN_NETWORK=1; non-blocking CI network job; Zenodo cc0-1.0 fix
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:17:49Z — T14 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:17:49Z — T14 — checkpoint
+- license choice restricted; vendored texts; hook installs LICENSE/LICENSE-CODE; README and metadata updated; render-matrix test added
+
+## 2026-10-21T11:17:55Z — T14 — done
+- CC-BY-4.0/MIT choice; full texts vendored and copied by post-gen; LICENSE-CODE MIT for CC-BY, single MIT for MIT; README links and metadata SPDX ids; render matrix tests
+- verify: passed
+- scope: clean
