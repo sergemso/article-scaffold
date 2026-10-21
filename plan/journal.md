@@ -218,3 +218,14 @@ history after work has started.
 - resource-path shared by make/CI; optional reference doc; pinned pandoc/core; DOCX embeds figures and leaves PDF images untouched
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:43:39Z — T21 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:43:39Z — T21 — checkpoint
+- vendored article package with pure diagnostics/latex/metadata/validate/build modules; diagnostics/status schemas; parity tests
+
+## 2026-10-21T11:43:46Z — T21 — done
+- scripts/article core is importable, side-effect-free, stdlib+PyYAML; stable diagnostics/status schemas; byte-identical metadata outputs and validation tests
+- verify: passed
+- scope: clean

@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:38:23Z",
+  "updated": "2026-10-21T11:43:46Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -997,14 +997,50 @@
       "steps_done": []
     },
     "T21": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:43:46Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:43:43Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "1444102d7a70ec85e7fd34b5d8a43778623ed235",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_core.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".......                                                                  [100%]\n7 passed in 2.48s\n",
+              "at": "2026-10-21T11:43:43Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:43:46Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "1444102d7a70ec85e7fd34b5d8a43778623ed235",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_core.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".......                                                                  [100%]\n7 passed in 2.49s\n",
+              "at": "2026-10-21T11:43:46Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "vendored article package with pure diagnostics/latex/metadata/validate/build modules; diagnostics/status schemas; parity tests",
+        "scripts/article core is importable, side-effect-free, stdlib+PyYAML; stable diagnostics/status schemas; byte-identical metadata outputs and validation tests"
+      ],
       "steps_done": []
     },
     "T22": {
