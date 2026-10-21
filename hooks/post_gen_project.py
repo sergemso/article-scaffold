@@ -47,7 +47,32 @@ def main() -> None:
             dst.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             print("Installed pre-push hook -> .git/hooks/pre-push")
 
-    # 4. Friendly next-steps banner.
+    # 4. Generate derived metadata from metadata.yaml.
+    generator = project_dir / "scripts" / "generate-metadata.py"
+    if generator.is_file():
+        print("Generating derived metadata from metadata.yaml...")
+        result = subprocess.run(
+            [sys.executable, str(generator)],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(
+                "ERROR: could not generate derived metadata. "
+                "PyYAML is required; install it with `pip install pyyaml`.",
+                file=sys.stderr,
+            )
+            if result.stdout:
+                print(result.stdout, file=sys.stderr)
+            if result.stderr:
+                print(result.stderr, file=sys.stderr)
+            sys.exit(1)
+        print("  generated CITATION.cff, .zenodo.json, README and article.tex metadata")
+    else:
+        print("WARNING: scripts/generate-metadata.py not found; skipping metadata generation.")
+
+    # 5. Friendly next-steps banner.
     print()
     print("────────────────────────────────────────────────────────────")
     print(" Scaffolding complete.")
@@ -59,8 +84,8 @@ def main() -> None:
     print("     (You already entered these as cookiecutter prompts;")
     print("      metadata.yaml is now the single source of truth.)")
     print()
-    print("  2. Regenerate derived metadata:")
-    print("       make metadata")
+    print("  2. Review metadata.yaml (derived files are already generated):")
+    print("       make metadata   # rerun after editing metadata.yaml")
     print()
     print("  3. Open paper/sections/00_abstract.tex and start writing.")
     print()

@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-20T23:34:16Z",
+  "updated": "2026-10-21T05:23:30Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -438,14 +438,49 @@
       "steps_done": []
     },
     "T09": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T05:23:30Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T05:23:28Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "ade5ec3dfbcaa6da411e93dc4db20e1e3c91443c",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_idempotency.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...                                                                      [100%]\n3 passed in 1.26s\n",
+              "at": "2026-10-21T05:23:28Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T05:23:30Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "ade5ec3dfbcaa6da411e93dc4db20e1e3c91443c",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_idempotency.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...                                                                      [100%]\n3 passed in 1.08s\n",
+              "at": "2026-10-21T05:23:30Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "post_gen runs generator with sys.executable; fails loudly on PyYAML; render+metadata is clean for default, DOI and hostile fixtures"
+      ],
       "steps_done": []
     },
     "T10": {

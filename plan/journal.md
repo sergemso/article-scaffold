@@ -87,3 +87,11 @@ history after work has started.
 - single-pass escaper; title_tex override; 19 table/property tests including backslash, unicode, already_tex
 - verify: passed
 - scope: clean
+
+## 2026-10-21T05:23:26Z — T09 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T05:23:30Z — T09 — done
+- post_gen runs generator with sys.executable; fails loudly on PyYAML; render+metadata is clean for default, DOI and hostile fixtures
+- verify: passed
+- scope: clean
