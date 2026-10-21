@@ -36,7 +36,7 @@ def test_fresh_repository_status_is_schema_valid(tmp_path: Path) -> None:
     assert payload["schema_version"] == "1.0"
     assert payload["template_version"] == "1.2.0"
     assert payload["repo"]["root"] == str(project.resolve())
-    assert payload["repo"]["branch"] == "master"
+    assert payload["repo"]["branch"] in {"master", "main"}
     assert payload["repo"]["dirty"] is True
     assert payload["metadata"] == {"valid": True, "drift": False}
     assert payload["diagnostics"]["errors"] == 0
@@ -56,7 +56,7 @@ def test_status_is_read_only_after_commit(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert payload["repo"]["dirty"] is False
-    assert payload["repo"]["branch"] == "master"
+    assert payload["repo"]["branch"] in {"master", "main"}
     after = run(project, "git", "status", "--porcelain")
     assert after.stdout == ""
 

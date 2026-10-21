@@ -41,8 +41,9 @@ def _ensure_git_repo(project_dir: Path, git: str) -> bool:
     """Create .git unless the generated project is already a repo root."""
     if _git_top_level(project_dir, git) == project_dir.resolve():
         return True
+    default_branch = "{{ cookiecutter.default_branch }}"
     result = subprocess.run(
-        [git, "init", "--initial-branch=master"],
+        [git, "init", f"--initial-branch={default_branch}"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -214,9 +215,10 @@ def main() -> None:
     print("  6. Commit:")
     print("       git add .")
     print("       git commit -m 'initial scaffold'")
-    print("       git branch -M master")
+    default_branch = "{{ cookiecutter.default_branch }}"
+    print(f"       git branch -M {default_branch}")
     print("       git remote add origin git@github.com:<user>/<repo>.git")
-    print("       git push -u origin master")
+    print(f"       git push -u origin {default_branch}")
     print()
     print("When you're ready to cut a release:")
     print("       git tag v1.0.0")

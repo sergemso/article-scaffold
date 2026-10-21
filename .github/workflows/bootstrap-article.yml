@@ -307,10 +307,14 @@ jobs:
           # Push the initial commit. By default the pre-push hook runs
           # `make validate` again — harmless (we already validated) but
           # adds a few seconds. The user can opt out via skip_pre_push_hook.
+          # The default branch is determined by cookiecutter at render time.
+          # Pass it through from the template context via the rendered project's
+          # git config or use a reasonable fallback.
+          DEFAULT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
           if [ "$SKIP_PRE_PUSH" = "true" ]; then
-            git push --no-verify -u origin master
+            git push --no-verify -u origin "$DEFAULT_BRANCH"
           else
-            git push -u origin master
+            git push -u origin "$DEFAULT_BRANCH"
           fi
 
           # Scrub the token from the remote URL so it does not leak into
@@ -343,7 +347,8 @@ jobs:
               echo "|-------|-------|"
               echo "| Repo | [\`${OWNER}/${REPO_NAME}\`](${REPO_URL}) |"
               echo "| Visibility | \`${REPO_VISIBILITY}\` |"
-              echo "| Default branch | \`master\` |"
+              DEFAULT_BRANCH="$(cd "$PROJECT_DIR" && git rev-parse --abbrev-ref HEAD)"
+              echo "| Default branch | \`${DEFAULT_BRANCH}\` |"
               echo "| Version | \`${VERSION}\` (${VERSION_LABEL}) |"
               echo "| Author | ${AUTHOR_NAME} (ORCID ${AUTHOR_ORCID}) |"
               echo "| Topic slug | \`${TOPIC}\` |"

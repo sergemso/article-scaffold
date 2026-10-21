@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T17:09:40Z",
+  "updated": "2026-10-21T17:20:35Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1376,14 +1376,67 @@
       "steps_done": []
     },
     "T29": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T17:20:35Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T17:20:20Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "c701f73090df221e9784188f548d2dd4374502a7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_branch.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 0.04s\n",
+              "at": "2026-10-21T17:20:20Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T17:20:21Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "c701f73090df221e9784188f548d2dd4374502a7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_branch.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 0.05s\n",
+              "at": "2026-10-21T17:20:21Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T17:20:35Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "c701f73090df221e9784188f548d2dd4374502a7",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_branch.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 0.06s\n",
+              "at": "2026-10-21T17:20:35Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "starting branch-agnostic workflows",
+        "SCOPE OVERRIDE: tests/test_status.py",
+        "branch-agnostic workflows using github.event.repository.default_branch; cookiecutter default_branch choice with main/master; post_gen hook uses {{ cookiecutter.default_branch }}; test_status.py updated to accept main/master since default is now main; full suite 184 passed"
+      ],
       "steps_done": []
     },
     "T30": {

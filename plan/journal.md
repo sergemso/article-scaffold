@@ -323,3 +323,14 @@ history after work has started.
 - data/ and analysis/ directories with uv.lock, checksums, stdlib-only pipeline, make analysis, make analysis-check, paper/tables and paper/figures outputs consumed by empirical manuscript via InputIfFileExists in 03_results.tex; full suite 179 passed
 - verify: passed
 - scope: override
+
+## 2026-10-21T17:11:08Z — T29 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T17:11:08Z — T29 — checkpoint
+- starting branch-agnostic workflows
+
+## 2026-10-21T17:20:35Z — T29 — done
+- branch-agnostic workflows using github.event.repository.default_branch; cookiecutter default_branch choice with main/master; post_gen hook uses {{ cookiecutter.default_branch }}; test_status.py updated to accept main/master since default is now main; full suite 184 passed
+- verify: passed
+- scope: override

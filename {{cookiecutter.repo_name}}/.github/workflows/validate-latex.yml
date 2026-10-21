@@ -3,7 +3,7 @@ name: Validate LaTeX
 on:
   push:
     branches:
-      - master
+      - '${{ github.event.repository.default_branch }}'
     paths:
       - 'paper/**'
       - 'scripts/**'
