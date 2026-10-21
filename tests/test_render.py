@@ -1,16 +1,10 @@
-"""Render-matrix smoke tests and known-defect regressions.
-
-The xfail markers are deliberate: Phase 1 turns each one into a passing test.
-They are named after the bug they reproduce so the failure output points at the
-fix.
-"""
+"""Render-matrix smoke tests and regressions for fixed Phase 1 defects."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-import pytest
 import yaml
 from conftest import commit_all, run
 
@@ -52,7 +46,6 @@ def test_empty_subtitle_is_allowed(tmp_path: Path) -> None:
     assert not metadata.get("subtitle")
 
 
-@pytest.mark.xfail(strict=False, reason="T05: metadata values are not JSON-escaped")
 def test_metadata_yaml_parses_with_quotes(special_project: Path) -> None:
     yaml.safe_load((special_project / "metadata.yaml").read_text())
 
@@ -62,19 +55,16 @@ def test_citation_cff_has_valid_type(default_project: Path) -> None:
     assert cff["type"] in {"software", "article"}
 
 
-@pytest.mark.xfail(strict=False, reason="T12: Zenodo JSON is not escaped")
 def test_zenodo_json_parses_with_quotes(special_project: Path) -> None:
     json.loads((special_project / ".zenodo.json").read_text())
 
 
-@pytest.mark.xfail(strict=False, reason="T08: raw LaTeX specials reach article.tex")
 def test_latex_title_escapes_specials(special_project: Path) -> None:
     tex = (special_project / "paper" / "article.tex").read_text()
     assert r"\&" in tex
     assert r"\%" in tex
 
 
-@pytest.mark.xfail(strict=False, reason="T15: validator counts escaped braces")
 def test_validator_ignores_escaped_braces(default_project: Path) -> None:
     section = default_project / "paper" / "sections" / "01_introduction.tex"
     section.write_text(section.read_text() + "\nA literal \\{ brace.\n")
@@ -82,7 +72,6 @@ def test_validator_ignores_escaped_braces(default_project: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-@pytest.mark.xfail(strict=False, reason="T09/T10: metadata regeneration drifts")
 def test_metadata_regeneration_is_idempotent(default_project: Path) -> None:
     commit_all(default_project)
     result = run(default_project, "make", "metadata")
