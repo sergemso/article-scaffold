@@ -389,3 +389,14 @@ history after work has started.
 - diff, arxiv, wordcount, spell, watch, figures Makefile targets with CLI commands; each fails gracefully with actionable message when tool missing; Makefile targets not in pdf/all; test_tools.py runs tests in isolated subprocess via os.fork+execvpe to avoid pytest capture issues; all 249 tests pass
 - verify: passed
 - scope: override
+
+## 2026-10-21T19:29:13Z — T35 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T19:29:13Z — T35 — checkpoint
+- starting reproducible builds, Pages and supplementary
+
+## 2026-10-21T19:53:35Z — T35 — done
+- reproducible builds with SOURCE_DATE_EPOCH override; Pages deployment from tags via deploy-pages job; supplementary build target supp-pdf; double-build verification test; all 258 tests pass
+- verify: passed
+- scope: override

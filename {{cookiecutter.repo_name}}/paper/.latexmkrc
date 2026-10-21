@@ -13,7 +13,7 @@ $bibtex_use = 2;               # run bibtex when needed
 # Fixed SOURCE_DATE_EPOCH for reproducible PDF timestamps.
 # In CI, the workflow can override this with the commit timestamp.
 # The epoch is set to a fixed default so local builds are reproducible.
-$ENV{'SOURCE_DATE_EPOCH'} = 1609459200;  # 2021-01-01 00:00:00 UTC
+$ENV{'SOURCE_DATE_EPOCH'} //= 1609459200;  # 2021-01-01 00:00:00 UTC
 
 # Continuous preview mode (not used by Make/CI).
 $preview_mode = 0;

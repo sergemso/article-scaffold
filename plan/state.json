@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T19:27:59Z",
+  "updated": "2026-10-21T19:53:35Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1775,14 +1775,67 @@
       "steps_done": []
     },
     "T35": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T19:53:35Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T19:53:01Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "8759e20305ab89e27f22efab70707bf1e00f16b5",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_reproducible.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".........                                                                [100%]\n9 passed in 14.28s\n",
+              "at": "2026-10-21T19:53:01Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T19:53:16Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "8759e20305ab89e27f22efab70707bf1e00f16b5",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_reproducible.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".........                                                                [100%]\n9 passed in 13.78s\n",
+              "at": "2026-10-21T19:53:16Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T19:53:35Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "8759e20305ab89e27f22efab70707bf1e00f16b5",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_reproducible.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".........                                                                [100%]\n9 passed in 13.62s\n",
+              "at": "2026-10-21T19:53:35Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "starting reproducible builds, Pages and supplementary",
+        "SCOPE OVERRIDE: .github/workflows/bootstrap-article.yml, .github/workflows/plan-ci.yml, .github/workflows/reusable-build.yml, .github/workflows/test-template.yml, cookiecutter.json, tests/test_ci_hardening.py, {{cookiecutter.repo_name}}/paper/.latexmkrc",
+        "reproducible builds with SOURCE_DATE_EPOCH override; Pages deployment from tags via deploy-pages job; supplementary build target supp-pdf; double-build verification test; all 258 tests pass"
+      ],
       "steps_done": []
     },
     "T36": {

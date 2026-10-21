@@ -29,6 +29,8 @@ UNPINNED_ALLOWLIST = {
     "actions/setup-python",
     "actions/upload-artifact",
     "actions/download-artifact",
+    "actions/configure-pages",
+    "actions/upload-pages-artifact",
     "xu-cheng/texlive-action",
     "softprops/action-gh-release",
 }

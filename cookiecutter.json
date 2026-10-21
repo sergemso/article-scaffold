@@ -62,6 +62,7 @@
   "_copy_without_render": [
     ".github/workflows/*.yml",
     "scripts/*.py",
-    "hooks/"
+    "hooks/",
+    "paper/.latexmkrc"
   ]
 }

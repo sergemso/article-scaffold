@@ -1,4 +1,4 @@
-.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check analysis analysis-check diff arxiv wordcount spell watch figures
+.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check analysis analysis-check supp supp-pdf diff arxiv wordcount spell watch figures
 
 PAPER_DIR = paper
 
@@ -104,6 +104,21 @@ analysis:
 
 analysis-check:
 	@python3 analysis/analyze.py --check
+
+# ─────────────────────────────────────────────────────────────
+# Supplementary materials — PDF for extended data, code, etc.
+# ─────────────────────────────────────────────────────────────
+
+supp-pdf:
+	@if [ -f $(PAPER_DIR)/supplementary.tex ]; then \
+		cd $(PAPER_DIR) && latexmk -pdf -interaction=nonstopmode -file-line-error -halt-on-error supplementary.tex; \
+		cp build/supplementary.pdf supplementary.pdf; \
+		echo "Supplementary PDF built: $(PAPER_DIR)/supplementary.pdf"; \
+	else \
+		echo "No supplementary.tex found, skipping supplementary PDF"; \
+	fi
+
+supp: supp-pdf
 
 # ─────────────────────────────────────────────────────────────
 # Local validation — same checks as .github/workflows/validate-latex.yml
