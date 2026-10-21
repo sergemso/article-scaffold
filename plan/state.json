@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:52:52Z",
+  "updated": "2026-10-21T11:56:22Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1138,14 +1138,50 @@
       "steps_done": []
     },
     "T24": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:56:22Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:56:17Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "934cc9c20864323d5636d80bfa1961c87ad346c9",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_status.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "......                                                                   [100%]\n6 passed in 3.94s\n",
+              "at": "2026-10-21T11:56:17Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:56:22Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "934cc9c20864323d5636d80bfa1961c87ad346c9",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_status.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "......                                                                   [100%]\n6 passed in 3.94s\n",
+              "at": "2026-10-21T11:56:22Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "status.py reports template/repo/metadata/diagnostics/tools; strict status schema; docs/cli.md; read-only and drift/invalid metadata tests",
+        "article status --json is offline/read-only, schema-valid, robust for unborn/detached git and invalid metadata; docs publish exit codes and versioned fields"
+      ],
       "steps_done": []
     },
     "T25": {

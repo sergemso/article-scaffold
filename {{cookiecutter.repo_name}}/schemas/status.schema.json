@@ -2,8 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/sergemso/article-scaffold/schemas/status.schema.json",
   "title": "Article repository status",
+  "description": "Stable output of `python3 -m scripts.article status --json`.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": [
     "schema_version",
     "template_version",
@@ -23,11 +24,12 @@
     },
     "repo": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["root", "branch", "dirty"],
       "properties": {
         "root": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "branch": {
           "type": ["string", "null"]
@@ -39,7 +41,7 @@
     },
     "metadata": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["valid", "drift"],
       "properties": {
         "valid": {
@@ -52,7 +54,7 @@
     },
     "diagnostics": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["errors", "warnings"],
       "properties": {
         "errors": {

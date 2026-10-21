@@ -251,3 +251,14 @@ history after work has started.
 - Make/CLI/hook/CI converge on scripts.article; legacy scripts only format/delegate; generated metadata byte-identical; pre-push skips safely without CLI; delegation parity tests
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:56:12Z — T24 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:56:12Z — T24 — checkpoint
+- status.py reports template/repo/metadata/diagnostics/tools; strict status schema; docs/cli.md; read-only and drift/invalid metadata tests
+
+## 2026-10-21T11:56:22Z — T24 — done
+- article status --json is offline/read-only, schema-valid, robust for unborn/detached git and invalid metadata; docs publish exit codes and versioned fields
+- verify: passed
+- scope: clean
