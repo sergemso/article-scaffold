@@ -345,3 +345,14 @@ history after work has started.
 - preamble package order fixed: titlesec before hyperref, cleveref after hyperref, cite/natbib before hyperref; csquotes/siunitx optional; .latexmkrc in paper/ with outdir=build, SOURCE_DATE_EPOCH, halt-on-error; Makefile copies from build/ and cleans build/; build.py output is paper/build/article.pdf; CI workflows updated; tests updated for new paths; full suite 196 passed
 - verify: passed
 - scope: override
+
+## 2026-10-21T17:34:28Z — T31 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T17:34:28Z — T31 — checkpoint
+- starting repo hygiene, docs and neutral defaults
+
+## 2026-10-21T18:03:50Z — T31 — done
+- removed jinja2_time extension, date now YYYY-MM-DD placeholder filled by post_gen; neutral defaults for author/github_user/affiliation/keywords; optional user config via ~/.config/article-scaffold/config.yaml or ARTICLE_SCAFFOLD_CONFIG env; updated .gitignore with build/, .venv, generated dirs, biblatex; refreshed README and template README with accurate tree; added CONTRIBUTING.md; added test_docs.py for doc hygiene; full suite 207 passed
+- verify: passed
+- scope: clean

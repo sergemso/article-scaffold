@@ -9,15 +9,15 @@
   "citation_style": ["numeric", "author-year"],
   "author_name": "Your Name",
   "author_orcid": "",
-  "author_affiliation": "Independent Researcher",
+  "author_affiliation": "Your Affiliation",
   "version": "1.0.0",
   "version_label": "v1 preprint",
-  "date": "{% now 'local', '%Y-%m-%d' %}",
+  "date": "YYYY-MM-DD",
   "license": ["CC-BY-4.0", "MIT"],
   "target_deposit": "Zenodo",
   "doi": "",
   "default_branch": ["main", "master"],
-  "keywords": "research, methodology",
+  "keywords": "your, keywords",
   "abstract": "Replace this placeholder with the manuscript abstract. State the question, the contribution, the evidence base, and the limitations. The abstract is the first thing a reader sees and the only thing many readers will read, so it should be a self-contained summary of the argument, not a teaser for it.",
   "__prompts__": {
     "topic": "Topic slug (lowercase letters, digits, hyphens, or underscores)",
@@ -58,11 +58,10 @@
     "keywords": "Keywords (comma-separated)",
     "abstract": "Abstract"
   },
-  "_extensions": [
-    "jinja2_time.TimeExtension"
-  ],
+  "_extensions": [],
   "_copy_without_render": [
     ".github/workflows/*.yml",
-    "scripts/*.py"
+    "scripts/*.py",
+    "hooks/"
   ]
 }

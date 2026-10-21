@@ -18,6 +18,8 @@
 {{ cookiecutter.abstract }}
 <!-- README:META:END -->
 
+---
+
 ## Repository Structure
 
 ```
@@ -31,7 +33,7 @@
 ├── .zenodo.json               # Zenodo deposit metadata (regenerated from metadata.yaml)
 ├── metadata.yaml              # Single source of truth for metadata
 ├── .gitignore
-├── Makefile                   # Build automation (pdf / docx / validate / metadata / clean)
+├── Makefile                   # Build automation (pdf / docx / validate / metadata / clean / analysis)
 ├── CHANGES.md                 # Version history (v1 → v2 → ...)
 ├── .github/
 │   └── workflows/
@@ -42,6 +44,7 @@
 │   ├── article.tex            # Main LaTeX document
 │   ├── refs.bib               # BibTeX bibliography
 │   ├── Makefile               # Direct paper/ build
+│   ├── .latexmkrc             # latexmk config: outdir=build, reproducible
 │   ├── sections/
 │   │   ├── 00_abstract.tex
 │   │   ├── 01_introduction.tex
@@ -52,15 +55,22 @@
 │   │   ├── 08_backmatter.tex       # COI / Data / AI-use / Version statements
 │   │   └── 09_references.tex
 │   ├── figures/               # Tracked; referenced via \includegraphics
-│   └── supplementary/          # Tracked; appendices, extended tables, code
+│   └── tables/                # Generated tables from make analysis
+├── data/
+│   ├── raw/observations.csv   # fixture data for empirical analysis
+│   └── checksums.sha256       # input checksums for reproducibility
+├── analysis/
+│   ├── analyze.py             # stdlib-only pipeline: CSV → table + figure
+│   ├── pyproject.toml         # optional heavy deps (pandas, matplotlib, numpy)
+│   └── uv.lock                # lockfile for optional deps
 └── scripts/
-    ├── article/               # Vendored core library + JSON-first CLI (no install needed)
+    ├── article/               # Vendored core library + JSON-first CLI
     │   ├── cli.py             # python3 -m scripts.article
     │   ├── validate.py        # shared validation logic
     │   └── metadata.py        # shared metadata generation
     ├── generate-metadata.py   # Deprecated shim; delegates to scripts.article
     ├── validate-paper.py      # Deprecated shim; delegates to scripts.article
-    └── pre-push               # Hook source; `make hooks` installs it in scripts/githooks/
+    └── pre-push               # Hook source; `make hooks` installs it
 ```
 
 ## Build Instructions
