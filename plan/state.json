@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:20:26Z",
+  "updated": "2026-10-21T11:24:30Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -762,14 +762,50 @@
       "steps_done": []
     },
     "T16": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:24:30Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:24:24Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "7fe8460125745e37d285187ec1994b142d745437",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_validate_structural.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..............                                                           [100%]\n14 passed in 5.32s\n",
+              "at": "2026-10-21T11:24:24Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:24:30Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "7fe8460125745e37d285187ec1994b142d745437",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_validate_structural.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..............                                                           [100%]\n14 passed in 5.48s\n",
+              "at": "2026-10-21T11:24:30Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "graphicspath/includegraphics; labels/refs warnings; duplicate/orphan bib; recursive includes with depth/escape checks",
+        "structural checks for figures, refs, labels, duplicate/orphan bib keys, recursive includes with depth and paper-root enforcement; warnings separate from errors; fixtures"
+      ],
       "steps_done": []
     },
     "T17": {

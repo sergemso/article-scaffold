@@ -156,3 +156,14 @@ history after work has started.
 - comments respect escaped percent; all cite commands and comma lists; input/include across paper; structured path:line:code diagnostics; fixtures for false positives/negatives
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:24:17Z — T16 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:24:18Z — T16 — checkpoint
+- graphicspath/includegraphics; labels/refs warnings; duplicate/orphan bib; recursive includes with depth/escape checks
+
+## 2026-10-21T11:24:30Z — T16 — done
+- structural checks for figures, refs, labels, duplicate/orphan bib keys, recursive includes with depth and paper-root enforcement; warnings separate from errors; fixtures
+- verify: passed
+- scope: clean
