@@ -1,0 +1,337 @@
+"""JSON-first command-line adapter over the vendored article core."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+from . import core
+
+
+class UsageError(Exception):
+    """Raised instead of argparse's direct process exit."""
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:  # pragma: no cover - exercised via CLI
+        raise UsageError(message)
+
+
+def _emit_json(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def _root(args: argparse.Namespace) -> Path:
+    return Path(args.root).resolve()
+
+
+def _validate(args: argparse.Namespace) -> int:
+    diagnostics = core.validate_paper(_root(args))
+    if args.json:
+        _emit_json(diagnostics.to_dict())
+    else:
+        if diagnostics.items:
+            print(diagnostics.format_text(), file=sys.stderr)
+        if diagnostics.ok:
+            print("All validation checks passed.")
+        else:
+            print(
+                f"ERROR: {len(diagnostics.errors)} validation error(s).",
+                file=sys.stderr,
+            )
+    return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
+
+
+def _metadata(args: argparse.Namespace) -> int:
+    root = _root(args)
+    try:
+        metadata = core.load_metadata(root / "metadata.yaml")
+        expected = core.collect_expected(root, metadata)
+    except (FileNotFoundError, ValueError) as exc:
+        payload = {"ok": False, "command": "metadata", "error": str(exc)}
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(f"ERROR: {exc}", file=sys.stderr)
+        return core.ExitCode.DIAGNOSTICS
+
+    drift = core.compare_outputs(root, expected)
+    if args.check:
+        payload = {
+            "ok": not drift,
+            "command": "metadata",
+            "check": True,
+            "drift": [item.to_dict() for item in drift],
+        }
+        if args.json:
+            _emit_json(payload)
+        elif drift:
+            for item in drift:
+                print(f"drift: {item.path}", file=sys.stderr)
+        else:
+            print("metadata-check: generated files are up to date.")
+        return core.ExitCode.OK if not drift else core.ExitCode.DIAGNOSTICS
+
+    if args.dry_run:
+        payload = {
+            "ok": True,
+            "command": "metadata",
+            "dry_run": True,
+            "changed": [item.path for item in drift],
+        }
+        if args.json:
+            _emit_json(payload)
+        else:
+            for item in drift:
+                print(f"would update {item.path}")
+        return core.ExitCode.OK
+
+    changed = core.write_expected(expected)
+    payload = {
+        "ok": True,
+        "command": "metadata",
+        "dry_run": False,
+        "changed": [str(path.relative_to(root)) for path in changed],
+    }
+    if args.json:
+        _emit_json(payload)
+    else:
+        for path in changed:
+            print(f"updated {path.relative_to(root)}")
+        print("Done. Review with `git diff` before committing.")
+    return core.ExitCode.OK
+
+
+def _git_state(root: Path) -> tuple[str | None, bool]:
+    git = shutil.which("git")
+    if git is None:
+        return None, False
+    branch = subprocess.run(
+        [git, "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    status = subprocess.run(
+        [git, "status", "--porcelain"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    return (
+        branch.stdout.strip() if branch.returncode == 0 else None,
+        bool(status.stdout.strip()) if status.returncode == 0 else False,
+    )
+
+
+def _basic_status(root: Path) -> dict[str, Any]:
+    branch, dirty = _git_state(root)
+    try:
+        metadata = core.load_metadata(root / "metadata.yaml")
+        valid = True
+        drift = bool(core.compare_outputs(root, core.collect_expected(root, metadata)))
+    except (FileNotFoundError, ValueError):
+        valid = False
+        drift = True
+    diagnostics = core.validate_paper(root)
+    tools = {
+        "python": sys.version.split()[0],
+        "pandoc": shutil.which("pandoc"),
+        "latexmk": shutil.which("latexmk"),
+        "git": shutil.which("git"),
+    }
+    return {
+        "schema_version": "1.0",
+        "template_version": core.CORE_VERSION,
+        "repo": {"root": str(root), "branch": branch, "dirty": dirty},
+        "metadata": {"valid": valid, "drift": drift},
+        "diagnostics": {
+            "errors": len(diagnostics.errors),
+            "warnings": len(diagnostics.warnings),
+        },
+        "tools": tools,
+    }
+
+
+def _status(args: argparse.Namespace) -> int:
+    root = _root(args)
+    try:
+        from .status import build_status  # type: ignore[attr-defined]
+    except ImportError:
+        payload = _basic_status(root)
+    else:
+        payload = build_status(root)
+    if args.json:
+        _emit_json(payload)
+    else:
+        print(f"root: {payload['repo']['root']}")
+        print(f"template: {payload['template_version']}")
+        print(f"branch: {payload['repo']['branch']}")
+        print(f"dirty: {payload['repo']['dirty']}")
+        print(f"metadata valid: {payload['metadata']['valid']}")
+        print(f"metadata drift: {payload['metadata']['drift']}")
+        print(f"diagnostics: {payload['diagnostics']}")
+    return core.ExitCode.OK
+
+
+def _build(args: argparse.Namespace) -> int:
+    root = _root(args)
+    if args.kind == "pdf":
+        plan = core.pdf_plan(root)
+    else:
+        reference = root / "reference.docx"
+        plan = core.docx_plan(
+            root,
+            reference_docx="reference.docx" if reference.is_file() else None,
+        )
+    payload: dict[str, Any] = {
+        "ok": True,
+        "command": "build",
+        "kind": args.kind,
+        "plan": plan.to_dict(),
+        "dry_run": args.dry_run,
+    }
+    if args.dry_run:
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(" ".join(plan.command))
+        return core.ExitCode.OK
+
+    executable = shutil.which(plan.command[0])
+    if executable is None:
+        payload.update(
+            {
+                "ok": False,
+                "error": f"required build tool not found: {plan.command[0]}",
+            }
+        )
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(f"ERROR: {payload['error']}", file=sys.stderr)
+        return core.ExitCode.DIAGNOSTICS
+
+    result = subprocess.run(
+        list(plan.command),
+        cwd=root / plan.cwd,
+        capture_output=True,
+        text=True,
+    )
+    payload.update(
+        {
+            "ok": result.returncode == 0,
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+    )
+    if args.json:
+        _emit_json(payload)
+    else:
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+    return core.ExitCode.OK if result.returncode == 0 else core.ExitCode.DIAGNOSTICS
+
+
+def _release(args: argparse.Namespace) -> int:
+    payload = {
+        "ok": False,
+        "command": "release",
+        "error": "release plan/apply is not implemented until the release task",
+        "dry_run": args.dry_run,
+    }
+    if args.json:
+        _emit_json(payload)
+    else:
+        print(f"ERROR: {payload['error']}", file=sys.stderr)
+    return core.ExitCode.DIAGNOSTICS
+
+
+def _add_common(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = _Parser(
+        prog="python3 -m scripts.article",
+        description="Validate, inspect, and build a scaffolded article repository.",
+    )
+    parser.add_argument(
+        "--root",
+        default=".",
+        help="repository root (default: current directory)",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    validate = subparsers.add_parser("validate", help="validate paper sources")
+    _add_common(validate)
+    validate.set_defaults(func=_validate)
+
+    metadata = subparsers.add_parser(
+        "metadata", help="regenerate derived metadata from metadata.yaml"
+    )
+    _add_common(metadata)
+    metadata.add_argument(
+        "--check",
+        action="store_true",
+        help="compare generated files with disk; write nothing",
+    )
+    metadata.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show what would change; write nothing",
+    )
+    metadata.set_defaults(func=_metadata)
+
+    status = subparsers.add_parser("status", help="report repository status")
+    _add_common(status)
+    status.set_defaults(func=_status)
+
+    build = subparsers.add_parser("build", help="build PDF or DOCX")
+    _add_common(build)
+    build.add_argument("kind", choices=["pdf", "docx"])
+    build.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the command without running it",
+    )
+    build.set_defaults(func=_build)
+
+    release = subparsers.add_parser("release", help="plan or apply a release")
+    _add_common(release)
+    release.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show the release plan without applying it",
+    )
+    release.set_defaults(func=_release)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except UsageError as exc:
+        print(f"usage error: {exc}", file=sys.stderr)
+        return core.ExitCode.USAGE
+    try:
+        return int(args.func(args))
+    except Exception as exc:  # noqa: BLE001 - the CLI boundary maps failures to 3
+        if getattr(args, "json", False):
+            _emit_json({"ok": False, "command": args.command, "error": str(exc)})
+        else:
+            print(f"internal error: {exc}", file=sys.stderr)
+        return core.ExitCode.INTERNAL
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())

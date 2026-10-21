@@ -229,3 +229,14 @@ history after work has started.
 - scripts/article core is importable, side-effect-free, stdlib+PyYAML; stable diagnostics/status schemas; byte-identical metadata outputs and validation tests
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:47:14Z — T22 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:47:14Z — T22 — checkpoint
+- JSON-first CLI with validate/metadata/status/build/release; stable exit codes; metadata check/dry-run; build plans; tests
+
+## 2026-10-21T11:47:25Z — T22 — done
+- all subcommands support --json; 0/1/2/3 exit codes; metadata --check/--dry-run write nothing; build --dry-run exposes core plans; status delegates to optional status.py; no MCP imports
+- verify: passed
+- scope: clean

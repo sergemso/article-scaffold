@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:43:46Z",
+  "updated": "2026-10-21T11:47:25Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1044,14 +1044,50 @@
       "steps_done": []
     },
     "T22": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:47:25Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:47:20Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "c75f7d7014daf19faccf60f3a53a098e936d0f23",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_cli.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".........                                                                [100%]\n9 passed in 4.90s\n",
+              "at": "2026-10-21T11:47:20Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:47:25Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "c75f7d7014daf19faccf60f3a53a098e936d0f23",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_cli.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".........                                                                [100%]\n9 passed in 5.01s\n",
+              "at": "2026-10-21T11:47:25Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "JSON-first CLI with validate/metadata/status/build/release; stable exit codes; metadata check/dry-run; build plans; tests",
+        "all subcommands support --json; 0/1/2/3 exit codes; metadata --check/--dry-run write nothing; build --dry-run exposes core plans; status delegates to optional status.py; no MCP imports"
+      ],
       "steps_done": []
     },
     "T23": {
