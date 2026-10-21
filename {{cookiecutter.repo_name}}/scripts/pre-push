@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Git pre-push hook — runs `make validate` (same checks as
-# .github/workflows/validate-latex.yml) before any push.
+# Git pre-push hook — runs the shared article CLI before any push.
 #
 # Installed by cookiecutter post_gen_project.py into
 # scripts/githooks/pre-push and enabled with
@@ -17,19 +16,21 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
-echo "[pre-push] running make validate ..."
-
-if ! command -v make >/dev/null 2>&1; then
-    echo "[pre-push] WARNING: 'make' not found — skipping local validation."
-    exit 0
-fi
+echo "[pre-push] running python3 -m scripts.article validate ..."
 
 if ! command -v python3 >/dev/null 2>&1; then
     echo "[pre-push] WARNING: 'python3' not found — skipping local validation."
     exit 0
 fi
 
-if ! make validate; then
+# Older generated repos may not have the vendored package. Do not block an
+# unrelated push just because the optional local gate is unavailable.
+if [ ! -f "scripts/article/__main__.py" ]; then
+    echo "[pre-push] WARNING: scripts.article CLI not found — skipping local validation."
+    exit 0
+fi
+
+if ! python3 -m scripts.article validate; then
     echo "[pre-push] FAILED local validation. Push aborted."
     echo "[pre-push] To bypass: 'git push --no-verify'."
     exit 1

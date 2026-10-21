@@ -54,7 +54,12 @@
 │   ├── figures/               # Tracked; referenced via \includegraphics
 │   └── supplementary/          # Tracked; appendices, extended tables, code
 └── scripts/
-    ├── generate-metadata.py   # metadata.yaml → CITATION.cff / .zenodo.json / article.tex title block / README citation block
+    ├── article/               # Vendored core library + JSON-first CLI (no install needed)
+    │   ├── cli.py             # python3 -m scripts.article
+    │   ├── validate.py        # shared validation logic
+    │   └── metadata.py        # shared metadata generation
+    ├── generate-metadata.py   # Deprecated shim; delegates to scripts.article
+    ├── validate-paper.py      # Deprecated shim; delegates to scripts.article
     └── pre-push               # Hook source; `make hooks` installs it in scripts/githooks/
 ```
 
@@ -82,13 +87,31 @@ by CI on every push that touches `paper/**`; you do not need to commit it.
 ```bash
 make validate   # runs the same checks as .github/workflows/validate-latex.yml
 ```
-The pre-push hook (installed automatically by the scaffold) runs `make validate`
-before each push. It lives in `scripts/githooks/pre-push` and is enabled through
-`core.hooksPath`. After cloning an existing repository, run:
+The pre-push hook (installed automatically by the scaffold) runs
+`python3 -m scripts.article validate` before each push. It lives in
+`scripts/githooks/pre-push` and is enabled through `core.hooksPath`. After
+cloning an existing repository, run:
 
 ```bash
 make hooks      # install/reinstall the pre-push hook; safe to rerun
 ```
+
+### JSON-first CLI
+
+Every Make target above is also available through the vendored CLI. Use
+`--json` for CI, hooks, editors, or an optional MCP adapter:
+
+```bash
+python3 -m scripts.article validate --json
+python3 -m scripts.article metadata --check --json
+python3 -m scripts.article status --json
+python3 -m scripts.article build pdf --dry-run --json
+```
+
+Exit codes are stable: `0` success, `1` diagnostics/failure, `2` usage error,
+and `3` internal error. `scripts/validate-paper.py` and
+`scripts/generate-metadata.py` remain as deprecated shims for older
+repositories and still accept their historical flags.
 
 ### Regenerate derived metadata
 After editing `metadata.yaml` (e.g. to bump the version or add a DOI):

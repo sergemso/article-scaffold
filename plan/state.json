@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:47:25Z",
+  "updated": "2026-10-21T11:52:52Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1091,14 +1091,50 @@
       "steps_done": []
     },
     "T23": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:52:52Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:52:48Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "50cebfd4f7fc71ea3c86e25db58f9a472f836d84",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_delegation.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 3.25s\n",
+              "at": "2026-10-21T11:52:48Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:52:52Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "50cebfd4f7fc71ea3c86e25db58f9a472f836d84",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_delegation.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 3.26s\n",
+              "at": "2026-10-21T11:52:52Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Make pdf/metadata delegate to CLI; pre-push calls CLI with safe missing-CLI warning; legacy validator/generator are core-backed shims preserving diagnostics and --check output",
+        "Make/CLI/hook/CI converge on scripts.article; legacy scripts only format/delegate; generated metadata byte-identical; pre-push skips safely without CLI; delegation parity tests"
+      ],
       "steps_done": []
     },
     "T24": {

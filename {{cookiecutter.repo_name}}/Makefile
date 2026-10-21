@@ -21,33 +21,37 @@ all: pdf
 # ─────────────────────────────────────────────────────────────
 
 pdf:
-	cd $(PAPER_DIR) && latexmk -pdf -interaction=nonstopmode -file-line-error article.tex
+	python3 -m scripts.article build pdf
 	@echo "PDF built: $(PAPER_DIR)/article.pdf"
 
+# The CLI owns the modern DOCX plan. The inline fallback keeps generated
+# repositories usable with pre-2.11 pandoc (which has no --citeproc).
 docx:
-	@CITEPROC=""; \
-	if $(PANDOC) --help 2>/dev/null | grep -q -- '--citeproc'; then \
-		CITEPROC="--citeproc"; \
-	elif command -v pandoc-citeproc >/dev/null 2>&1; then \
-		CITEPROC="--filter pandoc-citeproc"; \
-	fi; \
-	REFERENCE=""; \
-	if [ -f "$(REFERENCE_DOCX)" ]; then \
-		REFERENCE="--reference-doc=$(REFERENCE_DOCX)"; \
-	fi; \
-	BIBLIOGRAPHY=""; \
-	if [ -n "$$CITEPROC" ]; then \
-		BIBLIOGRAPHY="--bibliography=paper/refs.bib"; \
-	fi; \
-	$(PANDOC) \
-		--output=manuscript.docx \
-		--from=latex \
-		--to=docx \
-		$$CITEPROC \
-		$$BIBLIOGRAPHY \
-		--resource-path=$(DOCX_RESOURCE_PATH) \
-		$$REFERENCE \
-		paper/article.tex
+	@if $(PANDOC) --help 2>/dev/null | grep -q -- '--citeproc'; then \
+		python3 -m scripts.article build docx; \
+	else \
+		CITEPROC=""; \
+		if command -v pandoc-citeproc >/dev/null 2>&1; then \
+			CITEPROC="--filter pandoc-citeproc"; \
+		fi; \
+		REFERENCE=""; \
+		if [ -f "$(REFERENCE_DOCX)" ]; then \
+			REFERENCE="--reference-doc=$(REFERENCE_DOCX)"; \
+		fi; \
+		BIBLIOGRAPHY=""; \
+		if [ -n "$$CITEPROC" ]; then \
+			BIBLIOGRAPHY="--bibliography=paper/refs.bib"; \
+		fi; \
+		$(PANDOC) \
+			--output=manuscript.docx \
+			--from=latex \
+			--to=docx \
+			$$CITEPROC \
+			$$BIBLIOGRAPHY \
+			--resource-path=$(DOCX_RESOURCE_PATH) \
+			$$REFERENCE \
+			paper/article.tex; \
+	fi
 	@echo "DOCX built: manuscript.docx"
 	@echo "Figures are read in place through --resource-path; PDF sources are not modified."
 
@@ -83,11 +87,11 @@ hooks:
 # ─────────────────────────────────────────────────────────────
 
 metadata:
-	@python3 scripts/generate-metadata.py
+	@python3 -m scripts.article metadata
 	@echo "Metadata-derived files regenerated."
 
 metadata-check:
-	@python3 scripts/generate-metadata.py --check
+	@python3 -m scripts.article metadata --check
 
 # ─────────────────────────────────────────────────────────────
 

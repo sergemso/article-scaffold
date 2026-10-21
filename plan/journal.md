@@ -240,3 +240,14 @@ history after work has started.
 - all subcommands support --json; 0/1/2/3 exit codes; metadata --check/--dry-run write nothing; build --dry-run exposes core plans; status delegates to optional status.py; no MCP imports
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:52:44Z — T23 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:52:44Z — T23 — checkpoint
+- Make pdf/metadata delegate to CLI; pre-push calls CLI with safe missing-CLI warning; legacy validator/generator are core-backed shims preserving diagnostics and --check output
+
+## 2026-10-21T11:52:52Z — T23 — done
+- Make/CLI/hook/CI converge on scripts.article; legacy scripts only format/delegate; generated metadata byte-identical; pre-push skips safely without CLI; delegation parity tests
+- verify: passed
+- scope: clean
