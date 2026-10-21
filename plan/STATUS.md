@@ -1,14 +1,14 @@
 # Implementation status
 
-Updated: 2026-10-21T11:06:56Z
+Updated: 2026-10-21T11:25:19Z
 
 | Phase | Done | Total |
 |---|---|---|
 | P0 | 4 | 4 |
 | P1.1 | 6 | 6 |
-| P1.2 | 0 | 3 |
-| P1.3 | 0 | 1 |
-| P1.4 | 0 | 3 |
+| P1.2 | 3 | 3 |
+| P1.3 | 1 | 1 |
+| P1.4 | 3 | 3 |
 | P1.5 | 0 | 1 |
 | P1.6 | 0 | 1 |
 | P1.7 | 0 | 1 |
@@ -28,4 +28,4 @@ _none_
 
 ## Next
 
-- `T11` Rewrite CFF generation
+- `T18` Fix git init and pre-push hook installation

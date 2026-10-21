@@ -178,3 +178,10 @@ history after work has started.
 - single validator entry point in CI and make validate; no inline validation; contents:read, concurrency, generated-layout paths; parity test
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:26:57Z — G1b — gate
+- T11–T17 complete: valid CFF/Zenodo, schema/network checks, license choice, structural validator, CI parity
+- `make test`: 99 passed, 3 skipped (network opt-in)
+- `audit`: 17 done, no scope or evidence errors
+- `plan/STATUS.md` rendered
+- One validator implementation is invoked by both `make validate` and CI
