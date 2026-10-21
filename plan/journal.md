@@ -167,3 +167,14 @@ history after work has started.
 - structural checks for figures, refs, labels, duplicate/orphan bib keys, recursive includes with depth and paper-root enforcement; warnings separate from errors; fixtures
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:25:15Z — T17 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:25:15Z — T17 — checkpoint
+- workflow delegates to scripts/validate-paper.py; Makefile same command; permissions/concurrency/path filters; parity test
+
+## 2026-10-21T11:25:19Z — T17 — done
+- single validator entry point in CI and make validate; no inline validation; contents:read, concurrency, generated-layout paths; parity test
+- verify: passed
+- scope: clean

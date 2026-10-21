@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:24:30Z",
+  "updated": "2026-10-21T11:25:19Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -809,14 +809,50 @@
       "steps_done": []
     },
     "T17": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:25:19Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:25:17Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "38822b452ec6d7c862e63fc8109a067ec867aaef",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_ci_parity.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...                                                                      [100%]\n3 passed in 1.27s\n",
+              "at": "2026-10-21T11:25:17Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:25:19Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "38822b452ec6d7c862e63fc8109a067ec867aaef",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_ci_parity.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...                                                                      [100%]\n3 passed in 1.21s\n",
+              "at": "2026-10-21T11:25:19Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "workflow delegates to scripts/validate-paper.py; Makefile same command; permissions/concurrency/path filters; parity test",
+        "single validator entry point in CI and make validate; no inline validation; contents:read, concurrency, generated-layout paths; parity test"
+      ],
       "steps_done": []
     },
     "T18": {
