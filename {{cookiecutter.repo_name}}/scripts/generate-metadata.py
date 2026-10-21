@@ -262,7 +262,7 @@ ZENODO_LICENSE_IDS = {
     "CC-BY-ND-4.0": "cc-by-nd-4.0",
     "CC-BY-NC-SA-4.0": "cc-by-nc-sa-4.0",
     "CC-BY-NC-ND-4.0": "cc-by-nc-nd-4.0",
-    "CC0-1.0": "cc-zero",
+    "CC0-1.0": "cc0-1.0",
     "MIT": "mit",
     "Apache-2.0": "apache-2.0",
     "GPL-3.0": "gpl-3.0",

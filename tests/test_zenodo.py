@@ -80,7 +80,7 @@ def test_multiple_creators(tmp_path: Path) -> None:
     [
         ("CC-BY-4.0", "cc-by-4.0"),
         ("MIT", "mit"),
-        ("CC0-1.0", "cc-zero"),
+        ("CC0-1.0", "cc0-1.0"),
         ("Apache-2.0", "apache-2.0"),
         ("CC-BY-SA-4.0", "cc-by-sa-4.0"),
     ],
