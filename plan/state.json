@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T19:53:35Z",
+  "updated": "2026-10-21T20:17:33Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1839,14 +1839,50 @@
       "steps_done": []
     },
     "T36": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T20:17:33Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T20:17:32Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "a966d50802cf063c479d21e517a0371cc325dcae",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_migration_docs.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...........                                                              [100%]\n11 passed in 0.03s\n",
+              "at": "2026-10-21T20:17:32Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T20:17:33Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "a966d50802cf063c479d21e517a0371cc325dcae",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_migration_docs.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...........                                                              [100%]\n11 passed in 0.04s\n",
+              "at": "2026-10-21T20:17:33Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "starting manual v2 migration documentation",
+        "migration guide docs/migrating-to-v2.md with field mapping, before/after example, migration steps, no-tool rationale, verification checklist, rollback procedure; test_migration_docs.py with 11 tests; all 269 tests pass; CI failures due to missing TeX Live in GitHub Actions environment (latexmk not installed)"
+      ],
       "steps_done": []
     },
     "T37": {

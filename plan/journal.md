@@ -400,3 +400,14 @@ history after work has started.
 - reproducible builds with SOURCE_DATE_EPOCH override; Pages deployment from tags via deploy-pages job; supplementary build target supp-pdf; double-build verification test; all 258 tests pass
 - verify: passed
 - scope: override
+
+## 2026-10-21T20:00:01Z — T36 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T20:00:01Z — T36 — checkpoint
+- starting manual v2 migration documentation
+
+## 2026-10-21T20:17:33Z — T36 — done
+- migration guide docs/migrating-to-v2.md with field mapping, before/after example, migration steps, no-tool rationale, verification checklist, rollback procedure; test_migration_docs.py with 11 tests; all 269 tests pass; CI failures due to missing TeX Live in GitHub Actions environment (latexmk not installed)
+- verify: passed
+- scope: clean
