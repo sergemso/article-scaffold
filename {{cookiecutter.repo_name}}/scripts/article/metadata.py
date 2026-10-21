@@ -14,6 +14,7 @@ from pathlib import Path
 
 import yaml
 
+from .diagnostics import Diagnostics
 from .latex import latex_escape, replace_block
 
 TITLE_BLOCK_START = "% METADATA:TITLE_BLOCK:START"
@@ -64,6 +65,394 @@ class OutputDrift:
         }
 
 
+ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
+ROR_RE = re.compile(r"^https://ror\.org/[0-9a-z]{9}$")
+
+# Metadata diagnostics use the same stable record shape as the validator.
+METADATA_PATH = "metadata.yaml"
+E_METADATA_AUTHORS = "E020"
+E_METADATA_ORCID = "E021"
+E_METADATA_AFFILIATION = "E022"
+E_METADATA_CORRESPONDING = "E023"
+E_METADATA_UNKNOWN_AFFILIATION = "E024"
+E_METADATA_ROR = "E025"
+E_METADATA_SHAPE = "E026"
+E_METADATA_SCHEMA = "E027"
+W_METADATA_LEGACY_AUTHOR = "W020"
+
+
+def valid_orcid(value: object) -> bool:
+    """Return True for a bare ORCID with a valid ISO 7064 checksum."""
+    text = str(value or "").strip()
+    if text.startswith("https://orcid.org/"):
+        text = text[len("https://orcid.org/") :]
+    if not ORCID_RE.fullmatch(text):
+        return False
+    compact = text.replace("-", "").upper()
+    total = 0
+    for digit in compact[:15]:
+        total = (total + int(digit)) * 2
+    result = (12 - total % 11) % 11
+    expected = "X" if result == 10 else str(result)
+    return compact[15] == expected
+
+
+def valid_ror(value: object) -> bool:
+    """Return True for the canonical https://ror.org/identifier shape."""
+    return bool(ROR_RE.fullmatch(str(value or "").strip()))
+
+
+is_valid_orcid = valid_orcid
+is_valid_ror = valid_ror
+
+
+def _text(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _split_name(full_name: str) -> tuple[str, str]:
+    """Split a legacy display name into given names and a family name."""
+    parts = full_name.split()
+    if len(parts) >= 2:
+        return " ".join(parts[:-1]), parts[-1]
+    if parts:
+        # Mononyms are valid: keep the single token as the family name.
+        return "", parts[0]
+    return "", ""
+
+
+def _normalize_affiliations(raw: object, diagnostics: Diagnostics) -> dict[str, dict]:
+    """Normalize an id->mapping map (or a list with explicit ids)."""
+    affiliations: dict[str, dict] = {}
+    names: dict[str, str] = {}
+
+    if raw is None:
+        return affiliations
+    if isinstance(raw, dict):
+        items = list(raw.items())
+    elif isinstance(raw, list):
+        items = []
+        for item in raw:
+            if not isinstance(item, dict) or not _text(item.get("id")):
+                diagnostics.error(
+                    METADATA_PATH,
+                    0,
+                    E_METADATA_SHAPE,
+                    "each affiliations list entry must be a mapping with an id",
+                )
+                continue
+            items.append((_text(item["id"]), item))
+    else:
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_SHAPE,
+            "affiliations must be an id->mapping map or a list with ids",
+        )
+        return affiliations
+
+    for key, raw_affiliation in items:
+        affiliation_id = _text(key)
+        if not affiliation_id:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_SHAPE,
+                "affiliation ids must be non-empty",
+            )
+            continue
+        if affiliation_id in affiliations:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_AFFILIATION,
+                f"duplicate affiliation id: {affiliation_id}",
+            )
+            continue
+        if isinstance(raw_affiliation, str):
+            raw_affiliation = {"name": raw_affiliation}
+        if not isinstance(raw_affiliation, dict):
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_SHAPE,
+                f"affiliation {affiliation_id} must be a mapping or a name",
+            )
+            continue
+        name = _text(raw_affiliation.get("name"))
+        if not name:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_SHAPE,
+                f"affiliation {affiliation_id} is missing a name",
+            )
+        if name and name in names:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_AFFILIATION,
+                f"duplicate affiliation name: {name}",
+            )
+        elif name:
+            names[name] = affiliation_id
+        ror = _text(raw_affiliation.get("ror"))
+        if ror and not valid_ror(ror):
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_ROR,
+                f"affiliation {affiliation_id} has an invalid ROR: {ror}",
+            )
+        affiliations[affiliation_id] = {
+            "id": affiliation_id,
+            "name": name,
+            "ror": ror,
+        }
+    return affiliations
+
+
+def _normalize_author(
+    raw: object,
+    *,
+    affiliations: dict[str, dict],
+    diagnostics: Diagnostics,
+    legacy: bool = False,
+) -> dict:
+    if isinstance(raw, str):
+        raw = {"name": raw}
+    if not isinstance(raw, dict):
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_SHAPE,
+            "each author must be a mapping or a name",
+        )
+        raw = {}
+
+    name = _text(raw.get("name"))
+    given = _text(raw.get("given"))
+    family = _text(raw.get("family"))
+    if not name:
+        name = " ".join(part for part in (given, family) if part)
+    if name and not given and not family:
+        given, family = _split_name(name)
+
+    orcid = _text(raw.get("orcid"))
+    if orcid.startswith("https://orcid.org/"):
+        orcid = orcid[len("https://orcid.org/") :]
+    if orcid and not valid_orcid(orcid):
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_ORCID,
+            f"author {name or '<unnamed>'} has an invalid ORCID: {orcid}",
+        )
+
+    author_ror = _text(raw.get("ror"))
+    if author_ror and not valid_ror(author_ror):
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_ROR,
+            f"author {name or '<unnamed>'} has an invalid ROR: {author_ror}",
+        )
+
+    raw_affiliations = raw.get("affiliations")
+    legacy_affiliation = raw_affiliations is None
+    if legacy_affiliation:
+        raw_affiliations = raw.get("affiliation")
+    if isinstance(raw_affiliations, str):
+        raw_affiliations = [
+            part.strip() for part in raw_affiliations.split(",") if part.strip()
+        ]
+    if not isinstance(raw_affiliations, list):
+        if raw_affiliations:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_SHAPE,
+                f"author {name or '<unnamed>'} affiliations must be a list",
+            )
+        raw_affiliations = []
+
+    affiliation_ids: list[str] = []
+    for item in raw_affiliations:
+        if isinstance(item, dict):
+            item = item.get("id") or item.get("name")
+        affiliation_id = _text(item)
+        if not affiliation_id:
+            continue
+        if affiliation_id not in affiliations:
+            if legacy_affiliation:
+                # v1 stored a free-text affiliation on the author. Give it a
+                # synthetic id so the normalized model is still uniform.
+                synthetic = f"aff{len(affiliations) + 1}"
+                while synthetic in affiliations:
+                    synthetic = f"aff{len(affiliations) + 2}"
+                affiliations[synthetic] = {
+                    "id": synthetic,
+                    "name": affiliation_id,
+                    "ror": "",
+                }
+                affiliation_id = synthetic
+            else:
+                diagnostics.error(
+                    METADATA_PATH,
+                    0,
+                    E_METADATA_UNKNOWN_AFFILIATION,
+                    f"author {name or '<unnamed>'} references unknown "
+                    f"affiliation id: {affiliation_id}",
+                )
+                continue
+        if affiliation_id in affiliation_ids:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_AFFILIATION,
+                f"author {name or '<unnamed>'} repeats affiliation {affiliation_id}",
+            )
+            continue
+        affiliation_ids.append(affiliation_id)
+
+    affiliation_names = [
+        affiliations[affiliation_id]["name"]
+        for affiliation_id in affiliation_ids
+        if affiliation_id in affiliations
+    ]
+    return {
+        "name": name,
+        "given": given,
+        "family": family,
+        "orcid": orcid,
+        "email": _text(raw.get("email")),
+        "affiliations": affiliation_ids,
+        "affiliation_names": affiliation_names,
+        "corresponding": bool(raw.get("corresponding", legacy)),
+        "ror": author_ror,
+    }
+
+
+def _metadata_schema(data: dict, diagnostics: Diagnostics) -> int:
+    raw = data.get("metadata_schema")
+    if raw is None:
+        return 2 if "authors" in data or "affiliations" in data else 1
+    if raw in (1, 2, "1", "2"):
+        return int(raw)
+    diagnostics.error(
+        METADATA_PATH,
+        0,
+        E_METADATA_SCHEMA,
+        f"metadata_schema must be 1 or 2, got: {raw}",
+    )
+    return 2 if "authors" in data else 1
+
+
+def _normalize_authors(
+    data: dict,
+    *,
+    schema: int,
+    affiliations: dict[str, dict],
+    diagnostics: Diagnostics,
+) -> list[dict]:
+    raw_authors = data.get("authors")
+    authors: list[dict] = []
+    legacy = False
+
+    if isinstance(raw_authors, list) and raw_authors:
+        for item in raw_authors:
+            authors.append(
+                _normalize_author(item, affiliations=affiliations, diagnostics=diagnostics)
+            )
+    elif "author" in data:
+        legacy = True
+        authors.append(
+            _normalize_author(
+                data["author"],
+                affiliations=affiliations,
+                diagnostics=diagnostics,
+                legacy=True,
+            )
+        )
+    elif any(
+        key in data
+        for key in ("author_name", "author_orcid", "author_affiliation")
+    ):
+        legacy = True
+        authors.append(
+            _normalize_author(
+                {
+                    "name": data.get("author_name"),
+                    "orcid": data.get("author_orcid"),
+                    "affiliation": data.get("author_affiliation"),
+                },
+                affiliations=affiliations,
+                diagnostics=diagnostics,
+                legacy=True,
+            )
+        )
+
+    if not authors:
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_AUTHORS,
+            "metadata must define authors: (schema 2) or the legacy author: mapping",
+        )
+        return authors
+
+    if legacy:
+        diagnostics.warning(
+            METADATA_PATH,
+            0,
+            W_METADATA_LEGACY_AUTHOR,
+            "legacy author fields are deprecated; use authors: and affiliations: "
+            "with metadata_schema: 2",
+        )
+
+    if schema >= 2 and not any(author["corresponding"] for author in authors):
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_CORRESPONDING,
+            "at least one author must be marked corresponding: true",
+        )
+    return authors
+
+
+def _normalize_creators(
+    data: dict, authors: list[dict]
+) -> list[dict[str, str]]:
+    raw_creators = data.get("creators")
+    creators: list[dict[str, str]] = []
+    if isinstance(raw_creators, list):
+        for item in raw_creators:
+            if isinstance(item, dict):
+                creators.append(
+                    {
+                        "name": _text(item.get("name")),
+                        "orcid": _text(item.get("orcid")),
+                        "affiliation": _text(item.get("affiliation")),
+                    }
+                )
+            elif item:
+                creators.append(
+                    {"name": _text(item), "orcid": "", "affiliation": ""}
+                )
+    creators = [creator for creator in creators if creator["name"]]
+    if creators:
+        return creators
+
+    for author in authors:
+        creator = {"name": author["name"] or "Unknown", "orcid": author["orcid"]}
+        if author["affiliation_names"]:
+            creator["affiliation"] = "; ".join(author["affiliation_names"])
+        creators.append(creator)
+    if not creators:
+        creators = [{"name": "Unknown", "orcid": "", "affiliation": ""}]
+    return creators
+
+
 def load_metadata(path: Path) -> dict:
     """Load and normalize metadata.yaml; missing/invalid input raises."""
     if not path.is_file():
@@ -76,8 +465,24 @@ def load_metadata(path: Path) -> dict:
 
 
 def normalize_metadata(data: dict) -> dict:
-    """Add the derived keys the generators rely on, without side effects."""
+    """Add the derived keys the generators rely on, without side effects.
+
+    Both the v2 ``authors``/``affiliations`` model and the legacy ``author``
+    mapping are accepted. Semantic problems are recorded under
+    ``_metadata_diagnostics`` rather than raised, so the CLI and pre-generation
+    checks can present every issue at once.
+    """
     normalized = dict(data)
+    diagnostics = Diagnostics()
+    schema = _metadata_schema(normalized, diagnostics)
+    affiliations = _normalize_affiliations(normalized.get("affiliations"), diagnostics)
+    authors = _normalize_authors(
+        normalized,
+        schema=schema,
+        affiliations=affiliations,
+        diagnostics=diagnostics,
+    )
+
     raw_keywords = normalized.get("keywords", "") or ""
     if isinstance(raw_keywords, list):
         normalized["_keywords_list"] = [
@@ -89,7 +494,9 @@ def normalize_metadata(data: dict) -> dict:
             for keyword in str(raw_keywords).split(",")
             if keyword.strip()
         ]
-    normalized["_abstract"] = normalized.get("abstract") or normalized.get("description") or ""
+    normalized["_abstract"] = (
+        normalized.get("abstract") or normalized.get("description") or ""
+    )
     normalized["_abstract_note"] = normalized.get("abstract_note") or ""
     raw_date = normalized.get("date", "")
     if isinstance(raw_date, date):
@@ -103,50 +510,32 @@ def normalize_metadata(data: dict) -> dict:
     else:
         normalized["_date_iso"] = ""
 
-    author = normalized.get("author", {})
-    if isinstance(author, dict):
-        full_name = author.get("name", "")
-        orcid = author.get("orcid", "")
-        affiliation = author.get("affiliation", "")
-    else:
-        full_name, orcid, affiliation = str(author), "", ""
-    parts = full_name.split()
-    if len(parts) >= 2:
-        family, given = parts[-1], " ".join(parts[:-1])
-    else:
-        family, given = full_name, ""
-    normalized["_author_family"] = family
-    normalized["_author_given"] = given
-    normalized["_author_full"] = full_name
-    normalized["_author_orcid"] = orcid
-    normalized["_author_affiliation"] = affiliation
-
-    raw_creators = normalized.get("creators")
-    creators: list[dict[str, str]] = []
-    if isinstance(raw_creators, list):
-        for item in raw_creators:
-            if isinstance(item, dict):
-                creators.append(
-                    {
-                        "name": str(item.get("name", "")).strip(),
-                        "orcid": str(item.get("orcid", "")).strip(),
-                        "affiliation": str(item.get("affiliation", "")).strip(),
-                    }
-                )
-            elif item:
-                creators.append(
-                    {"name": str(item).strip(), "orcid": "", "affiliation": ""}
-                )
-    creators = [creator for creator in creators if creator["name"]]
-    if not creators:
-        creators = [
-            {
-                "name": full_name or "Unknown",
-                "orcid": orcid,
-                "affiliation": affiliation,
-            }
-        ]
-    normalized["_creators"] = creators
+    first = authors[0] if authors else {
+        "name": "Unknown",
+        "given": "",
+        "family": "Unknown",
+        "orcid": "",
+        "affiliations": [],
+        "affiliation_names": [],
+    }
+    normalized["_metadata_schema"] = schema
+    normalized["_affiliations"] = affiliations
+    normalized["_authors"] = authors
+    normalized["_author_full"] = first["name"] or "Unknown"
+    normalized["_author_family"] = first["family"] or first["name"] or "Unknown"
+    normalized["_author_given"] = first["given"]
+    normalized["_author_orcid"] = first["orcid"]
+    normalized["_author_affiliation"] = (
+        first["affiliation_names"][0] if first["affiliation_names"] else ""
+    )
+    normalized["_creators"] = _normalize_creators(normalized, authors)
+    normalized["_metadata_diagnostics"] = [
+        item.to_dict() for item in diagnostics.items
+    ]
+    normalized["_metadata_warnings"] = [
+        item.to_dict() for item in diagnostics.warnings
+    ]
+    normalized["_metadata_ok"] = diagnostics.ok
 
     normalized["_repo_url"] = (
         f"https://github.com/{normalized.get('github_user', '')}/"
@@ -158,6 +547,24 @@ def normalize_metadata(data: dict) -> dict:
         f"https://doi.org/{doi}" if doi else normalized["_repo_url"]
     )
     return normalized
+
+
+def validate_metadata(data: dict) -> Diagnostics:
+    """Return actionable diagnostics for a metadata mapping."""
+    normalized = normalize_metadata(data)
+    diagnostics = Diagnostics()
+    for item in normalized.get("_metadata_diagnostics", []):
+        diagnostics.add(
+            item["path"],
+            item["line"],
+            item["code"],
+            item["message"],
+            severity=item["severity"],
+        )
+    return diagnostics
+
+
+metadata_diagnostics = validate_metadata
 
 
 def zenodo_license_id(value: object) -> str | None:

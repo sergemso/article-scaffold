@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:56:22Z",
+  "updated": "2026-10-21T12:06:45Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1185,14 +1185,50 @@
       "steps_done": []
     },
     "T25": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T12:06:45Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T12:06:44Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "dc2e36916252f1d73da14e2f09fcf0f390a89e11",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_metadata_v2.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..............                                                           [100%]\n14 passed in 1.00s\n",
+              "at": "2026-10-21T12:06:44Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T12:06:45Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "dc2e36916252f1d73da14e2f09fcf0f390a89e11",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_metadata_v2.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..............                                                           [100%]\n14 passed in 0.57s\n",
+              "at": "2026-10-21T12:06:45Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "v2 authors/affiliations loader with legacy normalization, ORCID/ROR checks, duplicate/missing-corresponding diagnostics, metadata_schema 2, schema and tests",
+        "v2 and v1 metadata load through one normalized model; ORCID checksum/ROR shape/duplicates/corresponding diagnostics; default generated files byte-identical; metadata schema published"
+      ],
       "steps_done": []
     },
     "T26": {

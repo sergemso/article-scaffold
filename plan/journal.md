@@ -268,3 +268,14 @@ history after work has started.
 - audit: 44 tasks, 24 done; no consistency errors
 - rendered plan/STATUS.md
 - T20–T24: DOCX resources, vendored core, JSON CLI, delegation, status contract
+
+## 2026-10-21T12:06:42Z — T25 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T12:06:42Z — T25 — checkpoint
+- v2 authors/affiliations loader with legacy normalization, ORCID/ROR checks, duplicate/missing-corresponding diagnostics, metadata_schema 2, schema and tests
+
+## 2026-10-21T12:06:45Z — T25 — done
+- v2 and v1 metadata load through one normalized model; ORCID checksum/ROR shape/duplicates/corresponding diagnostics; default generated files byte-identical; metadata schema published
+- verify: passed
+- scope: clean

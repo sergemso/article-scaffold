@@ -10,6 +10,8 @@
 # the metadata-derived fields, leaving your prose untouched.
 # ─────────────────────────────────────────────────────────────
 
+metadata_schema: 2
+
 title: {{ cookiecutter.title | tojson }}
 {% if cookiecutter.subtitle %}
 subtitle: {{ cookiecutter.subtitle | tojson }}
@@ -23,10 +25,21 @@ manuscript_type: {{ cookiecutter.manuscript_type | tojson }}
 abstract: {{ cookiecutter.abstract | tojson }}
 abstract_note: "Replace this paragraph with a transparency note about the evidence base used in the manuscript. If the paper draws on industry data, single-source datasets, or non-peer-reviewed sources, state that here and note the limitations. If the paper uses only peer-reviewed sources and primary documents, you can delete this paragraph entirely."
 
-author:
-  name: {{ cookiecutter.author_name | tojson }}
-  orcid: {{ cookiecutter.author_orcid | tojson }}
-  affiliation: {{ cookiecutter.author_affiliation | tojson }}
+{% if cookiecutter.author_affiliation %}
+affiliations:
+  aff1:
+    name: {{ cookiecutter.author_affiliation | tojson }}
+    ror: ""   # optional; canonical form: https://ror.org/02mhbdp94
+{% endif %}
+
+authors:
+  - name: {{ cookiecutter.author_name | tojson }}
+    orcid: {{ cookiecutter.author_orcid | tojson }}
+{% if cookiecutter.author_affiliation %}
+    affiliations: [aff1]
+{% endif %}
+    corresponding: true
+    email: ""   # optional; used for the corresponding-author footnote
 
 version: {{ cookiecutter.version | tojson }}
 version_label: {{ cookiecutter.version_label | tojson }}
