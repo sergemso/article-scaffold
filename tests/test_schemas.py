@@ -43,6 +43,17 @@ def _zenodo(project: Path) -> dict:
     return json.loads((project / ".zenodo.json").read_text())
 
 
+def _rewrite_license(project: Path, value: str) -> Path:
+    """Bypass the cookiecutter choice to exercise the generator's SPDX map."""
+    path = project / "metadata.yaml"
+    metadata = yaml.safe_load(path.read_text())
+    metadata["license"] = value
+    path.write_text(yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True))
+    result = run(project, "make", "metadata")
+    assert result.returncode == 0, result.stderr + result.stdout
+    return project
+
+
 def _assert_cff_types(cff: dict) -> None:
     for key in ("cff-version", "message", "title", "type", "authors"):
         assert key in cff, key
@@ -138,8 +149,12 @@ def test_multi_creator_shapes_offline(tmp_path: Path) -> None:
 @pytest.mark.network
 @NETWORK
 def test_zenodo_license_ids_resolve(tmp_path: Path) -> None:
-    for spdx in ("CC-BY-4.0", "MIT", "CC0-1.0"):
-        project = render(tmp_path=tmp_path / spdx.replace("/", "_"), license=spdx)
+    projects = [
+        render(tmp_path=tmp_path / "cc-by", license="CC-BY-4.0"),
+        render(tmp_path=tmp_path / "mit", license="MIT"),
+        _rewrite_license(render(tmp_path=tmp_path / "cc0"), "CC0-1.0"),
+    ]
+    for project in projects:
         data = _zenodo(project)
         with urlopen(
             f"https://zenodo.org/api/vocabularies/licenses/{data['license']}",
