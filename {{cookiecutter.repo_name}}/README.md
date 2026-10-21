@@ -55,7 +55,7 @@
 │   └── supplementary/          # Tracked; appendices, extended tables, code
 └── scripts/
     ├── generate-metadata.py   # metadata.yaml → CITATION.cff / .zenodo.json / article.tex title block / README citation block
-    └── pre-push               # Git pre-push hook (installed by cookiecutter post-gen)
+    └── pre-push               # Hook source; `make hooks` installs it in scripts/githooks/
 ```
 
 ## Build Instructions
@@ -83,7 +83,12 @@ by CI on every push that touches `paper/**`; you do not need to commit it.
 make validate   # runs the same checks as .github/workflows/validate-latex.yml
 ```
 The pre-push hook (installed automatically by the scaffold) runs `make validate`
-before each push.
+before each push. It lives in `scripts/githooks/pre-push` and is enabled through
+`core.hooksPath`. After cloning an existing repository, run:
+
+```bash
+make hooks      # install/reinstall the pre-push hook; safe to rerun
+```
 
 ### Regenerate derived metadata
 After editing `metadata.yaml` (e.g. to bump the version or add a DOI):

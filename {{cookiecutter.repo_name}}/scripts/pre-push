@@ -2,10 +2,11 @@
 # Git pre-push hook — runs `make validate` (same checks as
 # .github/workflows/validate-latex.yml) before any push.
 #
-# Installed by cookiecutter post_gen_project.py hook into
-# .git/hooks/pre-push. To install manually in an existing repo:
-#   cp scripts/pre-push .git/hooks/pre-push
-#   chmod +x .git/hooks/pre-push
+# Installed by cookiecutter post_gen_project.py into
+# scripts/githooks/pre-push and enabled with
+# `git config --local core.hooksPath scripts/githooks`.
+# To install or reinstall manually in an existing clone:
+#   make hooks
 #
 # To bypass for a single push: `git push --no-verify`.
 

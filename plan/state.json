@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:25:19Z",
+  "updated": "2026-10-21T11:31:33Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -856,14 +856,50 @@
       "steps_done": []
     },
     "T18": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:31:33Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:31:31Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "83852d4a252e7260839f48b2849d3ec427d2dc1e",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_post_gen.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...                                                                      [100%]\n3 passed in 1.17s\n",
+              "at": "2026-10-21T11:31:31Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:31:33Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "83852d4a252e7260839f48b2849d3ec427d2dc1e",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_post_gen.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "...                                                                      [100%]\n3 passed in 1.32s\n",
+              "at": "2026-10-21T11:31:33Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "nested repo detection via show-toplevel; core.hooksPath scripts/githooks; make hooks; missing git warning; integration tests",
+        "nested render creates its own .git; hook installed once via scripts/githooks/core.hooksPath; make hooks idempotent; missing git warns without failing render"
+      ],
       "steps_done": []
     },
     "T19": {

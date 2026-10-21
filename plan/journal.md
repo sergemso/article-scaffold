@@ -185,3 +185,14 @@ history after work has started.
 - `audit`: 17 done, no scope or evidence errors
 - `plan/STATUS.md` rendered
 - One validator implementation is invoked by both `make validate` and CI
+
+## 2026-10-21T11:31:29Z — T18 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:31:29Z — T18 — checkpoint
+- nested repo detection via show-toplevel; core.hooksPath scripts/githooks; make hooks; missing git warning; integration tests
+
+## 2026-10-21T11:31:33Z — T18 — done
+- nested render creates its own .git; hook installed once via scripts/githooks/core.hooksPath; make hooks idempotent; missing git warns without failing render
+- verify: passed
+- scope: clean

@@ -1,7 +1,8 @@
 """post_gen_project.py — runs after cookiecutter renders the template.
 
-Installs the pre-push hook and makes scripts executable so the new
-repo is ready to `git init && git add . && git commit`.
+Creates a nested git repository when the generated project is inside another
+repo, installs the pre-push hook via ``core.hooksPath``, and makes scripts
+executable so the new repo is ready to commit.
 """
 
 import shutil
@@ -21,6 +22,84 @@ except ImportError:  # pragma: no cover - exercised only without PyYAML
     sys.exit(1)
 
 
+def _git_top_level(project_dir: Path, git: str) -> Path | None:
+    result = subprocess.run(
+        [git, "rev-parse", "--show-toplevel"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    try:
+        return Path(result.stdout.strip()).resolve()
+    except OSError:
+        return None
+
+
+def _ensure_git_repo(project_dir: Path, git: str) -> bool:
+    """Create .git unless the generated project is already a repo root."""
+    if _git_top_level(project_dir, git) == project_dir.resolve():
+        return True
+    result = subprocess.run(
+        [git, "init", "--initial-branch=master"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        print(
+            f"WARNING: git init failed ({detail}); run `git init` and "
+            "`make hooks` manually.",
+            file=sys.stderr,
+        )
+        return False
+    print("Initialized git repository")
+    return True
+
+
+def _install_pre_push_hook(project_dir: Path, git: str) -> None:
+    src = project_dir / "scripts" / "pre-push"
+    if not src.is_file():
+        print("WARNING: scripts/pre-push not found; skipping hook install.")
+        return
+
+    hooks_dir = project_dir / "scripts" / "githooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    dst = hooks_dir / "pre-push"
+    shutil.copy2(src, dst)
+    mode = dst.stat().st_mode
+    dst.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    configured = subprocess.run(
+        [git, "config", "--local", "core.hooksPath", "scripts/githooks"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if configured.returncode == 0:
+        print("Installed pre-push hook -> scripts/githooks/pre-push (core.hooksPath)")
+        return
+
+    # Fallback for unusual git configurations: copy into .git/hooks.
+    git_dir = project_dir / ".git"
+    if git_dir.is_dir():
+        fallback_dir = git_dir / "hooks"
+        fallback_dir.mkdir(exist_ok=True)
+        fallback = fallback_dir / "pre-push"
+        shutil.copy2(src, fallback)
+        fallback_mode = fallback.stat().st_mode
+        fallback.chmod(fallback_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        print("Installed pre-push hook -> .git/hooks/pre-push (fallback)")
+    else:
+        print(
+            "WARNING: could not enable the pre-push hook; run `make hooks` "
+            "after initializing git.",
+            file=sys.stderr,
+        )
+
+
 def main() -> None:
     project_dir = Path.cwd()
 
@@ -32,32 +111,21 @@ def main() -> None:
                 mode = script.stat().st_mode
                 script.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-    # 2. Initialise git repo if not already inside one.
-    in_git_repo = subprocess.run(
-        ["git", "rev-parse", "--is-inside-work-tree"],
-        capture_output=True,
-        text=True,
-    )
-    if in_git_repo.returncode != 0 or in_git_repo.stdout.strip() != "true":
-        subprocess.run(["git", "init", "--initial-branch=master"], check=True)
+    # 2. Create a nested repo unless the project is already a repo root, then
+    #    install the pre-push hook. Missing git is a warning, not a render
+    #    failure: the scaffold remains usable and `make hooks` can finish later.
+    git = shutil.which("git")
+    if git is None:
+        print(
+            "WARNING: git not found; skipping repository initialization and "
+            "pre-push hook installation. Install git, then run `git init` and "
+            "`make hooks`.",
+            file=sys.stderr,
+        )
+    elif _ensure_git_repo(project_dir, git):
+        _install_pre_push_hook(project_dir, git)
 
-    # 3. Install pre-push hook.
-    git_dir = project_dir / ".git"
-    if not git_dir.is_dir():
-        # Shouldn't happen after step 2, but be defensive.
-        print("WARNING: .git directory not found; skipping pre-push hook install.")
-    else:
-        hooks_dir = git_dir / "hooks"
-        hooks_dir.mkdir(exist_ok=True)
-        src = project_dir / "scripts" / "pre-push"
-        dst = hooks_dir / "pre-push"
-        if src.is_file():
-            shutil.copy2(src, dst)
-            mode = dst.stat().st_mode
-            dst.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-            print("Installed pre-push hook -> .git/hooks/pre-push")
-
-    # 4. Install the selected paper license and the MIT code license.
+    # 3. Install the selected paper license and the MIT code license.
     metadata_path = project_dir / "metadata.yaml"
     licenses_dir = project_dir / "licenses"
     if not metadata_path.is_file():
@@ -95,7 +163,7 @@ def main() -> None:
     else:
         print(f"Installed {paper_license} paper and code license")
 
-    # 5. Generate derived metadata from metadata.yaml.
+    # 4. Generate derived metadata from metadata.yaml.
     generator = project_dir / "scripts" / "generate-metadata.py"
     if generator.is_file():
         print("Generating derived metadata from metadata.yaml...")
@@ -120,7 +188,7 @@ def main() -> None:
     else:
         print("WARNING: scripts/generate-metadata.py not found; skipping metadata generation.")
 
-    # 6. Friendly next-steps banner.
+    # 5. Friendly next-steps banner.
     print()
     print("────────────────────────────────────────────────────────────")
     print(" Scaffolding complete.")

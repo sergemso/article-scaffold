@@ -1,4 +1,4 @@
-.PHONY: pdf docx quick clean all validate metadata metadata-check
+.PHONY: pdf docx quick clean all validate hooks metadata metadata-check
 
 PAPER_DIR = paper
 
@@ -34,6 +34,18 @@ quick:
 validate:
 	@python3 scripts/validate-paper.py
 	@echo "All validation checks passed."
+
+# Install or reinstall the pre-push hook. Safe to run repeatedly.
+hooks:
+	@mkdir -p scripts/githooks
+	@cp scripts/pre-push scripts/githooks/pre-push
+	@chmod +x scripts/githooks/pre-push
+	@if command -v git >/dev/null 2>&1; then \
+		git config --local core.hooksPath scripts/githooks; \
+		echo "Installed pre-push hook -> scripts/githooks/pre-push"; \
+	else \
+		echo "WARNING: git not found; hook copied but not enabled."; \
+	fi
 
 # ─────────────────────────────────────────────────────────────
 # Regenerate derived metadata from metadata.yaml
