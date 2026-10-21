@@ -1,33 +1,49 @@
+# This file is regenerated from metadata.yaml by scripts/generate-metadata.py.
 cff-version: 1.2.0
-message: "If you use this manuscript, please cite it as below."
-authors:
-- family-names: {{ cookiecutter.author_name.split()[-1] | tojson }}
-  given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) | tojson }}
-  orcid: {{ ("https://orcid.org/" ~ cookiecutter.author_orcid) | tojson }}
+message: "If you use this manuscript or its scaffold, please cite it as below."
 title: {{ cookiecutter.title | tojson }}
-{%- if cookiecutter.subtitle %}
-subtitle: {{ cookiecutter.subtitle | tojson }}
+type: software
+authors:
+  - family-names: {{ cookiecutter.author_name.split()[-1] | tojson }}
+{%- if cookiecutter.author_name.split()[:-1] %}
+    given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) | tojson }}
+{%- endif %}
+{%- if cookiecutter.author_orcid %}
+    orcid: {{ ("https://orcid.org/" ~ cookiecutter.author_orcid) | tojson }}
+{%- endif %}
+{%- if cookiecutter.author_affiliation %}
+    affiliation: {{ cookiecutter.author_affiliation | tojson }}
 {%- endif %}
 version: {{ cookiecutter.version | tojson }}
 date-released: {{ cookiecutter.date | tojson }}
 url: {{ ("https://github.com/" ~ cookiecutter.github_user ~ "/" ~ cookiecutter.repo_name) | tojson }}
 repository-code: {{ ("https://github.com/" ~ cookiecutter.github_user ~ "/" ~ cookiecutter.repo_name) | tojson }}
 license: {{ cookiecutter.license | tojson }}
-type: manuscript
-{%- if cookiecutter.doi %}
-doi: {{ cookiecutter.doi | tojson }}
-{%- endif %}
+abstract: {{ cookiecutter.abstract | tojson }}
 keywords:
 {%- for kw in cookiecutter.keywords.split(",") %}
-- {{ kw.strip() | tojson }}
+  - {{ kw.strip() | tojson }}
 {%- endfor %}
+{%- if cookiecutter.doi %}
+identifiers:
+  - type: doi
+    value: {{ cookiecutter.doi | tojson }}
+    description: "Zenodo DOI"
+{%- endif %}
 preferred-citation:
-  type: manuscript
+  type: unpublished
   title: {{ cookiecutter.title | tojson }}
   authors:
-  - family-names: {{ cookiecutter.author_name.split()[-1] | tojson }}
-    given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) | tojson }}
-    orcid: {{ ("https://orcid.org/" ~ cookiecutter.author_orcid) | tojson }}
-  year: {{ cookiecutter.date[:4] }}
+    - family-names: {{ cookiecutter.author_name.split()[-1] | tojson }}
+{%- if cookiecutter.author_name.split()[:-1] %}
+      given-names: {{ " ".join(cookiecutter.author_name.split()[:-1]) | tojson }}
+{%- endif %}
+{%- if cookiecutter.author_orcid %}
+      orcid: {{ ("https://orcid.org/" ~ cookiecutter.author_orcid) | tojson }}
+{%- endif %}
+{%- if cookiecutter.author_affiliation %}
+      affiliation: {{ cookiecutter.author_affiliation | tojson }}
+{%- endif %}
+  year: {{ cookiecutter.date[:4] | int }}
   month: {{ cookiecutter.date[5:7] | int }}
   notes: {{ (cookiecutter.version_label ~ ", deposited on " ~ cookiecutter.target_deposit) | tojson }}

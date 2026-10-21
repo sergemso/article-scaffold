@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:06:56Z",
+  "updated": "2026-10-21T11:09:59Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -530,14 +530,49 @@
       "steps_done": []
     },
     "T11": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:09:59Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:09:56Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "2bed82cb82269c54a6e74f2ef4309e07db7a1ffd",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_cff.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 2.68s\n",
+              "at": "2026-10-21T11:09:56Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:09:59Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "2bed82cb82269c54a6e74f2ef4309e07db7a1ffd",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_cff.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 2.54s\n",
+              "at": "2026-10-21T11:09:59Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "CFF generated with yaml.safe_dump; root type software, preferred-citation unpublished; version/date strings; abstract, keywords, DOI identifiers, authors; empty optionals omitted; cffconvert validates"
+      ],
       "steps_done": []
     },
     "T12": {

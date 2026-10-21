@@ -166,47 +166,71 @@ def _q(value: object) -> str:
 
 
 def gen_citation_cff(m: dict) -> str:
-    lines = []
-    lines.append("cff-version: 1.2.0")
-    lines.append('message: "If you use this manuscript, please cite it as below."')
-    lines.append("authors:")
-    lines.append(f"- family-names: {_q(m['_author_family'])}")
-    lines.append(f"  given-names: {_q(m['_author_given'])}")
+    """Build a CFF 1.2.0 record with PyYAML, never by hand-formatting."""
+    family = m.get("_author_family") or "Unknown"
+    author: dict[str, object] = {"family-names": family}
+    if m.get("_author_given"):
+        author["given-names"] = m["_author_given"]
     if m.get("_author_orcid"):
-        lines.append(f"  orcid: {_q('https://orcid.org/' + m['_author_orcid'])}")
-    lines.append(f"title: {_q(m.get('title', ''))}")
+        author["orcid"] = f"https://orcid.org/{m['_author_orcid']}"
+    if m.get("_author_affiliation"):
+        author["affiliation"] = m["_author_affiliation"]
+
+    data: dict[str, object] = {
+        "cff-version": "1.2.0",
+        "message": "If you use this manuscript or its scaffold, please cite it as below.",
+        "title": m.get("title", ""),
+        "type": "software",
+        "authors": [author],
+    }
     if m.get("subtitle"):
-        lines.append(f"subtitle: {_q(m['subtitle'])}")
-    lines.append(f"version: {_q(m.get('version', ''))}")
-    lines.append(f"date-released: {_q(m['_date_iso'])}")
-    lines.append(f"url: {_q(m['_repo_url'])}")
-    lines.append(f"repository-code: {_q(m['_repo_url'])}")
-    lines.append(f"license: {_q(m.get('license', ''))}")
-    lines.append("type: manuscript")
+        data["subtitle"] = m["subtitle"]
+    if m.get("version"):
+        data["version"] = str(m["version"])
+    if m.get("_date_iso"):
+        data["date-released"] = str(m["_date_iso"])
+    if m.get("_abstract"):
+        data["abstract"] = m["_abstract"]
+    if m.get("_keywords_list"):
+        data["keywords"] = list(m["_keywords_list"])
+    if m.get("license"):
+        data["license"] = m["license"]
+    if m.get("_repo_url"):
+        data["repository-code"] = m["_repo_url"]
+        data["url"] = m["_repo_url"]
+
+    identifiers: list[dict[str, str]] = []
     if m.get("_doi"):
-        lines.append(f"doi: {_q(m['_doi'])}")
-    lines.append("keywords:")
-    for kw in m["_keywords_list"]:
-        lines.append(f"- {_q(kw)}")
-    lines.append("preferred-citation:")
-    lines.append("  type: manuscript")
-    lines.append(f"  title: {_q(m.get('title', ''))}")
-    lines.append("  authors:")
-    lines.append(f"  - family-names: {_q(m['_author_family'])}")
-    lines.append(f"    given-names: {_q(m['_author_given'])}")
-    if m.get("_author_orcid"):
-        lines.append(f"    orcid: {_q('https://orcid.org/' + m['_author_orcid'])}")
-    year = m["_date_iso"][:4] if m["_date_iso"] else ""
-    month = m["_date_iso"][5:7] if len(m["_date_iso"]) >= 7 else ""
-    lines.append(f"  year: {year}")
-    if month:
+        identifiers.append(
+            {
+                "type": "doi",
+                "value": m["_doi"],
+                "description": "Zenodo DOI",
+            }
+        )
+        data["identifiers"] = identifiers
+
+    preferred: dict[str, object] = {
+        "type": "unpublished",
+        "title": m.get("title", ""),
+        "authors": [dict(author)],
+    }
+    if m.get("version_label") or m.get("target_deposit"):
+        preferred["notes"] = (
+            f"{m.get('version_label', '')}, deposited on "
+            f"{m.get('target_deposit', '')}"
+        ).strip(", ")
+    if m.get("_date_iso"):
         try:
-            lines.append(f"  month: {int(month)}")
-        except ValueError:
+            preferred["year"] = int(m["_date_iso"][:4])
+            preferred["month"] = int(m["_date_iso"][5:7])
+        except (ValueError, IndexError):
             pass
-    notes = f'{m.get("version_label", "")}, deposited on {m.get("target_deposit", "")}'
-    lines.append(f"  notes: {_q(notes)}")
-    return "\n".join(lines) + "\n"
+    if identifiers:
+        preferred["identifiers"] = [dict(item) for item in identifiers]
+    data["preferred-citation"] = preferred
+
+    return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
 
 
 def gen_zenodo_json(m: dict) -> str:

@@ -110,3 +110,11 @@ history after work has started.
 - `audit`: 10 done, no scope or evidence errors
 - `plan/STATUS.md` rendered
 - CFF strings are JSON-escaped so hostile input remains parseable; schema type is T11
+
+## 2026-10-21T11:09:52Z — T11 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:09:59Z — T11 — done
+- CFF generated with yaml.safe_dump; root type software, preferred-citation unpublished; version/date strings; abstract, keywords, DOI identifiers, authors; empty optionals omitted; cffconvert validates
+- verify: passed
+- scope: clean
