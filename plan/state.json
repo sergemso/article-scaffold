@@ -1236,7 +1236,7 @@
       "attempts": 1,
       "lease": null,
       "last_checkpoint": "2026-10-21T12:10:15Z",
-      "commit": null,
+      "commit": "fdbf97acbec377c4e180071b49e8dd767a0dabb7",
       "seeded": false,
       "evidence": [
         {
