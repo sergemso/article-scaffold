@@ -101,7 +101,7 @@ def test_empirical_manuscript_consumes_generated_artifacts(tmp_path: Path) -> No
 
     result = run(project, "make", "pdf")
     assert result.returncode == 0, (result.stdout + result.stderr)[-3000:]
-    log = (project / "paper/article.log").read_text(errors="replace")
+    log = (project / "paper" / "build" / "article.log").read_text(errors="replace")
     assert "analysis_summary.tex" in log
     assert "analysis_figure.tex" in log
     assert "analysis_plot.pdf" in log

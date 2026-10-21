@@ -34,10 +34,11 @@ def pdf_plan(root: Path | None = None) -> BuildPlan:
             "-pdf",
             "-interaction=nonstopmode",
             "-file-line-error",
+            "-halt-on-error",
             "article.tex",
         ),
         cwd="paper",
-        output="paper/article.pdf",
+        output="paper/build/article.pdf",
     )
 
 

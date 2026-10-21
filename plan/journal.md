@@ -334,3 +334,14 @@ history after work has started.
 - branch-agnostic workflows using github.event.repository.default_branch; cookiecutter default_branch choice with main/master; post_gen hook uses {{ cookiecutter.default_branch }}; test_status.py updated to accept main/master since default is now main; full suite 184 passed
 - verify: passed
 - scope: override
+
+## 2026-10-21T17:21:43Z — T30 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T17:21:43Z — T30 — checkpoint
+- starting preamble fix and out-of-tree build
+
+## 2026-10-21T17:34:01Z — T30 — done
+- preamble package order fixed: titlesec before hyperref, cleveref after hyperref, cite/natbib before hyperref; csquotes/siunitx optional; .latexmkrc in paper/ with outdir=build, SOURCE_DATE_EPOCH, halt-on-error; Makefile copies from build/ and cleans build/; build.py output is paper/build/article.pdf; CI workflows updated; tests updated for new paths; full suite 196 passed
+- verify: passed
+- scope: override

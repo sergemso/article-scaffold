@@ -115,7 +115,7 @@ def test_build_plans_are_data_only(tmp_path: Path) -> None:
     pdf = core.pdf_plan(project)
     assert pdf.command[0] == "latexmk"
     assert pdf.cwd == "paper"
-    assert pdf.output == "paper/article.pdf"
+    assert pdf.output == "paper/build/article.pdf"
     assert pdf.to_dict()["name"] == "pdf"
 
     docx = core.docx_plan(project, reference_docx="reference.docx")

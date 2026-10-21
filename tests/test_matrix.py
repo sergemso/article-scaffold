@@ -72,7 +72,7 @@ def test_kind_style_matrix(tmp_path: Path, kind: str, style: str) -> None:
 
     if style == "numeric":
         assert r"\usepackage{cite}" in article
-        assert "natbib" not in article
+        assert r"\usepackage[round]{natbib}" not in article
         assert r"\bibliographystyle{plain}" in references
         assert "apalike" not in references
     else:

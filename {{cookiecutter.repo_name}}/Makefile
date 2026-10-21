@@ -31,6 +31,7 @@ all: pdf
 
 pdf:
 	python3 -m scripts.article build pdf
+	cp $(PAPER_DIR)/build/article.pdf $(PAPER_DIR)/article.pdf
 	@echo "PDF built: $(PAPER_DIR)/article.pdf"
 
 # The CLI owns the modern DOCX plan. The inline fallback keeps generated
@@ -141,6 +142,8 @@ metadata-check:
 # ─────────────────────────────────────────────────────────────
 
 clean:
-	cd $(PAPER_DIR) && latexmk -C || rm -f *.aux *.bbl *.blg *.log *.out *.toc *.lof *.lot *.fls *.fdb_latexmk *.synctex.gz *.pdf
+	cd $(PAPER_DIR) && latexmk -C
+	rm -rf $(PAPER_DIR)/build
+	rm -f $(PAPER_DIR)/article.pdf
 	rm -f manuscript.docx manuscript.html manuscript.pdf
 	@echo "Build artifacts cleaned"

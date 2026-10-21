@@ -3,47 +3,67 @@
 % ─────────────────────────────────────────────────────────────
 % Packages
 % ─────────────────────────────────────────────────────────────
+% Load encoding and fonts first
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[english]{babel}
 \usepackage{lmodern}
+
+% Layout
 \usepackage[margin=1in]{geometry}
 \usepackage{setspace}
 \usepackage{microtype}
+
+% Tables
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
 \usepackage{tabularx}
 \usepackage{ragged2e}
+
+% Figures and graphics
 \usepackage{graphicx}
+
+% Bibliography — cite or natbib must come before hyperref
 {% if cookiecutter.citation_style == "numeric" %}\usepackage{cite}{% else %}\usepackage[round]{natbib}{% endif %}
 \usepackage{url}
-\usepackage{xcolor}
-\usepackage{enumitem}
+
+% Optional packages — only loaded when the document actually uses them
+% \usepackage{csquotes}   % for context-sensitive quotes
+% \usepackage{siunitx}    % for physical quantities and units
+
+% Float handling
 \usepackage{float}
 {% if cookiecutter.manuscript_kind == "empirical" %}\usepackage{threeparttable}
 \usepackage{caption}
-{% endif %}% Load hyperref LAST — it patches many commands (\cite, \ref, \section, etc.)
-% and must run after cite, url, and other packages that touch the same hooks.
+{% endif %}
+
+% Color and lists
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% Section formatting — must be before hyperref
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{1.6em}{0.8em}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.5em}
+
+% Hyperref — LAST among packages that patch commands
 \usepackage{hyperref}
+\usepackage{cleveref}  % must come after hyperref
 
 % Hyperref configuration
 \hypersetup{
   colorlinks=true,
   linkcolor=blue!50!black,
   citecolor=blue!50!black,
-  urlcolor=blue!50!black
+  urlcolor=blue!50!black,
+  pdfusetitle,
 }
 
 % Spacing
 \setstretch{1.15}
 \setlength{\parskip}{0.4em}
 \setlength{\parindent}{1.5em}
-
-% Section spacing
-\usepackage{titlesec}
-\titlespacing*{\section}{0pt}{1.6em}{0.8em}
-\titlespacing*{\subsection}{0pt}{1.2em}{0.5em}
 
 % Tighter lists
 \setlist[itemize]{leftmargin=2em,itemsep=0.2em,topsep=0.2em}
