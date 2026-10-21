@@ -19,7 +19,7 @@ dev = [
   "cffconvert>=2.0",
   # cffconvert 2.0 pins jsonschema<4; Draft 7 validation is enough for the
   # CFF/metadata schemas used here.
-  "jsonschema>=3.2,<4",
+  "jsonschema>=3.2,<5",
   "ruff>=0.6",
   "yamllint>=1.35",
 ]
