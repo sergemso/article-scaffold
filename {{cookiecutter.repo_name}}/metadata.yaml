@@ -57,7 +57,6 @@ references: []
 #  - "Perez, C. (2002). Technological Revolutions and Financial Capital."
 #  - "Anthropic (2026). An update on independent evaluators."
 
-# Zenodo communities — optional. Each identifier maps to a Zenodo community.
-communities:
-  - technology
-  - political-science
+# Zenodo communities — optional. Add only verified community identifiers;
+# the generator never invents one.
+communities: []
