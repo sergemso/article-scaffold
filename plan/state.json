@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:12:08Z",
+  "updated": "2026-10-21T11:14:12Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -622,14 +622,49 @@
       "steps_done": []
     },
     "T13": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:14:12Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:14:09Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "236156c8d25e004dc59b98bcfd3e40b114e23434",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_schemas.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....sss                                                                 [100%]\n=============================== warnings summary ===============================\ntests/test_schemas.py:138\n  /home/ubuntu/projects/sergemso/article-scaffold/tests/test_schemas.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.network - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html\n    @pytest.mark.network\n\ntests/test_schemas.py:151\n  /home/ubuntu/projects/sergemso/article-scaffold/tests/test_schemas.py:151: PytestUnknownMarkWarning: Unknown pytest.mark.network - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html\n    @pytest.mark.network\n\ntests/test_schemas.py:160\n  /home/ubuntu/projects/sergemso/article-scaffold/tests/test_schemas.py:160: PytestUnknownMarkWarning: Unknown pytest.mark.network - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html\n    @pytest.mark.network\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nSKIPPED [1] tests/test_schemas.py:138: set RUN_NETWORK=1 to run network checks\nSKIPPED [1] tests/test_schemas.py:151: set RUN_NETWORK=1 to run network checks\nSKIPPED [1] tests/test_schemas.py:160: set RUN_NETWORK=1 to run network checks\n5 passed, 3 skipped, 3 warnings in 1.84s\n",
+              "at": "2026-10-21T11:14:09Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:14:12Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "236156c8d25e004dc59b98bcfd3e40b114e23434",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_schemas.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....sss                                                                 [100%]\n=============================== warnings summary ===============================\ntests/test_schemas.py:138\n  /home/ubuntu/projects/sergemso/article-scaffold/tests/test_schemas.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.network - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html\n    @pytest.mark.network\n\ntests/test_schemas.py:151\n  /home/ubuntu/projects/sergemso/article-scaffold/tests/test_schemas.py:151: PytestUnknownMarkWarning: Unknown pytest.mark.network - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html\n    @pytest.mark.network\n\ntests/test_schemas.py:160\n  /home/ubuntu/projects/sergemso/article-scaffold/tests/test_schemas.py:160: PytestUnknownMarkWarning: Unknown pytest.mark.network - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html\n    @pytest.mark.network\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nSKIPPED [1] tests/test_schemas.py:138: set RUN_NETWORK=1 to run network checks\nSKIPPED [1] tests/test_schemas.py:151: set RUN_NETWORK=1 to run network checks\nSKIPPED [1] tests/test_schemas.py:160: set RUN_NETWORK=1 to run network checks\n5 passed, 3 skipped, 3 warnings in 1.86s\n",
+              "at": "2026-10-21T11:14:12Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Offline CFF/Zenodo type+schema checks; cffconvert offline; network tests gated by RUN_NETWORK=1; non-blocking CI network job; Zenodo cc0-1.0 fix"
+      ],
       "steps_done": []
     },
     "T14": {

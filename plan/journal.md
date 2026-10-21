@@ -126,3 +126,11 @@ history after work has started.
 - Zenodo JSON via json.dumps; SPDX->Zenodo license map; communities default []; publication_type explicit; creators list with optional orcid/affiliation; empty doi/related_identifiers omitted; 11 tests
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:14:06Z — T13 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:14:12Z — T13 — done
+- Offline CFF/Zenodo type+schema checks; cffconvert offline; network tests gated by RUN_NETWORK=1; non-blocking CI network job; Zenodo cc0-1.0 fix
+- verify: passed
+- scope: clean

@@ -107,3 +107,25 @@ jobs:
             commit -qm initial
           make -C "$DEFAULT" metadata
           git -C "$DEFAULT" diff --exit-code
+
+  network:
+    name: Network checks (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dev tools
+        run: make setup
+
+      - name: Put the dev environment on PATH
+        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve Zenodo ids and validate CFF
+        env:
+          RUN_NETWORK: "1"
+        run: .venv/bin/python -m pytest tests/test_schemas.py -q -m network
