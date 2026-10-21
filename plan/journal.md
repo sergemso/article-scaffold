@@ -145,3 +145,14 @@ history after work has started.
 - CC-BY-4.0/MIT choice; full texts vendored and copied by post-gen; LICENSE-CODE MIT for CC-BY, single MIT for MIT; README links and metadata SPDX ids; render matrix tests
 - verify: passed
 - scope: clean
+
+## 2026-10-21T11:20:16Z — T15 — claim
+- owner=agent ttl=120m
+
+## 2026-10-21T11:20:17Z — T15 — checkpoint
+- multiline-aware comment stripping; cite variants and comma lists; input/include; structured diagnostics; fixtures
+
+## 2026-10-21T11:20:26Z — T15 — done
+- comments respect escaped percent; all cite commands and comma lists; input/include across paper; structured path:line:code diagnostics; fixtures for false positives/negatives
+- verify: passed
+- scope: clean

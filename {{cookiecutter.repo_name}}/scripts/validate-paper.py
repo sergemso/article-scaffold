@@ -7,13 +7,18 @@ Exits non-zero on any error so it can be used as a pre-push gate.
 
 Checks performed:
   1. paper/article.tex exists and is readable.
-  2. Every active \input{...} in article.tex resolves to a file
-     under paper/. Lines starting with % are skipped.
-  3. Every \cite{key} in paper/sections/*.tex (after stripping comments)
-     resolves to an entry in paper/refs.bib. Unused entries produce a
-     warning but do not fail.
-  4. paper/article.tex has balanced braces (after stripping comments
-     and accounting for escaped \%).
+  2. Every active \input{...}/\include{...} in any paper/*.tex file resolves
+     to a file under paper/. Commented-out occurrences are ignored, including
+     inline comments and escaped percent signs.
+  3. Every active citation command (\cite, \citep, \citet, \citealp,
+     \citeauthor, \citeyear, \nocite, and starred forms) resolves to an entry
+     in paper/refs.bib. Comma-separated key lists are supported. Unused
+     entries produce a warning but do not fail.
+  4. Every paper/*.tex file has balanced braces after stripping comments and
+     ignoring escaped braces such as \{ and \}.
+
+Diagnostics are structured as `path:line: code: message`, while the command
+still exits 0 on success and 1 on any failure.
 
 No LaTeX compilation is performed — that's the build-artifacts.yml job.
 The point of this script is to fail fast on cheap syntactic errors so
@@ -32,96 +37,174 @@ SECTIONS_DIR = PAPER_DIR / "sections"
 ARTICLE_TEX = PAPER_DIR / "article.tex"
 REFS_BIB = PAPER_DIR / "refs.bib"
 
+INPUT_RE = re.compile(r"\\(input|include)\s*\{([^}]+)\}")
+CITE_RE = re.compile(
+    r"\\(?:no)?cite[a-zA-Z]*\*?(?:\[[^\]]*\]){0,2}\{([^}]*)\}"
+)
+BIB_KEY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
+
 
 def _err(msg: str) -> None:
     print(f"ERROR: {msg}", file=sys.stderr)
 
 
+def _diag(path: Path, line: int, code: str, message: str) -> None:
+    """Print one machine-readable diagnostic without changing the CLI."""
+    try:
+        rel = path.relative_to(REPO_ROOT)
+    except ValueError:
+        rel = path
+    print(f"{rel}:{line}: {code}: {message}", file=sys.stderr)
+
+
+def _strip_comment_from_line(line: str) -> str:
+    """Remove a TeX comment, respecting an odd number of preceding backslashes."""
+    out: list[str] = []
+    for char in line:
+        if char == "%":
+            backslashes = 0
+            for previous in reversed(out):
+                if previous == "\\":
+                    backslashes += 1
+                else:
+                    break
+            if backslashes % 2 == 0:
+                break
+        out.append(char)
+    return "".join(out)
+
+
+def strip_comments(text: str) -> str:
+    """Strip comments line by line while preserving line numbers."""
+    return "\n".join(_strip_comment_from_line(line) for line in text.split("\n"))
+
+
+def _tex_files() -> list[Path]:
+    return sorted(PAPER_DIR.rglob("*.tex"))
+
+
+def _count_unescaped(text: str, char: str) -> int:
+    """Count `char` occurrences that are not escaped by a backslash."""
+    count = 0
+    backslashes = 0
+    for current in text:
+        if current == "\\":
+            backslashes += 1
+            continue
+        if current == char and backslashes % 2 == 0:
+            count += 1
+        backslashes = 0
+    return count
+
+
 def check_input_targets() -> int:
     if not ARTICLE_TEX.is_file():
-        _err(f"main TeX file not found: {ARTICLE_TEX.relative_to(REPO_ROOT)}")
+        _diag(ARTICLE_TEX, 0, "E000", "main TeX file not found")
         return 1
-    content = ARTICLE_TEX.read_text(encoding="utf-8")
-    inputs = []
-    for line in content.splitlines():
-        stripped = line.lstrip()
-        if stripped.startswith("%"):
-            continue
-        inputs.extend(re.findall(r"\\input\{([^}]+)\}", line))
     errors = 0
-    for inp in inputs:
-        candidates = [PAPER_DIR / inp, PAPER_DIR / f"{inp}.tex"]
-        if not any(c.is_file() for c in candidates):
-            _err(f"\\input{{{inp}}} in article.tex does not resolve to a file")
-            errors += 1
-        else:
-            print(f"  OK: \\input{{{inp}}}")
+    total = 0
+    for tex in _tex_files():
+        content = strip_comments(tex.read_text(encoding="utf-8"))
+        for lineno, line in enumerate(content.split("\n"), start=1):
+            for match in INPUT_RE.finditer(line):
+                command, target = match.group(1), match.group(2).strip()
+                total += 1
+                candidates = [PAPER_DIR / target, PAPER_DIR / f"{target}.tex"]
+                if not any(candidate.is_file() for candidate in candidates):
+                    _diag(
+                        tex,
+                        lineno,
+                        "E001",
+                        f"\\{command}{{{target}}} does not resolve to a file",
+                    )
+                    errors += 1
+                else:
+                    print(f"  OK: \\{command}{{{target}}}")
     if errors:
         return 1
-    print(f"  All {len(inputs)} active \\input targets resolved.")
+    print(f"  All {total} active \\input/\\include targets resolved.")
     return 0
 
 
 def check_cite_keys() -> int:
     if not REFS_BIB.is_file():
-        _err(f"BibTeX file not found: {REFS_BIB.relative_to(REPO_ROOT)}")
+        _diag(REFS_BIB, 0, "E004", "BibTeX file not found")
         return 1
-    bib = REFS_BIB.read_text(encoding="utf-8")
-    bib_keys = set(re.findall(r"@\w+\{([^,]+),", bib))
+    bib = strip_comments(REFS_BIB.read_text(encoding="utf-8"))
+    bib_keys = set(BIB_KEY_RE.findall(bib))
+    if not bib_keys:
+        _diag(REFS_BIB, 0, "E005", "no BibTeX entries found")
+        return 1
     print(f"  Found {len(bib_keys)} BibTeX entries.")
     if not SECTIONS_DIR.is_dir():
-        _err(f"sections directory not found: {SECTIONS_DIR.relative_to(REPO_ROOT)}")
+        _diag(SECTIONS_DIR, 0, "E006", "sections directory not found")
         return 1
-    cited: set[str] = set()
-    for fname in sorted(SECTIONS_DIR.iterdir()):
-        if not fname.name.endswith(".tex"):
-            continue
-        text = fname.read_text(encoding="utf-8")
-        text = re.sub(r"(?m)%.*$", "", text)
-        for match in re.findall(r"\\cite\{([^}]+)\}", text):
-            for key in match.split(","):
-                cited.add(key.strip())
-    print(f"  Found {len(cited)} unique \\cite keys across section files.")
-    missing = cited - bib_keys
+
+    cited: dict[str, list[tuple[Path, int]]] = {}
+    for tex in _tex_files():
+        content = strip_comments(tex.read_text(encoding="utf-8"))
+        for lineno, line in enumerate(content.split("\n"), start=1):
+            for match in CITE_RE.finditer(line):
+                for raw_key in match.group(1).split(","):
+                    key = raw_key.strip()
+                    if not key or key == "*":
+                        continue
+                    cited.setdefault(key, []).append((tex, lineno))
+
+    missing = sorted(set(cited) - bib_keys)
     if missing:
-        _err("The following \\cite keys are missing from refs.bib:")
-        for k in sorted(missing):
-            print(f"    - {k}", file=sys.stderr)
+        for key in missing:
+            for tex, lineno in cited[key]:
+                _diag(
+                    tex,
+                    lineno,
+                    "E002",
+                    f"citation key {key!r} is missing from refs.bib",
+                )
         return 1
-    unused = bib_keys - cited
+
+    print(f"  Found {len(cited)} unique citation keys across TeX files.")
+    unused = sorted(bib_keys - set(cited))
     if unused:
         print(f"  WARNING: {len(unused)} BibTeX entries defined but never cited:")
-        for k in sorted(unused):
-            print(f"    - {k}")
-    print("  All \\cite keys resolve.")
+        for key in unused:
+            print(f"    - {key}")
+    print("  All citation keys resolve.")
     return 0
 
 
 def check_balanced_braces() -> int:
     if not ARTICLE_TEX.is_file():
-        _err(f"file not found: {ARTICLE_TEX.relative_to(REPO_ROOT)}")
+        _diag(ARTICLE_TEX, 0, "E000", "main TeX file not found")
         return 1
-    content = ARTICLE_TEX.read_text(encoding="utf-8")
-    # Strip comments: an unescaped % to end of line.
-    stripped = re.sub(r"(?<!\\)%.*$", "", content)
-    opens = stripped.count("{")
-    closes = stripped.count("}")
-    if opens != closes:
-        rel = ARTICLE_TEX.relative_to(REPO_ROOT)
-        _err(f"Brace mismatch in {rel}: {opens} '{{' vs {closes} '}}'")
+    errors = 0
+    tex_files = _tex_files()
+    for tex in tex_files:
+        content = strip_comments(tex.read_text(encoding="utf-8"))
+        opens = _count_unescaped(content, "{")
+        closes = _count_unescaped(content, "}")
+        if opens != closes:
+            _diag(
+                tex,
+                1,
+                "E003",
+                f"brace mismatch: {opens} '{{' vs {closes} '}}'",
+            )
+            errors += 1
+    if errors:
         return 1
-    print(f"  OK: braces balanced ({opens} pairs).")
+    print(f"  OK: braces balanced in {len(tex_files)} TeX files.")
     return 0
 
 
 def main() -> int:
     if not PAPER_DIR.is_dir():
-        _err(f"paper/ directory not found at {PAPER_DIR.relative_to(REPO_ROOT)}")
+        _diag(PAPER_DIR, 0, "E000", "paper/ directory not found")
         return 1
     checks = [
         ("input targets resolve", check_input_targets),
-        ("\\cite keys exist in refs.bib", check_cite_keys),
-        ("article.tex braces balanced", check_balanced_braces),
+        ("citation keys exist in refs.bib", check_cite_keys),
+        ("TeX braces balanced", check_balanced_braces),
     ]
     failures = 0
     for name, fn in checks:

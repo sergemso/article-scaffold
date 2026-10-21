@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-21T11:17:55Z",
+  "updated": "2026-10-21T11:20:26Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -715,14 +715,50 @@
       "steps_done": []
     },
     "T15": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-21T11:20:26Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-21T11:20:21Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "0f04cae6f0aa85ab804ae1b68db76bcf6192c8dc",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_validate.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..........                                                               [100%]\n10 passed in 3.86s\n",
+              "at": "2026-10-21T11:20:21Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-21T11:20:26Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "0f04cae6f0aa85ab804ae1b68db76bcf6192c8dc",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_validate.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": "..........                                                               [100%]\n10 passed in 3.47s\n",
+              "at": "2026-10-21T11:20:26Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "multiline-aware comment stripping; cite variants and comma lists; input/include; structured diagnostics; fixtures",
+        "comments respect escaped percent; all cite commands and comma lists; input/include across paper; structured path:line:code diagnostics; fixtures for false positives/negatives"
+      ],
       "steps_done": []
     },
     "T16": {
