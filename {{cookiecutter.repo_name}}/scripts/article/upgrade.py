@@ -47,6 +47,8 @@ E_CONFLICTS = "U015"
 E_CHECKS_FAILED = "U016"
 E_WRONG_BRANCH = "U017"
 STATE_NAME = "upgrade-state.json"
+TRACKED_STATE = ".upgrade-state.json"
+E_COMMIT = "U018"
 
 _SHA = re.compile(r"[0-9a-f]{7,40}")
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
@@ -359,12 +361,14 @@ def _apply_chunk(root: Path, chunk: str) -> subprocess.CompletedProcess[str]:
 
 
 def apply(
-    root: Path, new_ref: str | None = None, *, python: str | None = None
+    root: Path, new_ref: str | None = None, *, python: str | None = None, commit: bool = False
 ) -> dict[str, Any]:
     """Apply the template changes on a new branch. Conflicts are left for the author.
 
-    Never commits and never resolves a conflict. Writes ``upgrade-state.json`` in the
-    git directory for ``finish``; the ``template.json`` stamp is untouched until then.
+    Never resolves a conflict. Writes ``upgrade-state.json`` in the git directory for
+    ``finish``; the ``template.json`` stamp is untouched until then. With ``commit=True``
+    (for CI) it also commits the result, conflict markers included, together with a
+    tracked ``.upgrade-state.json`` so that a checkout of the branch can run ``finish``.
     """
     root = Path(root).resolve()
     upgrade_plan = plan(root, new_ref)
@@ -422,17 +426,30 @@ def apply(
             else:
                 skipped.append({"path": path, "reason": _tail(result)})
 
-    (_git_dir(root) / STATE_NAME).write_text(
-        json.dumps({
-            "branch": branch, "old": info["old"], "new": info["new"],
-            "new_template_version": new_stamp.get("template_version"),
-            "new_template_commit": new_stamp.get("template_commit"),
-            "files": [f["path"] for f in files],
-        }),
-        encoding="utf-8",
-    )
+    state = json.dumps({
+        "branch": branch, "old": info["old"], "new": info["new"],
+        "new_template_version": new_stamp.get("template_version"),
+        "new_template_commit": new_stamp.get("template_commit"),
+        "files": [f["path"] for f in files],
+    })
+    (_git_dir(root) / STATE_NAME).write_text(state, encoding="utf-8")
+    if commit:
+        _commit_upgrade(root, state, info)
     return {"ok": not conflicted, "command": "upgrade", "up_to_date": False, "branch": branch,
-            "applied": applied, "conflicted": conflicted, "skipped": skipped}
+            "applied": applied, "conflicted": conflicted, "skipped": skipped,
+            "committed": commit}
+
+
+def _commit_upgrade(root: Path, state: str, info: dict[str, Any]) -> None:
+    (root / TRACKED_STATE).write_text(state + "\n", encoding="utf-8")
+    # Conflict markers are committed on purpose: the PR is where they get resolved.
+    _run(["git", "add", "-A"], root, GIT_TIMEOUT)
+    message = f"chore: upgrade from template {info['old'][:8]} to {info['new'][:8]}"
+    result = _run(["git", "commit", "--quiet", "-m", message], root, GIT_TIMEOUT)
+    if result.returncode != 0:
+        raise UpgradeError(
+            E_COMMIT, f"cannot commit the upgrade (is user.name/user.email set?): {_tail(result)}"
+        )
 
 
 def finish(root: Path) -> dict[str, Any]:
@@ -443,9 +460,11 @@ def finish(root: Path) -> dict[str, Any]:
     """
     root = Path(root).resolve()
     state_path = _git_dir(root) / STATE_NAME
-    if not state_path.is_file():
+    tracked = root / TRACKED_STATE
+    source = state_path if state_path.is_file() else tracked
+    if not source.is_file():
         raise UpgradeError(E_NO_UPGRADE, "no upgrade in progress; run `upgrade --apply` first")
-    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state = json.loads(source.read_text(encoding="utf-8"))
     current = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"], root, GIT_TIMEOUT).stdout.strip()
     if current != state["branch"]:
         raise UpgradeError(
@@ -479,8 +498,9 @@ def finish(root: Path) -> dict[str, Any]:
     stamp_path.write_text(
         json.dumps(stamp, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+    state_path.unlink(missing_ok=True)
+    tracked.unlink(missing_ok=True)
     _run(["git", "add", "-A"], root, GIT_TIMEOUT)
-    state_path.unlink()
     return {
         "ok": True, "command": "upgrade", "finished": True,
         "branch": state["branch"], "template_commit": stamp["template_commit"],

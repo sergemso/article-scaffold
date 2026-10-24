@@ -310,9 +310,12 @@ def _upgrade(args: argparse.Namespace) -> int:
     """Plan, apply or finish an upgrade to a newer template commit."""
     root = _root(args)
     mode = "apply" if args.apply else "finish" if args.finish else "plan"
+    if args.commit and mode != "apply":
+        print("usage error: --commit only goes with --apply", file=sys.stderr)
+        return core.ExitCode.USAGE
     try:
         if mode == "apply":
-            payload = core.apply_upgrade(root, args.to)
+            payload = core.apply_upgrade(root, args.to, commit=args.commit)
         elif mode == "finish":
             payload = core.finish_upgrade(root)
         else:
@@ -528,6 +531,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--finish",
         action="store_true",
         help="after resolving conflicts: check, regenerate derived files, re-stamp",
+    )
+    upgrade.add_argument(
+        "--commit",
+        action="store_true",
+        help="with --apply: also commit the result (for CI), conflict markers included",
     )
     upgrade.add_argument(
         "--to", metavar="REF", help="template branch, tag or commit (default: its HEAD)"

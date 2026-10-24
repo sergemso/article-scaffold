@@ -52,9 +52,19 @@ def test_rendered_workflows_filter_on_the_chosen_branch(tmp_path: Path, branch: 
     assert filtered, "no rendered workflow has an on.push.branches filter to check"
 
 
-def test_template_workflows_keep_the_placeholder() -> None:
-    """The unrendered template keeps the placeholder the post-gen hook substitutes."""
+def _on_block(workflow: Path) -> object:
+    doc = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+    return doc.get("on", doc.get(True))
+
+
+def test_template_workflows_keep_the_placeholder_and_no_expression_in_on() -> None:
+    """The unrendered template keeps the placeholder the post-gen hook substitutes.
+
+    An expression is fine in a step (the upgrade workflow reads the default branch
+    there); it is only dead inside `on:`.
+    """
     workflows = ROOT / "{{cookiecutter.repo_name}}" / ".github" / "workflows"
-    texts = [w.read_text(encoding="utf-8") for w in workflows.glob("*.yml")]
-    assert any("__DEFAULT_BRANCH__" in t for t in texts)
-    assert not any("github.event.repository.default_branch" in t for t in texts)
+    paths = sorted(workflows.glob("*.yml"))
+    assert any("__DEFAULT_BRANCH__" in p.read_text(encoding="utf-8") for p in paths)
+    for path in paths:
+        assert "${{" not in str(_on_block(path)), f"{path.name}: expression inside on:"

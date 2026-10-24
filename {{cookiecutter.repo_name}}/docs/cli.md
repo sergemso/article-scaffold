@@ -112,7 +112,7 @@ cookiecutter`). It never merges silently.
 
 ```bash
 python3 -m scripts.article upgrade --plan  [--to REF] [--json]   # default; read-only
-python3 -m scripts.article upgrade --apply [--to REF] [--json]   # new branch upgrade/<sha>
+python3 -m scripts.article upgrade --apply [--commit] [--to REF] [--json]   # new branch upgrade/<sha>
 python3 -m scripts.article upgrade --finish [--json]             # after resolving conflicts
 ```
 
@@ -124,11 +124,16 @@ python3 -m scripts.article upgrade --finish [--json]             # after resolvi
   applies the difference with `git apply --3way` on a new branch, and reports
   `applied`, `conflicted` and `skipped` files. It never commits and never
   resolves a conflict. `template.json` does not change yet.
+- `--apply --commit` also commits the result, conflict markers included, with a
+  tracked `.upgrade-state.json`, so a fresh checkout of the branch can run
+  `--finish` (which removes that file). The scheduled workflow uses it.
 - `--finish` refuses while any path is unmerged or has conflict markers, runs
   `make metadata` and `make validate`, then updates `template_version` and
   `template_commit` and stages the result for you to review and commit.
 
-`make upgrade` runs `--plan`. A repository generated before this command existed
+`make upgrade` runs `--plan`. `.github/workflows/upgrade.yml` runs it weekly and
+opens a pull request; see the template's `docs/upgrading.md` ("Automatic upgrade
+pull requests"). A repository generated before this command existed
 cannot use it for its first upgrade; follow the manual procedure in the
 template's `docs/upgrading.md`. The shape of the `--json` output is
 `schemas/upgrade.schema.json`. Exit code `1` also covers refusals and

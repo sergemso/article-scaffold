@@ -165,8 +165,7 @@ def test_template_workflows_use_default_branch(tmp_path: Path) -> None:
 
     project = render(tmp_path=tmp_path, default_branch="master")
     for wf in (project / ".github" / "workflows").glob("*.yml"):
-        text = wf.read_text()
-        assert "${{ github.event.repository.default_branch }}" not in text, (
-            f"{wf.name} still has the dead default_branch expression"
-        )
-        assert "__DEFAULT_BRANCH__" not in text, f"{wf.name} kept the placeholder"
+        doc = yaml.safe_load(wf.read_text())
+        on = doc.get("on", doc.get(True))
+        assert "${{" not in str(on), f"{wf.name} has an expression inside on:"
+        assert "__DEFAULT_BRANCH__" not in wf.read_text(), f"{wf.name} kept the placeholder"

@@ -55,6 +55,29 @@ Limits, deliberately:
 - It reproduces the template from the stored answers. Edits you made to
   `metadata.yaml`, sections and figures are yours and are merged, not replaced.
 
+## Automatic upgrade pull requests
+
+A generated repo includes `.github/workflows/upgrade.yml`. Every Monday (and on
+demand from the Actions tab) it runs `upgrade --plan`; when the template has a
+newer commit it runs `upgrade --apply --commit` on a branch `upgrade/<sha>`,
+pushes it and opens a pull request. The PR lists applied, conflicted and skipped
+files. With conflicts it is a draft and the markers are committed. It never runs
+`--finish`: check out the branch, resolve, run `upgrade --finish`, then commit and
+push.
+
+It is opt-in by its requirements, and otherwise only prints a notice:
+
+- `template` in `template.json` is a public `https://` URL. A local path or an
+  SSH URL cannot be reached from the runner.
+- `template_commit` is set (the template was a git checkout when you generated).
+- Settings > Actions > General > "Allow GitHub Actions to create and approve pull
+  requests" is on. Pull requests opened with `GITHUB_TOKEN` do not start other
+  workflows, so close and reopen the PR, or push to it, to run your checks.
+
+The job has `contents: write` and `pull-requests: write`, nothing else. It
+installs `cookiecutter==2.7.1` on the runner and does not add it to your repo.
+Delete the workflow file if you do not want scheduled upgrades.
+
 ## Why not cruft or Copier
 
 - **cruft** is the nearest fit. It stores the same information (template,

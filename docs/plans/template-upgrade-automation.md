@@ -40,7 +40,7 @@ Done-when: `make test` exits 0 and the end-to-end run is recorded in the commit 
 
 ## 2. Follow-up: scheduled upgrade PRs
 
-### 2.1 Add a scheduled workflow that opens an upgrade PR — [ ]
+### 2.1 Add a scheduled workflow that opens an upgrade PR — [x]
 Class: implement · Effort: medium · Needs: 1.5 · Check: `python3 -m pytest tests/test_ci_hardening.py tests/test_upgrade_workflow.py -q`
 Context: The workflows in `{{cookiecutter.repo_name}}/.github/workflows/` are hardened and tested by `tests/test_ci_hardening.py` (pinned actions, minimal `permissions`). `__DEFAULT_BRANCH__` is substituted by the post-gen hook; use the same mechanism if the workflow needs the branch name. A scheduled run can only fetch the template if `template` in `template.json` is a public HTTPS URL.
 Do: Add `upgrade.yml` with a weekly `schedule` and `workflow_dispatch`. It runs `article upgrade --plan --json`; if there is something to apply it runs `--apply` on a branch, pushes it and opens a PR whose body lists applied, conflicted and skipped files from the JSON. When conflicts exist it still opens the PR as a draft with the conflicted files listed, and never runs `--finish`. Permissions: `contents: write` and `pull-requests: write` only, scoped to the job. Skip with a notice when `template` is not an HTTPS URL or `template_commit` is null. Pin every action to a commit sha like the other workflows.

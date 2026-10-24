@@ -33,8 +33,11 @@ def _call(project: Path, call: str) -> dict:
     return json.loads(result.stdout)
 
 
-def _apply(project: Path, ref: str) -> dict:
-    return _call(project, f"upgrade.apply(Path('.'), {ref!r}, python={sys.executable!r})")
+def _apply(project: Path, ref: str, commit: bool = False) -> dict:
+    return _call(
+        project,
+        f"upgrade.apply(Path('.'), {ref!r}, python={sys.executable!r}, commit={commit})",
+    )
 
 
 def _finish(project: Path) -> dict:
@@ -176,3 +179,41 @@ def test_conflict_is_found_when_the_pristine_file_was_never_committed(
     assert out["conflicted"] == [STATUS], out
     assert out["skipped"] == []
     assert "<<<<<<<" in path.read_text(encoding="utf-8")
+
+
+def test_commit_mode_lets_a_fresh_checkout_finish_the_upgrade(
+    project: Path, upgrade_template: dict[str, str]
+) -> None:
+    """CI commits the result, markers included; the branch alone carries the state."""
+    path = project / STATUS
+    path.write_text(path.read_text(encoding="utf-8") + "\n# my own ending\n", encoding="utf-8")
+    _commit(project, "local edit at the end")
+    before = run(project, "git", "rev-parse", "HEAD").stdout.strip()
+    out = _apply(project, upgrade_template["b"], commit=True)
+
+    assert out["committed"] is True and out["conflicted"] == [STATUS]
+    assert run(project, "git", "status", "--porcelain").stdout == ""
+    assert run(project, "git", "rev-parse", "HEAD~1").stdout.strip() == before
+    assert "<<<<<<<" in path.read_text(encoding="utf-8")
+    assert (project / ".upgrade-state.json").is_file()
+
+    # A new checkout of the branch has no state in .git.
+    (project / ".git" / "upgrade-state.json").unlink()
+    refused = _finish(project)
+    assert refused["error"] == "U015", refused
+
+    path.write_text(path.read_text(encoding="utf-8").split("<<<<<<<")[0] + "# merged\n",
+                    encoding="utf-8")
+    done = _finish(project)
+    assert done.get("finished") is True, done
+    assert not (project / ".upgrade-state.json").exists()
+    assert _stamp(project)["template_commit"] == upgrade_template["b"]
+
+
+def test_plain_apply_commits_nothing_and_leaves_no_tracked_state(
+    project: Path, upgrade_template: dict[str, str]
+) -> None:
+    out = _apply(project, upgrade_template["b"])
+
+    assert out["committed"] is False
+    assert not (project / ".upgrade-state.json").exists()

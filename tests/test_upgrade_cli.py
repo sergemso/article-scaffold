@@ -110,6 +110,13 @@ def test_modes_are_mutually_exclusive(project: Path) -> None:
     assert "usage error" in result.stderr
 
 
+def test_commit_needs_apply(project: Path) -> None:
+    result = _upgrade(project, "--plan", "--commit")
+
+    assert result.returncode == 2
+    assert "--commit only goes with --apply" in result.stderr
+
+
 def test_make_upgrade_runs_the_plan(project: Path) -> None:
     result = run(project, "make", "upgrade")
 
@@ -132,5 +139,6 @@ def test_upgrading_doc_describes_the_command_and_keeps_the_manual_fallback() -> 
 
     for needle in ("upgrade --plan", "upgrade --apply", "upgrade --finish", "make upgrade"):
         assert needle in text, f"upgrading.md does not mention {needle}"
+    assert "Automatic upgrade pull requests" in text and "upgrade.yml" in text
     assert "Three-way merge by hand" in text
     assert "docs/migrating-to-v2.md" in text
