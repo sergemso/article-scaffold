@@ -35,6 +35,10 @@ generated repo as `template_version` in `template.json`.
   regenerates, instead of a raw Unicode U+2014, which some PDF text extractors break
   on. A test checks both the rendered file and that `make metadata` writes it back
   unchanged.
+- `article build pdf` copies its output to `paper/article.pdf` after a successful build,
+  as `make pdf` does, and reports it as `published_to` in the JSON. `release` looks
+  for that file, so a CLI-only build previously left it with no artifact. (This change
+  was released in 1.1.6 without being listed; it was added here afterwards.)
 
 ## [1.1.5] - 2026-10-24
 
