@@ -2,7 +2,7 @@
 
 This plan is self-sufficient for a cold session. It builds a new repository, `scholar-mcp` (MIT), at `/home/ubuntu/projects/sergemso/scholar-mcp` (sibling of `/home/ubuntu/projects/sergemso/article-scaffold`, the cookiecutter template that owns this plan). It ships three separately installable servers on a shared library; **only the authors server is in scope here**. The editors and reviewers servers are separate later plans, started only after step 5.1 passes.
 
-Decisions already made (full text in `docs/decisions/0057-scholar-mcp-separate-repo-per-role.md` and, until step 1.2 moves them, in `docs/plans/scholar-mcp-seed/`):
+Decisions already made (this template's own record is `docs/decisions/0057-scholar-mcp-separate-repo-per-role.md`; the design records moved to `scholar-mcp/docs/` in step 1.2 as decisions 0056 to 0061 and facts 0001 and 0002):
 
 - One server per role on a shared library `scholar_core`; packages `scholar_core`, `scholar_authors` (later `scholar_editors`, `scholar_reviewers`). Official MCP Python SDK, stdio transport only, no listener, pinned dependencies with hashes.
 - **The model never writes bibliographic fields.** Tools take identifiers (DOI, arXiv id, PMID, ORCID; ISBN see step 2.5) and the server copies every field verbatim from the registry record, keeping source, retrieval time and a hash. Unfetchable means not added.
@@ -18,14 +18,14 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked. Python is 3
 
 ## 1. Create the repository and move the design records
 
-### 1.1 Create and bootstrap the repository — [ ]
+### 1.1 Create and bootstrap the repository — [x]
 Class: implement · Effort: medium · Needs: none · Check: `test -f /home/ubuntu/projects/sergemso/scholar-mcp/LICENSE && git -C /home/ubuntu/projects/sergemso/scholar-mcp log --oneline | head -1 && test -d /home/ubuntu/projects/sergemso/scholar-mcp/docs/decisions`
 Human: creating the GitHub remote (`github.com/sergemso/scholar-mcp`) and pushing is outward-facing; do it only with the owner's explicit go-ahead. A local repository is enough to continue.
 Context: Sibling repositories live under `/home/ubuntu/projects/sergemso/`. The new repo must be governed by go-getter like this one (see `AGENTS.md` and `.go-getter/` here for the shape). Run the plugin's setup skill `go-getter:go-getter-init` (interactive; it records choices as decisions and guardrails) and give it the same answers as this repository unless the owner says otherwise.
 Do: `git init` the directory on branch `main`. Add an MIT `LICENSE`, `README.md` (one paragraph: purpose, the four design rules above, "authors server first"), `.gitignore`, and a `pyproject.toml` with a `src/` layout and three packages `scholar_core`, `scholar_authors` (empty `__init__.py` for now), `requires-python >= 3.10`, a `dev` extra with pytest and ruff, and console script `scholar-authors = scholar_authors.cli:main`. Add `Makefile` targets `setup`, `test`, `lint`. Run the go-getter setup. Commit.
 Done-when: the repository exists with a license, a first commit, `docs/{facts,decisions,guardrails,skills}/` created by the go-getter setup, and `make test` runs (even with zero tests).
 
-### 1.2 Move the seed design records into the new repository — [ ]
+### 1.2 Move the seed design records into the new repository — [x]
 Class: implement · Effort: low · Needs: 1.1 · Check: `ls /home/ubuntu/projects/sergemso/scholar-mcp/docs/decisions/0006-assurance-bar-threat-model-and-golden-corpus.md /home/ubuntu/projects/sergemso/scholar-mcp/docs/guardrails/egress-allowlist.md && test ! -d /home/ubuntu/projects/sergemso/article-scaffold/docs/plans/scholar-mcp-seed`
 Context: The records are staged in `docs/plans/scholar-mcp-seed/{decisions,facts,guardrails}/` in this (template) repo: decisions `0001`..`0006`, facts `0001`..`0002`, guardrails `bib-fields-from-records-only`, `egress-allowlist`, `publish-requires-out-of-band-confirm`, `no-unverified-reference-in-release`. They are already numbered for the new repo. If step 1.1's setup created decisions of its own, renumber the seed records after them and update every `0001`-style cross-reference and `governed-by`/`grounded-in`/`governed-facts` id.
 Do: Copy the files into the matching `docs/` directories of the new repo, adjusting ids if renumbered. Add one row per artifact to each `INDEX.md` there (CSV: `id,title,tags,status`; quote cells with commas). Commit in the new repo. In this template repo, delete `docs/plans/scholar-mcp-seed/` and commit (`docs(plans): move the scholar-mcp design records to the new repository`).
@@ -33,14 +33,14 @@ Done-when: all 12 records exist in the new repo with working cross-references an
 
 ### 1.3 Write the threat model — [ ]
 Class: plan · Effort: high · Needs: 1.2 · Check: `test -s /home/ubuntu/projects/sergemso/scholar-mcp/docs/threat-model.md`
-Context: Decision 0006 requires a written threat model, each abuse case mapped to a control and a test. Assets: unpublished manuscript text, the Zenodo API token, the bibliography's integrity, the permanent DOI. Trust boundaries: model/host, server process, the human's terminal, the generated repo's filesystem and CLI, each registry host.
+Context: Decision 0061 requires a written threat model, each abuse case mapped to a control and a test. Assets: unpublished manuscript text, the Zenodo API token, the bibliography's integrity, the permanent DOI. Trust boundaries: model/host, server process, the human's terminal, the generated repo's filesystem and CLI, each registry host.
 Do: Write `docs/threat-model.md` with a table of abuse cases, each with a control and a named test file under `tests/`. It must cover at least: prompt injection through manuscript text and through fetched record fields (tool output is data, never instructions; fenced and length-capped); the model supplying bibliographic fields; path traversal and symlink escape from the repo root; SSRF and off-list redirects via lookups; manuscript text in an outbound request; secret leakage in logs, tool output or arguments; token replay, expiry and hash substitution on confirm; a model passing `--yes` through to the repo CLI; Zenodo publish to production by accident; a registry returning a wrong or changed record; dependency compromise; log injection. Mark which controls land in which step.
 Done-when: every abuse case above has a control, a test file name and an owning step number, and the document is committed.
 
 ### 1.4 CI skeleton with pinned, hashed dependencies — [ ]‖
 Class: implement · Effort: medium · Needs: 1.1 · Check: `make -C /home/ubuntu/projects/sergemso/scholar-mcp lint test`
-Context: Decision 0006 baseline: pinned dependencies with hashes, official MCP Python SDK. The template repo's workflows (`{{cookiecutter.repo_name}}/.github/workflows/`) show the house style: actions pinned to commit shas, minimal `permissions`. Network is needed once to resolve and hash the dependencies.
-Do: Add `requirements.lock` (with hashes) generated by pip-compile or uv, and install from it in `make setup`. Add `.github/workflows/ci.yml` (lint, tests, `pip-audit`) with pinned actions and `permissions: contents: read`. Create `tests/guardrails/` with a placeholder test per guardrail from step 1.2 that `pytest.skip`s with the owning step number, so each guardrail's `run:` command already resolves.
+Context: Decision 0061 baseline: pinned dependencies with hashes, official MCP Python SDK. The template repo's workflows (`{{cookiecutter.repo_name}}/.github/workflows/`) show the house style: actions pinned to commit shas, minimal `permissions`. Network is needed once to resolve and hash the dependencies.
+Do: Add `requirements.lock` (with hashes) generated by pip-compile or uv, and install from it in `make setup`. Add `.github/workflows/ci.yml` (lint, tests, `pip-audit`) with pinned actions and `permissions: contents: read`. Create `tests/guardrails/` with a placeholder test per guardrail from step 1.2 that `pytest.skip`s with the owning step number, so each guardrail's `run:` command already resolves. The guardrail `run:` commands say `python -m pytest`, but a bare `python` is not on PATH on this machine (only `python3`) and pytest lives in `.venv`: change them to `make test`-style commands or `.venv/bin/python -m pytest` and re-run `go-getter apply`.
 Done-when: `make lint test` passes, the workflow parses, and every guardrail's `run:` command exists and exits 0 (skipped tests count).
 
 ## 2. The shared library `scholar_core`
@@ -53,32 +53,32 @@ Done-when: tests cover traversal, symlink escape, Windows-style separators, null
 
 ### 2.2 Confirmation tokens and the `confirm` CLI — [ ]‖
 Class: implement · Effort: high · Needs: 1.3 · Check: `python -m pytest tests/core/test_confirm.py tests/guardrails/test_confirmation.py -q`
-Context: Decision 0005. The confirm path must be something the model cannot drive: a terminal command the human runs, not a tool.
+Context: Decision 0060. The confirm path must be something the model cannot drive: a terminal command the human runs, not a tool.
 Do: `confirm.py`: `create(plan) -> (plan_id, content_hash)` stores the plan under a per-user state dir with mode 0600; a token is single-use, expires (default 15 minutes), and is bound to the content hash. `confirm_cli`: shows the exact diff or record and asks y/N on a real TTY (refuse without a TTY and refuse `--yes`). Consuming the token marks it spent before the action runs. Replace the placeholder guardrail test with real tests.
 Done-when: tests cover stale token, wrong hash, replay, missing TTY, concurrent double-confirm, tampered plan file, and the token never appearing in any tool result.
 
 ### 2.3 Egress client with host allowlist — [ ]‖
 Class: implement · Effort: medium · Needs: 1.3 · Check: `python -m pytest tests/core/test_egress.py tests/guardrails/test_egress.py -q`
-Context: Decision 0004. Hosts needed: `doi.org`, `api.crossref.org`, `api.datacite.org`, `export.arxiv.org`, `eutils.ncbi.nlm.nih.gov`, `pub.orcid.org`, `api.openalex.org` (cross-check only), `sandbox.zenodo.org` and `zenodo.org` (deposit only).
+Context: Decision 0059. Hosts needed: `doi.org`, `api.crossref.org`, `api.datacite.org`, `export.arxiv.org`, `eutils.ncbi.nlm.nih.gov`, `pub.orcid.org`, `api.openalex.org` (cross-check only), `sandbox.zenodo.org` and `zenodo.org` (deposit only).
 Do: `egress.py`: one HTTPS client (httpx or urllib) with the allowlist in code, redirects followed manually and refused if they leave the list, timeouts, response size cap, request payload cap (identifiers and short search strings only), polite User-Agent with a contact address, per-host rate limiting and retry with backoff. No other module may open a socket.
 Done-when: tests cover non-allowlisted host, plain HTTP, redirect to an off-list host, oversize response, oversize payload, and rate-limit/backoff behavior with recorded responses.
 
 ### 2.4 Registry clients and the record store — [ ]
 Class: implement · Effort: high · Needs: 2.3 · Check: `python -m pytest tests/core/test_registries.py tests/core/test_recordstore.py -q`
-Context: Decisions 0002 and 0003 and fact 0001. A record is what the registry returned, kept byte-for-byte alongside a parsed form.
+Context: Decisions 0057 and 0058 and fact 0001. A record is what the registry returned, kept byte-for-byte alongside a parsed form.
 Do: Clients for Crossref and DataCite (via `doi.org` content negotiation to find the registration agency), arXiv, NCBI PMID and ORCID. `recordstore.py` stores, per identifier, the raw response, the parsed record, source, retrieval time and SHA-256, in a content-addressed directory inside the repo (`.scholar/records/`) so provenance is reviewable in git. Normalize identifiers deterministically (DOI case, `https://doi.org/` prefixes) without altering record content. Search returns candidate records only.
 Done-when: tests replay recorded responses for each registry offline, and a changed live record is detected by hash comparison.
 
 ### 2.5 ISBN and books — [!]
 Class: plan · Effort: medium · Needs: 2.4 · Check: `ls /home/ubuntu/projects/sergemso/scholar-mcp/docs/decisions/*isbn*.md && python -m pytest tests/core/test_isbn.py -q`
-Human: decision needed. Decision 0003 lists the registries of record for DOI, arXiv, PMID and ORCID but names none for ISBN, and open ISBN sources (Open Library and similar) are crowd-sourced and not authoritative. Choose: (a) ISBN is candidate-only, so a book stays `unverified` until a human attests, or (b) name a source as authoritative with a cross-check. Record the answer as a new decision in the new repository whose file name contains `isbn`, then unblock.
+Human: decision needed. Decision 0058 lists the registries of record for DOI, arXiv, PMID and ORCID but names none for ISBN, and open ISBN sources (Open Library and similar) are crowd-sourced and not authoritative. Choose: (a) ISBN is candidate-only, so a book stays `unverified` until a human attests, or (b) name a source as authoritative with a cross-check. Record the answer as a new decision in the new repository whose file name contains `isbn`, then unblock.
 Context: Without this decision a book can never be marked verified by the server.
 Do: Write the decision, then implement the chosen behavior in `scholar_core` with golden-corpus entries for books.
 Done-when: a decision on ISBN exists and a book citation behaves as that decision says, with tests.
 
 ### 2.6 Verification engine and attestations — [ ]
 Class: implement · Effort: high · Needs: 2.2, 2.4 · Check: `python -m pytest tests/core/test_verify.py tests/guardrails/test_records_only.py tests/guardrails/test_release_gate.py -q`
-Context: Decisions 0002 and 0003. Cross-check fields: title, authors, venue, year, DOI. Attestations live in the repository so they show up in review.
+Context: Decisions 0057 and 0058. Cross-check fields: title, authors, venue, year, DOI. Attestations live in the repository so they show up in review.
 Do: `verify.py`: for each bibliography entry, compare it with its stored record and the cross-check records and return one of `verified`, `unverified`, `disagrees` with the exact differing fields. A BibTeX formatter turns a record into an entry deterministically (no model text, stable key, braces and diacritics handled), and verification fails if an entry differs from the formatter's output for its stored record. Attestations are a file (`.scholar/attestations.yaml`) whose entries require who, when and why; creating one is a confirmed write (2.2). Replace the placeholder guardrail tests.
 Done-when: tests cover a verified entry, a hand-edited entry, an unresolvable DOI, a cross-check disagreement, an attestation missing a field, and byte-for-byte formatter output on the corpus.
 
@@ -98,7 +98,7 @@ Done-when: parity test: tool output equals the CLI's `--json` output for the sam
 
 ### 3.3 Reference tools — [ ]
 Class: implement · Effort: high · Needs: 2.6, 3.1 · Check: `python -m pytest tests/authors/test_reference_tools.py -q`
-Context: Decisions 0002, 0003, 0004. The bibliography is the repo's `paper/refs.bib` (see the template's `paper/` directory).
+Context: Decisions 0057, 0058 and 0059. The bibliography is the repo's `paper/refs.bib` (see the template's `paper/` directory).
 Do: Tools `search_candidates` (search string in, candidate records out, nothing written), `plan_add_reference` (identifier in; the plan holds the exact entry the formatter will write and the record's provenance), `verify_bibliography` (2.6 over the whole file, structured result), `plan_attestation`. Writes happen only after `scholar-authors confirm`. A candidate is chosen by the human in the confirm CLI, not by a tool argument.
 Done-when: tests show that no tool schema accepts a title, author, venue, year or DOI as a value, an add without confirm changes nothing, a candidate cannot be picked by the model, and an entry written after confirm equals the formatter's output.
 
@@ -110,7 +110,7 @@ Done-when: tests cover rendering from metadata, no write without confirm, and a 
 
 ### 3.5 Release and deposit tools — [ ]
 Class: implement · Effort: high · Needs: 3.2, 3.3 · Check: `python -m pytest tests/authors/test_release_tools.py tests/guardrails/test_confirmation.py -q`
-Context: Decision 0005 and fact 0002 (publish mints a permanent DOI). The repo's `release` subcommand supports `--dry-run` and `--apply --yes`. The Zenodo token comes from the OS keyring (via `keyring`) or the `ZENODO_TOKEN` environment variable, never a tool argument or a log field.
+Context: Decision 0060 and fact 0002 (publish mints a permanent DOI). The repo's `release` subcommand supports `--dry-run` and `--apply --yes`. The Zenodo token comes from the OS keyring (via `keyring`) or the `ZENODO_TOKEN` environment variable, never a tool argument or a log field.
 Do: `plan_release` runs the repo's dry run and refuses while any reference is unverified or unattested (guardrail `no-unverified-reference-in-release`). `apply_release` runs the repo's `--apply --yes` only after confirm. `create_deposit_draft` creates a Zenodo draft on the sandbox by default. `publish_deposit` publishes only after confirm with the exact metadata and target (sandbox or production) shown; production needs a separately confirmed setting. Zenodo calls go through the egress client (2.3).
 Done-when: tests against a fake Zenodo cover the refusal on an unverified reference, publish without confirm, a stale or replayed token, sandbox as the default, and the token absent from every result and log.
 
@@ -118,7 +118,7 @@ Done-when: tests against a fake Zenodo cover the refusal on an unverified refere
 
 ### 4.1 Golden corpus and replay harness — [ ]
 Class: implement · Effort: high · Needs: 2.6 · Check: `python -m pytest tests/corpus -q`
-Context: Decision 0006. Record real registry responses once (network needed), commit them under `tests/corpus/records/`, and replay offline in CI.
+Context: Decision 0061. Record real registry responses once (network needed), commit them under `tests/corpus/records/`, and replay offline in CI.
 Do: Build the corpus with real records for: diacritics and non-Latin names; corporate authors; very long author lists; retracted and corrected papers; preprint and published versions of one work; DOI case and URL variants; DataCite datasets; known wrong-metadata cases (a record whose registries disagree); books (per 2.5). For each, commit the expected entry. A harness replays them and asserts every written field equals the source record, and every mismatch is flagged. Add a nightly workflow `corpus-live.yml` that refetches live and fails on drift, with the diff in the log.
 Done-when: `tests/corpus` passes offline, a deliberately altered field makes it fail, and the nightly workflow parses.
 
