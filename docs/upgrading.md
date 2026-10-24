@@ -62,7 +62,7 @@ and `python3`):
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/sergemso/article-scaffold/master/scripts/bootstrap-upgrader.py
 python3 bootstrap-upgrader.py            # template from template.json
-python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.2
+python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.3
 rm bootstrap-upgrader.py
 python3 -m pip install cookiecutter PyYAML
 git add scripts schemas && git commit -m 'chore: add the article upgrade command'
@@ -91,17 +91,47 @@ It is opt-in by its requirements, and otherwise only prints a notice:
   SSH URL cannot be reached from the runner.
 - `template_commit` is set (the template was a git checkout when you generated).
 - Settings > Actions > General > "Allow GitHub Actions to create and approve pull
-  requests" is on. Pull requests opened with `GITHUB_TOKEN` do not start other
-  workflows, so close and reopen the PR, or push to it, to run your checks.
-- To upgrade files under `.github/workflows/` (the template ships several), add a
-  repository secret `UPGRADE_TOKEN`: a fine-grained token with Contents, Pull
-  requests and Workflows read and write. GitHub refuses a `GITHUB_TOKEN` push that
-  changes workflow files, so without the secret those upgrades fail at the push.
-  With the secret, the PR it opens also starts your checks.
+  requests" is on.
+- Optional: an `UPGRADE_TOKEN` secret (below). Without it, upgrades that change
+  files under `.github/workflows/` fail at the push, and the checks of the PR it
+  opens wait for someone to approve them.
 
 The job has `contents: write` and `pull-requests: write`, nothing else. It
 installs `cookiecutter==2.7.1` on the runner and does not add it to your repo.
 Delete the workflow file if you do not want scheduled upgrades.
+
+### Setting up `UPGRADE_TOKEN`
+
+The template ships workflows, so a template upgrade usually changes files under
+`.github/workflows/`. In practice GitHub rejects a push that does so when it is made
+with the default `GITHUB_TOKEN` (reported by users; the docs do not mention it). GitHub's
+documentation does say that events caused by `GITHUB_TOKEN` do not start new workflow
+runs, except that `pull_request` runs for `opened`, `synchronize` and `reopened` wait for
+approval, and that a personal access token or GitHub App token avoids this. The token
+belongs to the generated repo, not to the template: the template is read over public
+HTTPS with no credentials.
+
+1. On GitHub: profile picture > Settings > Developer settings > Personal access
+   tokens > Fine-grained tokens > Generate new token.
+2. Name it (for example `upgrade-<repo>`) and choose an expiration. Note the date.
+3. Under Repository access choose "Only select repositories" and pick this repo.
+4. Under Repository permissions set Contents: write, Pull requests: write and
+   Workflows: write (Workflows has no read option). Generate the token and copy it.
+5. In the repo: Settings > Secrets and variables > Actions > New repository secret.
+   Name `UPGRADE_TOKEN`, paste the token.
+6. Check it: Actions > "Template upgrade" > Run workflow. When the template has a
+   newer commit, the run should push `upgrade/<sha>` and open a PR, and the PR's
+   checks should start without approval.
+
+The token acts as you, so the PR and pushes carry your name, and it stops working at
+its expiry; the workflow then falls back to `GITHUB_TOKEN` and upgrades that touch
+workflow files fail again. Renew it before the date from step 2. Delete the secret to
+go back to the default behaviour.
+
+GitHub's own pages: [fine-grained personal access
+tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens),
+[repository permissions for them](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)
+and [using secrets in Actions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions).
 
 ## Why not cruft or Copier
 

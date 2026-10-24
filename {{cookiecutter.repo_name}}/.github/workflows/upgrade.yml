@@ -10,12 +10,13 @@ name: Template upgrade
 # create and approve pull requests". Otherwise the run only prints a notice.
 # See docs/cli.md ("Upgrading to a newer template").
 #
-# GitHub refuses a push made with the default token when it adds or changes
-# anything under .github/workflows/, and the template ships workflows. To open
-# upgrade PRs that touch them, add a repository secret UPGRADE_TOKEN: a
-# fine-grained token (Contents, Pull requests and Workflows: read and write).
-# A PR opened with that token also starts your checks; one opened with the
-# default token does not.
+# GitHub rejects a push that adds or changes anything under .github/workflows/
+# when it is made with the default token, and the template ships workflows. To
+# open upgrade PRs that touch them, add a repository secret UPGRADE_TOKEN: a
+# fine-grained token for this repository with Contents, Pull requests and
+# Workflows set to write. A PR opened with the default token has its checks held
+# for approval; with UPGRADE_TOKEN they start by themselves. The token expires:
+# renew it, or the job falls back to the default token.
 
 "on":
   schedule:

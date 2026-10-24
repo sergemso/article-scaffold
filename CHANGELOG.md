@@ -5,6 +5,20 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.3] - 2026-10-24
+
+### Changed
+
+- `docs/upgrading.md`: step-by-step setup for the optional `UPGRADE_TOKEN` secret,
+  with the permissions it needs (Contents, Pull requests and Workflows, all write),
+  how to check it and what happens when it expires.
+
+### Fixed
+
+- The `UPGRADE_TOKEN` notes in the docs and the workflow header said Workflows takes
+  "read and write"; it is write-only. They also said PRs opened with the default
+  token get no checks; they are held for approval.
+
 ## [1.1.2] - 2026-10-24
 
 ### Fixed
