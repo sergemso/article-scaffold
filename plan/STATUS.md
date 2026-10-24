@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: 2026-10-21T20:17:33Z
+Updated: 2026-10-24T10:17:42Z
 
 | Phase | Done | Total |
 |---|---|---|
@@ -14,8 +14,8 @@ Updated: 2026-10-21T20:17:33Z
 | P1.7 | 1 | 1 |
 | P2 | 4 | 4 |
 | P3 | 9 | 9 |
-| P4 | 4 | 4 |
-| P5 | 0 | 5 |
+| P4 | 5 | 5 |
+| P5 | 1 | 5 |
 | P6 | 0 | 2 |
 
 ## In progress
