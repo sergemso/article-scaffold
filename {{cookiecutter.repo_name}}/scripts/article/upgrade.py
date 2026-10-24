@@ -468,6 +468,12 @@ def _apply_changes(
     with tempfile.TemporaryDirectory(prefix="article-upgrade-") as tmp:
         built = build_patch(root, upgrade_plan, Path(tmp) / "work", python=python)
         files = built["files"]
+        if not files:
+            # The template moved on, but not in anything this repository is generated
+            # from: no branch, no stamp change. The stamp stays so the next real change
+            # is still diffed from the commit the files actually match.
+            return {"ok": True, "command": "upgrade", "up_to_date": False, "no_changes": True,
+                    "branch": None, "applied": [], "conflicted": [], "skipped": []}
         patch = Path(built["patch"]).read_text(encoding="utf-8") if built["patch"] else ""
         new_stamp = json.loads((Path(built["new_tree"]) / STAMP_NAME).read_text(encoding="utf-8"))
         chunks = _split_patch(patch)

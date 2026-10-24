@@ -262,3 +262,40 @@ def test_regenerate_only_goes_with_finish(project: Path) -> None:
 
     assert result.returncode == 2
     assert "--regenerate only goes with --finish" in result.stderr
+
+
+def _template_with_unrelated_commit(tmp_path: Path, template: dict[str, str]) -> tuple[Path, str]:
+    """A private clone of the test template with one more commit that touches no payload file."""
+    import subprocess
+
+    clone = tmp_path / "tpl-c"
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@invalid"]
+    subprocess.run([*git, "clone", "--quiet", template["path"], str(clone)], check=True)
+    (clone / "NOTES.md").write_text("release notes only\n", encoding="utf-8")
+    subprocess.run([*git, "add", "NOTES.md"], cwd=clone, check=True)
+    subprocess.run([*git, "commit", "--quiet", "-m", "C"], cwd=clone, check=True)
+    head = subprocess.run(
+        [*git, "rev-parse", "HEAD"], cwd=clone, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    return clone, head
+
+
+def test_a_template_commit_that_changes_nothing_here_makes_no_branch(
+    project: Path, upgrade_template: dict[str, str], tmp_path: Path
+) -> None:
+    clone, head = _template_with_unrelated_commit(tmp_path, upgrade_template)
+    stamp_path = project / "template.json"
+    stamp = _stamp(project)
+    stamp.update(template=str(clone), template_commit=upgrade_template["b"])
+    stamp_path.write_text(json.dumps(stamp), encoding="utf-8")
+    _commit(project, "stamp at B")
+    before = run(project, "git", "rev-parse", "--abbrev-ref", "HEAD").stdout
+
+    out = _apply(project, head)
+
+    assert out["ok"] is True and out["no_changes"] is True, out
+    assert out["branch"] is None and out["applied"] == []
+    assert run(project, "git", "rev-parse", "--abbrev-ref", "HEAD").stdout == before
+    assert run(project, "git", "branch", "--list", "upgrade/*").stdout.strip() == ""
+    assert run(project, "git", "status", "--porcelain").stdout == ""
+    assert _stamp(project)["template_commit"] == upgrade_template["b"]

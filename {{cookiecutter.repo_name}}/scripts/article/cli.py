@@ -361,6 +361,8 @@ def _print_upgrade(payload: dict[str, Any]) -> None:
             print("already up to date")
     elif payload.get("up_to_date"):
         print("already up to date")
+    elif payload.get("no_changes"):
+        print("the template has a newer commit, but it changes none of this repository's files")
     if payload.get("finished"):
         print(f"upgrade finished on {payload['branch']}; review `git diff --cached` and commit")
     elif payload["mode"] == "apply" and payload.get("branch"):

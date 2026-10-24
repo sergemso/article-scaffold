@@ -5,6 +5,16 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.9] - 2026-10-24
+
+### Fixed
+
+- `upgrade --apply` (and so the weekly workflow) no longer creates a branch or opens a
+  pull request when the template has a newer commit that changes none of the files
+  generated for the repository, such as a changelog-only release. It reports
+  `no_changes: true` and the workflow prints a notice. The stamp stays where it is, so
+  the next real change is still diffed from the commit the files match.
+
 ## [1.1.8] - 2026-10-24
 
 ### Changed

@@ -123,6 +123,11 @@ jobs:
           if "error" in d:
               print(f"::error title=Template upgrade failed::{d['error']['code']}: {d['error']['message']}")
               sys.exit(1)
+          if d.get("no_changes"):
+              open(os.path.join(temp, "no-changes"), "w").write("yes")
+              print("::notice title=Template upgrade skipped::the template has a newer commit, "
+                    "but it changes none of the files generated for this repository")
+              sys.exit(0)
           conflicted = d["conflicted"]
           lines = [
               "Automated upgrade of this repository to a newer commit of its template.",
@@ -156,6 +161,9 @@ jobs:
           BASE: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
+          if [ -f "$RUNNER_TEMP/no-changes" ]; then
+            exit 0
+          fi
           flags=()
           if [ "$(cat "$RUNNER_TEMP/draft")" = "yes" ]; then
             flags+=(--draft)

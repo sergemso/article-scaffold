@@ -27,6 +27,7 @@
       "items": { "$ref": "#/definitions/problem" }
     },
     "up_to_date": { "type": "boolean" },
+    "no_changes": { "type": "boolean" },
     "branch": { "type": ["string", "null"] },
     "applied": { "type": "array", "items": { "type": "string" } },
     "conflicted": { "type": "array", "items": { "type": "string" } },

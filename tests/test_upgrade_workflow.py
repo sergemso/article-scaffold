@@ -259,3 +259,34 @@ def test_an_apply_error_fails_the_run(sandbox: dict) -> None:
     )
 
     assert plan.returncode != 0
+
+
+def test_a_template_commit_that_changes_nothing_opens_no_pull_request(
+    sandbox: dict,
+) -> None:
+    import subprocess
+
+    tpl = sandbox["tpl"]
+    clone = sandbox["tmp"] / "tpl-c"
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@invalid"]
+    subprocess.run([*git, "clone", "--quiet", tpl["path"], str(clone)], check=True)
+    (clone / "NOTES.md").write_text("release notes only\n", encoding="utf-8")
+    subprocess.run([*git, "add", "NOTES.md"], cwd=clone, check=True)
+    subprocess.run([*git, "commit", "--quiet", "-m", "C"], cwd=clone, check=True)
+    sandbox["env"]["GIT_CONFIG_KEY_0"] = f"url.file://{clone}.insteadOf"
+    _retarget(sandbox, tpl["b"])
+
+    plan = _step(sandbox, "Plan the upgrade")
+    assert plan["action"] == "apply", plan  # the template has a newer commit (C)
+    _step(sandbox, "Apply the upgrade on a branch", NEW=plan["new"])
+    _step(sandbox, "Push the branch and open the pull request",
+          BRANCH=plan["branch"], BASE="master", GH_TOKEN="x")
+
+    assert (sandbox["temp"] / "no-changes").is_file()
+    assert not sandbox["gh_log"].exists()
+    pushed = subprocess.run(
+        ["git", "--git-dir", str(sandbox["origin"]), "branch", "--list", "upgrade/*"],
+        capture_output=True, text=True,
+    ).stdout
+    assert pushed.strip() == ""
+    assert run(sandbox["project"], "git", "status", "--porcelain").stdout == ""
