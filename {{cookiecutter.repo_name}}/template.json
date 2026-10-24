@@ -1,0 +1,29 @@
+{
+  "template": {{ cookiecutter._template | tojson }},
+  "template_version": "",
+  "template_commit": null,
+  "context": {
+    "cookiecutter": {
+      "topic": {{ cookiecutter.topic | tojson }},
+      "repo_name": {{ cookiecutter.repo_name | tojson }},
+      "github_user": {{ cookiecutter.github_user | tojson }},
+      "title": {{ cookiecutter.title | tojson }},
+      "subtitle": {{ cookiecutter.subtitle | tojson }},
+      "manuscript_type": {{ cookiecutter.manuscript_type | tojson }},
+      "manuscript_kind": {{ cookiecutter.manuscript_kind | tojson }},
+      "citation_style": {{ cookiecutter.citation_style | tojson }},
+      "author_name": {{ cookiecutter.author_name | tojson }},
+      "author_orcid": {{ cookiecutter.author_orcid | tojson }},
+      "author_affiliation": {{ cookiecutter.author_affiliation | tojson }},
+      "version": {{ cookiecutter.version | tojson }},
+      "version_label": {{ cookiecutter.version_label | tojson }},
+      "date": {{ cookiecutter.date | tojson }},
+      "license": {{ cookiecutter.license | tojson }},
+      "target_deposit": {{ cookiecutter.target_deposit | tojson }},
+      "doi": {{ cookiecutter.doi | tojson }},
+      "default_branch": {{ cookiecutter.default_branch | tojson }},
+      "keywords": {{ cookiecutter.keywords | tojson }},
+      "abstract": {{ cookiecutter.abstract | tojson }}
+    }
+  }
+}

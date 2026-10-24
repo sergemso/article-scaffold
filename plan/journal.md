@@ -422,3 +422,14 @@ history after work has started.
 - exempt generated go-getter workflow; upstream vivantel/go-getter#227
 - verify: passed
 - scope: clean
+
+## 2026-10-24T10:10:30Z — T42 — claim
+- owner=agent ttl=120m
+
+## 2026-10-24T10:11:38Z — T42 — checkpoint
+- stamp, hook, doc, tests written
+
+## 2026-10-24T10:14:13Z — T42 — done
+- template.json stamp, post-gen hook, docs/upgrading.md, tests
+- verify: passed
+- scope: clean

@@ -2,7 +2,7 @@
   "schema": 1,
   "plan_version": "1.0.0",
   "created": "2026-10-20T22:29:57Z",
-  "updated": "2026-10-24T09:56:15Z",
+  "updated": "2026-10-24T10:14:13Z",
   "tasks": {
     "T01": {
       "status": "done",
@@ -1994,14 +1994,50 @@
       "steps_done": []
     },
     "T42": {
-      "status": "todo",
-      "attempts": 0,
+      "status": "done",
+      "attempts": 1,
       "lease": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "2026-10-24T10:14:13Z",
       "commit": null,
       "seeded": false,
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "at": "2026-10-24T10:11:42Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "716e37d1cbdca23a5e43b1ca7b96aaa07580ace3",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_upgrade.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 2.94s\n",
+              "at": "2026-10-24T10:11:42Z"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-24T10:14:13Z",
+          "kind": "verify",
+          "ok": true,
+          "commit": "716e37d1cbdca23a5e43b1ca7b96aaa07580ace3",
+          "checks": [
+            {
+              "cmd": "python3 -m pytest tests/test_upgrade.py -q",
+              "exit": 0,
+              "expect_exit": 0,
+              "ok": true,
+              "tail": ".....                                                                    [100%]\n5 passed in 2.30s\n",
+              "at": "2026-10-24T10:14:13Z"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "stamp, hook, doc, tests written",
+        "template.json stamp, post-gen hook, docs/upgrading.md, tests"
+      ],
       "steps_done": []
     },
     "T43": {

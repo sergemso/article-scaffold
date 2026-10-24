@@ -5,6 +5,8 @@ repo, installs the pre-push hook via ``core.hooksPath``, and makes scripts
 executable so the new repo is ready to commit.
 """
 
+import json
+import re
 import shutil
 import stat
 import subprocess
@@ -134,6 +136,49 @@ def _replace_default_branch_placeholder(project_dir: Path) -> None:
             )
 
 
+def _template_version(template_dir: Path) -> str:
+    """Read the template's own version from its pyproject.toml ("" if unknown)."""
+    try:
+        text = (template_dir / "pyproject.toml").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    return match.group(1) if match else ""
+
+
+def _template_commit(template_dir: Path, git: str | None) -> str | None:
+    """Commit of the template checkout, or None when it is not a git checkout."""
+    if git is None:
+        return None
+    result = subprocess.run(
+        [git, "rev-parse", "HEAD"],
+        cwd=template_dir,
+        capture_output=True,
+        text=True,
+    )
+    commit = result.stdout.strip()
+    return commit if result.returncode == 0 and commit else None
+
+
+def _stamp_template_version(project_dir: Path, git: str | None) -> None:
+    """Record which template version produced this repo in template.json."""
+    stamp_path = project_dir / "template.json"
+    if not stamp_path.is_file():
+        return
+    template_dir = Path(r"{{ cookiecutter._repo_dir }}")
+    try:
+        stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+        stamp["template_version"] = _template_version(template_dir)
+        stamp["template_commit"] = _template_commit(template_dir, git)
+        stamp_path.write_text(
+            json.dumps(stamp, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+    except (OSError, ValueError) as exc:
+        print(f"WARNING: could not stamp template.json: {exc}", file=sys.stderr)
+        return
+    print(f"Stamped template.json (template {stamp['template_version'] or 'unknown'})")
+
+
 def main() -> None:
     project_dir = Path.cwd()
 
@@ -226,6 +271,9 @@ def main() -> None:
     # GitHub Actions expression. The placeholder is used because workflow files are
     # copied without rendering to avoid Jinja2 conflicts with GitHub Actions expressions.
     _replace_default_branch_placeholder(project_dir)
+
+    # 4c. Stamp the template version so the repo can be upgraded later.
+    _stamp_template_version(project_dir, git)
 
     # 5. Friendly next-steps banner.
     print()
