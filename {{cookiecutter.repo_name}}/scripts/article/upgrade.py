@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,9 @@ from .metadata import _metadata_schema
 
 STAMP_NAME = "template.json"
 GIT_TIMEOUT = 30
+RENDER_TIMEOUT = 300
+# Left out of both renders: the stamp is rewritten by the upgrade itself, and the rest is noise.
+IGNORED = shutil.ignore_patterns(".git", "__pycache__", "*.pyc", "template.json")
 
 E_NO_STAMP = "U001"
 E_BAD_STAMP = "U002"
@@ -31,6 +36,10 @@ E_DIRTY = "U005"
 E_V1_METADATA = "U006"
 E_TEMPLATE_UNREACHABLE = "U007"
 E_REF_UNKNOWN = "U008"
+E_NO_COOKIECUTTER = "U009"
+E_CHECKOUT = "U010"
+E_RENDER = "U011"
+E_NOT_READY = "U012"
 
 _SHA = re.compile(r"[0-9a-f]{7,40}")
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
@@ -167,4 +176,138 @@ def plan(root: Path, new_ref: str | None = None) -> dict[str, Any]:
             "up_to_date": up_to_date,
         },
         "refusals": [r.to_dict() for r in refusals],
+    }
+
+
+class UpgradeError(Exception):
+    """A user-actionable upgrade failure with a stable code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _run(args: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+
+
+def _tail(result: subprocess.CompletedProcess[str]) -> str:
+    lines = (result.stderr or result.stdout).strip().splitlines()
+    return " | ".join(lines[-3:]) or "no output"
+
+
+def _require_cookiecutter(python: str) -> None:
+    try:
+        ok = _run([python, "-c", "import cookiecutter"], Path.cwd(), GIT_TIMEOUT).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        ok = False
+    if not ok:
+        raise UpgradeError(
+            E_NO_COOKIECUTTER,
+            f"cookiecutter is not installed for {python}; "
+            f"run `{python} -m pip install cookiecutter`",
+        )
+
+
+def _checkout(clone: Path, sha: str, dest: Path) -> None:
+    result = _run(["git", "worktree", "add", "--quiet", "--detach", str(dest), sha], clone, 120)
+    if result.returncode != 0:
+        raise UpgradeError(E_CHECKOUT, f"template has no usable commit {sha}: {_tail(result)}")
+
+
+def _render(python: str, source: Path, config: Path, out: Path, workdir: Path) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    result = _run(
+        [
+            python, "-m", "cookiecutter", str(source), "--no-input",
+            "--config-file", str(config), "--output-dir", str(out),
+        ],
+        workdir,
+        RENDER_TIMEOUT,
+    )
+    if result.returncode != 0:
+        raise UpgradeError(E_RENDER, f"rendering the template failed: {_tail(result)}")
+
+
+def _diff_trees(old: Path, new: Path, scratch: Path) -> tuple[str, list[dict[str, str]]]:
+    """Diff two directory trees with repo-relative paths, using a throwaway git repo."""
+    git = [
+        "git", "-c", "user.name=upgrade", "-c", "user.email=upgrade@invalid",
+        "-c", "core.autocrlf=false",
+    ]
+    scratch.mkdir(parents=True)
+    _run([*git, "init", "--quiet"], scratch, GIT_TIMEOUT)
+    shutil.copytree(old, scratch, ignore=IGNORED, symlinks=True, dirs_exist_ok=True)
+    _run([*git, "add", "-A"], scratch, GIT_TIMEOUT)
+    _run([*git, "commit", "--quiet", "--allow-empty", "-m", "old"], scratch, GIT_TIMEOUT)
+    for entry in scratch.iterdir():
+        if entry.name == ".git":
+            continue
+        shutil.rmtree(entry) if entry.is_dir() and not entry.is_symlink() else entry.unlink()
+    shutil.copytree(new, scratch, ignore=IGNORED, symlinks=True, dirs_exist_ok=True)
+    _run([*git, "add", "-A"], scratch, GIT_TIMEOUT)
+    flags = ["diff", "--cached", "--no-renames", "--no-color"]
+    patch = _run([*git, *flags, "--binary", "--full-index", "HEAD"], scratch, GIT_TIMEOUT).stdout
+    names = _run([*git, *flags, "--name-status", "HEAD"], scratch, GIT_TIMEOUT).stdout
+    files = []
+    for line in names.splitlines():
+        status, _, path = line.partition("\t")
+        files.append({"path": path, "status": status})
+    return patch, files
+
+
+def build_patch(
+    root: Path,
+    upgrade_plan: dict[str, Any],
+    workdir: Path,
+    *,
+    python: str | None = None,
+) -> dict[str, Any]:
+    """Render the old and new template with the stored answers and diff the results.
+
+    Nothing in ``root`` is touched; everything is created under ``workdir``, which
+    the caller removes. The patch uses repo-relative paths, so it applies with
+    ``git apply --3way`` from the repository root.
+    """
+    if not upgrade_plan.get("ok"):
+        raise UpgradeError(E_NOT_READY, "the upgrade plan has refusals; resolve them first")
+    info = upgrade_plan["plan"]
+    if info["up_to_date"]:
+        return {"patch": None, "files": [], "old_tree": None, "new_tree": None}
+
+    python = python or sys.executable
+    _require_cookiecutter(python)
+    root, workdir = Path(root).resolve(), Path(workdir).resolve()
+    stamp, refusal = _read_stamp(root)
+    if refusal:
+        raise UpgradeError(refusal.code, refusal.message)
+    context = stamp["context"]["cookiecutter"]
+    repo_name = context["repo_name"]
+
+    workdir.mkdir(parents=True, exist_ok=True)
+    config = workdir / "cookiecutter.yaml"
+    config.write_text(yaml.safe_dump({"default_context": context}), encoding="utf-8")
+
+    clone = workdir / "template"
+    cloned = _run(["git", "clone", "--quiet", "--no-checkout", "--", info["template"], str(clone)],
+                  workdir, 300)
+    if cloned.returncode != 0:
+        raise UpgradeError(E_CHECKOUT, f"cannot clone {info['template']}: {_tail(cloned)}")
+
+    trees = {}
+    for label in ("old", "new"):
+        source = workdir / f"source-{label}"
+        _checkout(clone, info[label], source)
+        _render(python, source, config, workdir / f"render-{label}", workdir)
+        trees[label] = workdir / f"render-{label}" / repo_name
+
+    patch, files = _diff_trees(trees["old"], trees["new"], workdir / "compare")
+    patch_path = workdir / "upgrade.patch"
+    patch_path.write_text(patch, encoding="utf-8")
+    return {
+        "patch": str(patch_path) if patch else None,
+        "files": files,
+        "old_tree": str(trees["old"]),
+        "new_tree": str(trees["new"]),
     }
