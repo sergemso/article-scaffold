@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -161,9 +162,13 @@ def test_bootstrap_workflow_uses_dynamic_branch() -> None:
 
 def test_template_workflows_use_default_branch() -> None:
     """Template workflows must use github.event.repository.default_branch."""
-    for wf in (TEMPLATE / ".github" / "workflows").glob("*.yml"):
-        text = wf.read_text()
-        if "branches:" in text and "push:" in text:
-            assert "${{ github.event.repository.default_branch }}" in text, (
-                f"{wf.name} has hardcoded branch filter"
-            )
+    from tests.conftest import render
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project = render(tmp_path=Path(tmp))
+        for wf in (project / ".github" / "workflows").glob("*.yml"):
+            text = wf.read_text()
+            if "branches:" in text and "push:" in text:
+                assert "${{ github.event.repository.default_branch }}" in text, (
+                    f"{wf.name} has hardcoded branch filter"
+                )

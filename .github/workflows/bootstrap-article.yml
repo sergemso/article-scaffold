@@ -176,7 +176,7 @@ jobs:
           echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
 
       - name: Install cookiecutter + deps
-        run: pip install cookiecutter jinja2-time pyyaml
+        run: pip install "cookiecutter==2.7.1" jinja2-time pyyaml
 
       - name: Render template via cookiecutter
         id: cookiecutter

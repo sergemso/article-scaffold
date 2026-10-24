@@ -56,3 +56,4 @@ id,title,tags,status
 0053-verification-machine-profile,"Cheap checks run locally, slow checks only in CI (thin machine profile)","practice-packs, verification, harness, ci",active
 0054-verification-review-bar,"Review steps pass a reviewer-agent verdict","practice-packs, verification, harness",active
 0055-verification-gate,"""Done"" is blocked while the verification checks fail","practice-packs, verification, harness",active
+0056-workflow-branch-from-cookiecutter,"Generated workflows filter pushes on the branch chosen at generation time","ci, workflows, template",active

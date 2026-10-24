@@ -8,7 +8,7 @@ name: Build Artifacts
 "on":
   push:
     branches:
-      - '${{ github.event.repository.default_branch }}'
+      - __DEFAULT_BRANCH__
     paths:
       - 'paper/**'
       - '.github/workflows/build-artifacts.yml'

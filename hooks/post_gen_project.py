@@ -101,6 +101,39 @@ def _install_pre_push_hook(project_dir: Path, git: str) -> None:
         )
 
 
+def _replace_default_branch_placeholder(project_dir: Path) -> None:
+    """Replace __DEFAULT_BRANCH__ placeholder with GitHub Actions expression.
+
+    The placeholder is used in workflow files because they are copied without
+    rendering to avoid Jinja2 conflicts with GitHub Actions expressions.
+    """
+    # Construct the GitHub Actions expression without triggering Jinja2 during hook rendering
+    # chr(36)='$', chr(123)='{', chr(125)='}'
+    github_expr = (
+        chr(36) + chr(123) + chr(123)
+        + " github.event.repository.default_branch "
+        + chr(125) + chr(125)
+    )
+    workflow_dir = project_dir / ".github" / "workflows"
+    if not workflow_dir.is_dir():
+        return
+    for workflow_file in workflow_dir.glob("*.yml"):
+        try:
+            content = workflow_file.read_text(encoding="utf-8")
+            if "__DEFAULT_BRANCH__" in content:
+                new_content = content.replace("__DEFAULT_BRANCH__", github_expr)
+                workflow_file.write_text(new_content, encoding="utf-8")
+                print(
+                f"  updated {workflow_file.relative_to(project_dir)} "
+                "with default branch expression"
+            )
+        except Exception as exc:
+            print(
+                f"WARNING: could not update {workflow_file}: {exc}",
+                file=sys.stderr,
+            )
+
+
 def main() -> None:
     project_dir = Path.cwd()
 
@@ -188,6 +221,11 @@ def main() -> None:
         print("  generated CITATION.cff, .zenodo.json, README and article.tex metadata")
     else:
         print("WARNING: scripts/generate-metadata.py not found; skipping metadata generation.")
+
+    # 4b. Replace __DEFAULT_BRANCH__ placeholder in workflow files with the actual
+    # GitHub Actions expression. The placeholder is used because workflow files are
+    # copied without rendering to avoid Jinja2 conflicts with GitHub Actions expressions.
+    _replace_default_branch_placeholder(project_dir)
 
     # 5. Friendly next-steps banner.
     print()
