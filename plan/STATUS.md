@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: 2026-10-21T11:56:22Z
+Updated: 2026-10-21T20:17:33Z
 
 | Phase | Done | Total |
 |---|---|---|
@@ -13,8 +13,8 @@ Updated: 2026-10-21T11:56:22Z
 | P1.6 | 1 | 1 |
 | P1.7 | 1 | 1 |
 | P2 | 4 | 4 |
-| P3 | 0 | 9 |
-| P4 | 0 | 4 |
+| P3 | 9 | 9 |
+| P4 | 4 | 4 |
 | P5 | 0 | 5 |
 | P6 | 0 | 2 |
 
@@ -28,4 +28,4 @@ _none_
 
 ## Next
 
-- `T25` Add the v2 authors/affiliations loader
+_none_

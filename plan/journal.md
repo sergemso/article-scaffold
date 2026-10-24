@@ -411,3 +411,14 @@ history after work has started.
 - migration guide docs/migrating-to-v2.md with field mapping, before/after example, migration steps, no-tool rationale, verification checklist, rollback procedure; test_migration_docs.py with 11 tests; all 269 tests pass; CI failures due to missing TeX Live in GitHub Actions environment (latexmk not installed)
 - verify: passed
 - scope: clean
+
+## 2026-10-24T09:44:31Z — T45 — claim
+- owner=agent ttl=120m
+
+## 2026-10-24T09:44:43Z — T45 — checkpoint
+- exemption added
+
+## 2026-10-24T09:56:14Z — T45 — done
+- exempt generated go-getter workflow; upstream vivantel/go-getter#227
+- verify: passed
+- scope: clean
