@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.3.5",
+  "version": "0.3.6",
   "packs": {
     "checkpointing": "0.2.0",
     "context": "0.3.1",
@@ -23,10 +23,10 @@
       "mode": "755"
     },
     ".github/workflows/go-getter-checks.yml": {
-      "hash": "sha256:99255a22eaab8164240775ee3b8a9aade318aa22561b4ee464299f70dc5b1c9d"
+      "hash": "sha256:07000103feb5ed0f0d90d656235f2f83fd36c87fba17239cf3c6920359a087c0"
     },
     ".go-getter/bin/go-getter": {
-      "hash": "sha256:dd5f0d63b4c7e45c8e4172b7d6f63a4628fa6a12d7cf62c33a6dd2d7ae9b4267",
+      "hash": "sha256:e0ccad23c4952a6b5f95f832350250c344c6f3c7aae1f4011d83720c9e13865c",
       "mode": "755"
     },
     ".go-getter/cli/compiler/adapters/claude-code.mjs": {
@@ -84,7 +84,7 @@
       "hash": "sha256:b001f69f1fb289f1ec06038f066a83c4cfa2da7a548f6355317f0d03ff2aaa81"
     },
     ".go-getter/cli/compiler/src/apply.mjs": {
-      "hash": "sha256:cf6ef5e426387ed772145ea10e9b4108c1719003239f4f598212bca73d3e512f"
+      "hash": "sha256:446313abe1096c590c3d74d34e4909457ce01e3434c70d91407b6114144d9441"
     },
     ".go-getter/cli/compiler/src/artifacts.mjs": {
       "hash": "sha256:fb18929f1a2540890dd9560a24d9e157392adf3ddbef70eda1adf70b0dd118fc"
@@ -462,7 +462,7 @@
       "hash": "sha256:b0c8c97530083660fb6b8ddcb227972b4abcb2d6a1a051025ab72541b1c17f1f"
     },
     ".go-getter/cli/package.json": {
-      "hash": "sha256:536b87a0dc3d349626f45e8c17809fbafa58ef134ac8dd4362a78e769fc3bae5"
+      "hash": "sha256:15a9151698ba86a40e5928c9c1d5955274e3d5699e4c1cf764d9937a6290dddf"
     },
     ".go-getter/cli/src/hooks/capture-nudge.sh": {
       "hash": "sha256:e5819585bae61559db66d4a5171dbe1508d6e34c64e397174b332a135e15568e"

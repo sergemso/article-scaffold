@@ -57,3 +57,4 @@ id,title,tags,status
 0054-verification-review-bar,"Review steps pass a reviewer-agent verdict","practice-packs, verification, harness",active
 0055-verification-gate,"""Done"" is blocked while the verification checks fail","practice-packs, verification, harness",active
 0056-workflow-branch-from-cookiecutter,"Generated workflows filter pushes on the branch chosen at generation time","ci, workflows, template",active
+0058-generated-ci-workflow-hardened,"The generated go-getter workflow follows the project's CI-hardening rules","ci, workflows, go-getter",active

@@ -1,6 +1,6 @@
 {
   "name": "go-getter",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Set up the agent harness and SDLC practices for Claude Code, Codex, Kilo, OpenCode, Cursor, Gemini CLI and Copilot",
   "license": "MIT",
   "type": "module",

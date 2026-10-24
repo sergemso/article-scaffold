@@ -6,12 +6,15 @@ on:
   push:
     branches: [master]
 
-permissions:
-  contents: read
+concurrency:
+  group: "go-getter-checks-${{ github.ref }}"
+  cancel-in-progress: true
 
 jobs:
   go-getter-checks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -23,12 +26,16 @@ jobs:
 
   verify-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python -m build
 
   verify-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: make test
