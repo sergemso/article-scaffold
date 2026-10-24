@@ -8,7 +8,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked.
 
 ## 1. The `article upgrade` command
 
-### 1.1 Read the stamp and plan the upgrade — [ ]
+### 1.1 Read the stamp and plan the upgrade — [x]
 Class: implement · Effort: medium · Needs: none · Check: `python3 -m pytest tests/test_upgrade_plan.py -q`
 Context: `{{cookiecutter.repo_name}}/template.json` is written by `hooks/post_gen_project.py`; `template_commit` is `null` for a non-git source and `template` is a path or URL. Read `tests/test_upgrade.py` for how the stamp is tested and `tests/conftest.py` for the `render` helper. Model the plan output on `scripts/article/release.py` (plan returns a JSON-serializable dict; apply consumes it).
 Do: Add `scripts/article/upgrade.py` with `plan(repo, new_ref=None)`. It reads `template.json`, resolves OLD (`template_commit`) and NEW (`new_ref`, default the template's default branch head via `git ls-remote` or `git rev-parse` for a local path), and returns a dict with `template`, `old`, `new`, `up_to_date` and a list of refusals. Refuse, with a stable error code each: missing or malformed `template.json`, `template_commit` null, dirty working tree, OLD equal to NEW (report `up_to_date`, not an error), a repo whose `metadata.yaml` is still v1 (point at `docs/migrating-to-v2.md`). Do not import `cookiecutter` here.
