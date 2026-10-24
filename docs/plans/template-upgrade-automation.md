@@ -32,7 +32,7 @@ Context: `scripts/article/cli.py` registers subcommands (see `release`); the CLI
 Do: Add `article upgrade` with `--plan` (default, writes nothing), `--apply`, `--finish`, `--to <ref>` and `--json`. Use the same exit-code scheme as `release` and add a `schemas/upgrade.schema.json` for the plan/apply output and test against it the way `tests/test_status.py` does. Add a `make upgrade` target that runs `--plan`. Rewrite `docs/upgrading.md` so the command is the recommended path and the manual merge is the fallback; keep the v1 to v2 note and the "never skip reviewing conflicts" warning.
 Done-when: `--plan --json` output validates against the schema; the existing CLI tests still pass; `docs/upgrading.md` describes the command and still describes the manual fallback.
 
-### 1.5 End-to-end check and full suite — [ ]
+### 1.5 End-to-end check and full suite — [x]
 Class: review · Effort: low · Needs: 1.4 · Check: `make test`
 Context: Only the fixture template has been used so far.
 Do: Generate a repo from this template at one commit, make a local edit to `paper/` and `metadata.yaml`, advance the template by one commit that changes a script and a workflow, then run `plan`, `apply` and `finish` and confirm the edits survive and the scripts update. Run `make test`, then `git diff` and confirm only intended files changed.
