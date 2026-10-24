@@ -5,6 +5,13 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.1] - 2026-10-24
+
+### Fixed
+
+- `docs/upgrading.md`: the bootstrap recipe now removes the downloaded script and
+  commits the installed command before `upgrade --plan`, which refuses a dirty tree.
+
 ## [1.1.0] - 2026-10-24
 
 ### Added
