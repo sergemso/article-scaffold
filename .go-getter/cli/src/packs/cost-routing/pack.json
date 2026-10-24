@@ -1,0 +1,478 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "cost-routing",
+  "version": "0.2.0",
+  "family": "harness",
+  "components": [
+    11
+  ],
+  "title": "Cost and model routing",
+  "summary": "How each step picks a model and effort: task classes, starting tiers, the escalation bound, a headless spend cap and the prompt-cache lifetime.",
+  "questions": [
+    {
+      "id": "classes",
+      "prompt": "Which task classes does routing distinguish?",
+      "options": [
+        {
+          "id": "five-classes",
+          "label": "Explore, plan, implement, review and debug",
+          "tradeoff": "Each class gets its own tier and effort, matching the agent roles; the most settings to reason about.",
+          "recommended": true
+        },
+        {
+          "id": "fast-strong",
+          "label": "Two classes: fast and strong",
+          "tradeoff": "Explore and implement run as fast, plan, review and debug as strong; simpler, and a group starts at its strongest member's tier."
+        },
+        {
+          "id": "per-role",
+          "label": "One class per agent role",
+          "tradeoff": "Names follow the role ids in telemetry and routing output; same tiers as the five classes, so no new saving."
+        }
+      ]
+    },
+    {
+      "id": "tiers",
+      "prompt": "Which tier does each class start at?",
+      "options": [
+        {
+          "id": "balanced",
+          "label": "Balanced: explore small, implement medium, plan, review and debug large",
+          "tradeoff": "Spends on the classes where quality matters most, each at the lowest effort it allows.",
+          "recommended": true
+        },
+        {
+          "id": "quality-first",
+          "label": "Quality-first: everything but explore starts large, at higher effort",
+          "tradeoff": "Fewer escalations and retries; the highest spend."
+        },
+        {
+          "id": "cost-first",
+          "label": "Cost-first: explore and implement small, the rest medium, at low effort",
+          "tradeoff": "The lowest spend; more steps fail verification and escalate."
+        }
+      ]
+    },
+    {
+      "id": "max-escalations",
+      "type": "text",
+      "pattern": "^[0-9]+$",
+      "default": "2",
+      "prompt": "How many times may a failed step escalate one tier before a human decides?"
+    },
+    {
+      "id": "spend-cap",
+      "type": "text",
+      "pattern": "^[1-9][0-9]*(\\.[0-9]+)?$",
+      "default": "5",
+      "prompt": "What is the spend cap in USD for a headless run, where the host has one?"
+    },
+    {
+      "id": "cache-ttl",
+      "prompt": "How long is the prompt cache kept, where the host lets you set it?",
+      "options": [
+        {
+          "id": "main-1h-sub-5m",
+          "label": "One hour for the main session, five minutes for subagents",
+          "tradeoff": "The one-hour write costs more but pays off after two reads and survives pauses; subagents are short-lived.",
+          "recommended": true
+        },
+        {
+          "id": "five-minutes",
+          "label": "Five minutes everywhere",
+          "tradeoff": "Cheaper writes; a pause of over five minutes re-reads the whole prefix at full price."
+        },
+        {
+          "id": "host-defaults",
+          "label": "Leave the host defaults",
+          "tradeoff": "No settings written; the cost model assumes five minutes."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "classes": {
+      "five-classes": {
+        "decisions": [
+          {
+            "slug": "routing-classes",
+            "title": "Routing distinguishes explore, plan, implement, review and debug",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "routing-classes": {
+                  "explore": "explore",
+                  "plan": "plan",
+                  "implement": "implement",
+                  "review": "review",
+                  "debug": "debug"
+                }
+              }
+            },
+            "body": "## Decision\n\nEach task class is routed on its own, matching the agent roles (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nRouting minimises expected total step cost among eligible models (decisions 0016, 0020, 0032); classes carry the quality bar.\n"
+          }
+        ]
+      },
+      "fast-strong": {
+        "decisions": [
+          {
+            "slug": "routing-classes",
+            "title": "Routing distinguishes a fast and a strong class",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "routing-classes": {
+                  "explore": "fast",
+                  "implement": "fast",
+                  "plan": "strong",
+                  "review": "strong",
+                  "debug": "strong"
+                }
+              }
+            },
+            "body": "## Decision\n\nExplore and implement are routed as fast; plan, review and debug as strong. A group starts at the strongest tier and effort of its members (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nRouting minimises expected total step cost among eligible models (decisions 0016, 0020, 0032); classes carry the quality bar.\n"
+          }
+        ]
+      },
+      "per-role": {
+        "decisions": [
+          {
+            "slug": "routing-classes",
+            "title": "Routing distinguishes one class per agent role",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "routing-classes": {
+                  "explore": "explorer",
+                  "plan": "planner",
+                  "implement": "implementer",
+                  "review": "reviewer",
+                  "debug": "tester"
+                }
+              }
+            },
+            "body": "## Decision\n\nEach agent role is its own routing class (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nRouting minimises expected total step cost among eligible models (decisions 0016, 0020, 0032); classes carry the quality bar.\n"
+          }
+        ]
+      }
+    },
+    "tiers": {
+      "balanced": {
+        "decisions": [
+          {
+            "slug": "routing-start-tiers",
+            "title": "Classes start at balanced tiers and the lowest effort they allow",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "routing-start-tiers": {
+                  "explore": "small",
+                  "plan": "large",
+                  "implement": "medium",
+                  "review": "large",
+                  "debug": "large"
+                },
+                "routing-efforts": {
+                  "explore": "low",
+                  "plan": "medium",
+                  "implement": "medium",
+                  "review": "medium",
+                  "debug": "medium"
+                }
+              }
+            },
+            "body": "## Decision\n\nStarting tiers and efforts per task class are recorded in this decision's data; verification escalates a failed step one tier up (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nRouting minimises expected total step cost among eligible models (decisions 0016, 0020, 0032); classes carry the quality bar.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "delegations-are-routed",
+            "title": "Delegations to a role are routed by expected total step cost",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.tiers}}",
+              "grounded-in": [
+                "{{id.decision.tiers}}"
+              ],
+              "derivation-note": "Given routing picks the cheapest eligible tier by expected total step cost (0016), a delegation that bypasses the router can pick an ineligible or needlessly costly model, so the host must route it where it can."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Where no hook routes the delegation, run `go-getter route --class <class> --host <host id>` and delegate with the `delegateModel` it returns"
+              },
+              {
+                "tier": 2,
+                "check": "Pre-delegation hook sets the delegated model from the router, or denies when no model is eligible",
+                "run": "builtin:route-delegation"
+              }
+            ],
+            "body": "## Guardrail\n\nA delegation to a role uses the model `go-getter route` returns for its class, passed as its `delegateModel` (the value the host's delegation tool accepts): the host hook sets it where the host allows, otherwise ask the router before delegating. After the maximum number of escalations a step goes to a human.\n"
+          }
+        ]
+      },
+      "quality-first": {
+        "decisions": [
+          {
+            "slug": "routing-start-tiers",
+            "title": "Classes start at the large tier at higher effort",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "routing-start-tiers": {
+                  "explore": "medium",
+                  "plan": "large",
+                  "implement": "large",
+                  "review": "large",
+                  "debug": "large"
+                },
+                "routing-efforts": {
+                  "explore": "low",
+                  "plan": "high",
+                  "implement": "high",
+                  "review": "high",
+                  "debug": "high"
+                }
+              }
+            },
+            "body": "## Decision\n\nStarting tiers and efforts per task class are recorded in this decision's data; verification escalates a failed step one tier up (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nRouting minimises expected total step cost among eligible models (decisions 0016, 0020, 0032); classes carry the quality bar.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "delegations-are-routed",
+            "title": "Delegations to a role are routed by expected total step cost",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.tiers}}",
+              "grounded-in": [
+                "{{id.decision.tiers}}"
+              ],
+              "derivation-note": "Given routing picks the cheapest eligible tier by expected total step cost (0016), a delegation that bypasses the router can pick an ineligible or needlessly costly model, so the host must route it where it can."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Where no hook routes the delegation, run `go-getter route --class <class> --host <host id>` and delegate with the `delegateModel` it returns"
+              },
+              {
+                "tier": 2,
+                "check": "Pre-delegation hook sets the delegated model from the router, or denies when no model is eligible",
+                "run": "builtin:route-delegation"
+              }
+            ],
+            "body": "## Guardrail\n\nA delegation to a role uses the model `go-getter route` returns for its class, passed as its `delegateModel` (the value the host's delegation tool accepts): the host hook sets it where the host allows, otherwise ask the router before delegating. After the maximum number of escalations a step goes to a human.\n"
+          }
+        ]
+      },
+      "cost-first": {
+        "decisions": [
+          {
+            "slug": "routing-start-tiers",
+            "title": "Classes start at the smallest tiers at low effort",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "routing-start-tiers": {
+                  "explore": "small",
+                  "plan": "medium",
+                  "implement": "small",
+                  "review": "medium",
+                  "debug": "medium"
+                },
+                "routing-efforts": {
+                  "explore": "low",
+                  "plan": "low",
+                  "implement": "low",
+                  "review": "medium",
+                  "debug": "low"
+                }
+              }
+            },
+            "body": "## Decision\n\nStarting tiers and efforts per task class are recorded in this decision's data; verification escalates a failed step one tier up (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nRouting minimises expected total step cost among eligible models (decisions 0016, 0020, 0032); classes carry the quality bar.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "delegations-are-routed",
+            "title": "Delegations to a role are routed by expected total step cost",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.tiers}}",
+              "grounded-in": [
+                "{{id.decision.tiers}}"
+              ],
+              "derivation-note": "Given routing picks the cheapest eligible tier by expected total step cost (0016), a delegation that bypasses the router can pick an ineligible or needlessly costly model, so the host must route it where it can."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Where no hook routes the delegation, run `go-getter route --class <class> --host <host id>` and delegate with the `delegateModel` it returns"
+              },
+              {
+                "tier": 2,
+                "check": "Pre-delegation hook sets the delegated model from the router, or denies when no model is eligible",
+                "run": "builtin:route-delegation"
+              }
+            ],
+            "body": "## Guardrail\n\nA delegation to a role uses the model `go-getter route` returns for its class, passed as its `delegateModel` (the value the host's delegation tool accepts): the host hook sets it where the host allows, otherwise ask the router before delegating. After the maximum number of escalations a step goes to a human.\n"
+          }
+        ]
+      }
+    },
+    "max-escalations": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "routing-max-escalations",
+            "title": "A failed step escalates at most {{answer.max-escalations}} times, then a human decides",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "max-escalations": "{{answer.max-escalations}}"
+              }
+            },
+            "body": "## Decision\n\nA step that fails verification moves one tier up at most {{answer.max-escalations}} times; after that it goes to a human and is never retried (pack {{pack.id}}@{{pack.version}}). The verification gate stops use the same bound.\n\n## Why\n\nAn unbounded retry loop can burn unlimited tokens (guardrail routing-escalation-bounded).\n"
+          }
+        ]
+      }
+    },
+    "spend-cap": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "routing-spend-cap",
+            "title": "Headless runs are capped at {{answer.spend-cap}} USD where the host has a cap",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "headless-spend-cap-usd": "{{answer.spend-cap}}"
+              }
+            },
+            "body": "## Decision\n\nHeadless runs pass the host's native spend-cap flag with {{answer.spend-cap}} USD; `go-getter route --headless-flags --host <id>` prints it (pack {{pack.id}}@{{pack.version}}). Hosts without a headless cap are not capped.\n\n## Why\n\nAn unattended run has no human to notice runaway spend.\n"
+          }
+        ]
+      }
+    },
+    "cache-ttl": {
+      "main-1h-sub-5m": {
+        "decisions": [
+          {
+            "slug": "routing-cache-ttl",
+            "title": "The prompt cache lives one hour in the main session and five minutes in subagents",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "cache-ttl": {
+                  "main": "1h",
+                  "subagent": "5m"
+                }
+              }
+            },
+            "body": "## Decision\n\nWhere the host has settings for it, `apply` sets the main-session prompt-cache lifetime to one hour and subagents to five minutes (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA one-hour write pays off after two reads and survives pauses (fact 0011); subagents are short-lived.\n"
+          }
+        ]
+      },
+      "five-minutes": {
+        "decisions": [
+          {
+            "slug": "routing-cache-ttl",
+            "title": "The prompt cache lives five minutes everywhere",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "cache-ttl": {
+                  "main": "5m",
+                  "subagent": "5m"
+                }
+              }
+            },
+            "body": "## Decision\n\nWhere the host has settings for it, `apply` sets every prompt-cache lifetime to five minutes (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nFive-minute writes are the cheapest; a longer pause re-reads the prefix at full price.\n"
+          }
+        ]
+      },
+      "host-defaults": {
+        "decisions": [
+          {
+            "slug": "routing-cache-ttl",
+            "title": "The prompt-cache lifetime is left at the host defaults",
+            "tags": [
+              "practice-packs",
+              "model-routing",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "cache-ttl": "host-defaults"
+              }
+            },
+            "body": "## Decision\n\n`apply` writes no cache-lifetime settings; the cost model assumes five minutes (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nNothing to maintain; the host default may be shorter than a pause costs.\n"
+          }
+        ]
+      }
+    }
+  }
+}

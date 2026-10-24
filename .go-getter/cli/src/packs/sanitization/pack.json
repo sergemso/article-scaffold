@@ -1,0 +1,350 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "sanitization",
+  "version": "0.7.0",
+  "family": "harness",
+  "components": [
+    7
+  ],
+  "title": "Secret and personal-data sanitization",
+  "summary": "Keeps secrets and personal data out of commits and tool output: secret scanning of added lines and masking of personal data.",
+  "replaces": {
+    "pack": "governance",
+    "questions": [
+      "secret-scan",
+      "scan-allow-paths",
+      "pii-masking",
+      "pii-extra"
+    ]
+  },
+  "questions": [
+    {
+      "id": "secret-scan",
+      "since": "0.3.0",
+      "prompt": "Are the lines a change adds scanned for secrets before a commit and a push?",
+      "options": [
+        {
+          "id": "on",
+          "label": "A git hook and CI scan added lines for keys, tokens and labelled secrets",
+          "tradeoff": "A pasted credential is stopped before it reaches the repository, host-independently; a rare false positive is silenced with a line marker or a path. Only added lines are read, so old history is not.",
+          "recommended": true
+        },
+        {
+          "id": "off",
+          "label": "No scanning",
+          "tradeoff": "No friction and no false positives; a committed secret is found only by the platform's own scanning or by chance."
+        }
+      ]
+    },
+    {
+      "id": "scan-allow-paths",
+      "type": "list",
+      "since": "0.3.0",
+      "pattern": "^[^\\s\",]+$",
+      "default": [],
+      "prompt": "Which paths does the secret scan skip entirely? (test fixtures with fake keys, documentation of token formats)",
+      "when": {
+        "question": "secret-scan",
+        "in": [
+          "on"
+        ]
+      }
+    },
+    {
+      "id": "pii-masking",
+      "since": "0.4.0",
+      "prompt": "Is personal data masked in tool output before the agent reads it?",
+      "options": [
+        {
+          "id": "on",
+          "label": "Email addresses, card numbers and IBANs become per-session pseudonyms in tool output",
+          "tradeoff": "The agent keeps what it needs (two addresses stay distinguishable as [email-1] and [email-2]) without seeing the data; on hosts that cannot replace tool output nothing is masked (the coverage report lists them), and prompts and file writes are never masked.",
+          "recommended": true
+        },
+        {
+          "id": "off",
+          "label": "No masking",
+          "tradeoff": "Tool output reaches the agent as it is; no pseudonym state to keep, and no chance of a masked value confusing a command."
+        }
+      ]
+    },
+    {
+      "id": "pii-extra",
+      "type": "list",
+      "since": "0.4.0",
+      "pattern": "^(phone|national-id)$",
+      "default": [],
+      "prompt": "Which locale-bound types are masked as well? phone (a leading + and 8-15 digits) and national-id (US social security numbers). They match more ordinary numbers than the defaults do.",
+      "when": {
+        "question": "pii-masking",
+        "in": [
+          "on"
+        ]
+      }
+    },
+    {
+      "id": "mcp-argument-scan",
+      "prompt": "Should a call to an MCP server be refused when its arguments contain a secret?",
+      "options": [
+        {
+          "id": "on",
+          "label": "Refuse calls carrying a secret",
+          "tradeoff": "The pre-tool hook denies an MCP call whose input matches the shared secret patterns, naming the kind and never the text; a false positive on a token-like string blocks the call until the agent removes it.",
+          "recommended": true
+        },
+        {
+          "id": "off",
+          "label": "Do not scan MCP arguments",
+          "tradeoff": "A secret in a tool call reaches the third-party server; results are still masked where the host allows."
+        }
+      ],
+      "since": "0.7.0"
+    }
+  ],
+  "outputs": {
+    "secret-scan": {
+      "on": {
+        "decisions": [
+          {
+            "slug": "secret-scan",
+            "title": "Secrets in added lines are scanned before a commit and a push",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nA git hook before a commit, a git hook before a push and CI scan the lines a change adds for private keys, provider tokens, JWTs and labelled secret assignments, and fail with the file, line and kind (pack {{pack.id}}@{{pack.version}}). A line marked `go-getter:allow-secret` and the paths {{answer.scan-allow-paths}} are skipped.\n\n## Why\n\nA credential that reaches a repository must be rotated, and a pattern scan on the lines being added stops it without reading history (decision 0106).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "no-secrets-in-added-lines",
+            "title": "Added lines must not contain secrets",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.secret-scan}}",
+              "grounded-in": [
+                "{{id.decision.secret-scan}}",
+                "0106-scanning-and-masking-share-one-pattern-library"
+              ],
+              "derivation-note": "Given a committed credential must be rotated (0106), the lines a change adds must be checked for secrets before they leave the machine."
+            },
+            "enforcement": [
+              {
+                "tier": 3,
+                "check": "No added line holds a private key, provider token, JWT or labelled secret",
+                "run": "builtin:secret-scan allow=\"{{answer.scan-allow-paths}}\"",
+                "stages": [
+                  "pre-commit",
+                  "pre-push"
+                ]
+              },
+              {
+                "tier": 1,
+                "check": "Never paste a credential into a file; refer to it by environment variable name"
+              }
+            ],
+            "body": "## Guardrail\n\nAdded lines carry no private keys, provider tokens, JWTs or `password = <value>` assignments. A false positive is marked with `go-getter:allow-secret` on its line, or its path is added to the skipped paths ({{answer.scan-allow-paths}}). A leaked secret must be rotated; deleting the commit is not enough.\n"
+          }
+        ]
+      },
+      "off": {
+        "decisions": [
+          {
+            "slug": "secret-scan",
+            "title": "Secrets in added lines are not scanned",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nNo hook or CI step scans added lines for secrets (pack {{pack.id}}@{{pack.version}}); `no-secrets-in-public-repo` still checks file names.\n\n## Why\n\nThe project accepted the risk of a pasted credential for less friction (decision 0106).\n"
+          }
+        ]
+      }
+    },
+    "scan-allow-paths": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "scan-allow-paths",
+            "title": "The secret scan skips a declared list of paths",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "scan-allow-paths": "{{answer.scan-allow-paths}}"
+              }
+            },
+            "body": "## Decision\n\nThe secret scan skips the paths {{answer.scan-allow-paths}} (pack {{pack.id}}@{{pack.version}}); an empty list skips none.\n\n## Why\n\nFixtures and documentation hold fake keys on purpose, and a path is easier to review than a marker on every line (decision 0106).\n"
+          }
+        ]
+      }
+    },
+    "pii-masking": {
+      "on": {
+        "decisions": [
+          {
+            "slug": "pii-masking",
+            "title": "Personal data in tool output is masked with per-session pseudonyms",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nWhere the host can replace tool output, the post-tool hook replaces email addresses, payment card numbers and IBANs, and the types in [{{answer.pii-extra}}], with names such as `[email-1]`: the same value keeps its name within a session (pack {{pack.id}}@{{pack.version}}). Secrets keep the single marker `[redacted by go-getter]`.\n\n## Why\n\nAn agent that does not need personal data should not read it, and a stable name lets it tell two values apart (decision 0106).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "pii-masked-in-tool-output",
+            "title": "Personal data is masked in tool output",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.pii-masking}}",
+              "grounded-in": [
+                "{{id.decision.pii-masking}}",
+                "0106-scanning-and-masking-share-one-pattern-library"
+              ],
+              "derivation-note": "Given the agent must not read personal data it does not need (0106), tool output that carries it must be masked before the agent sees it, where the host allows."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "The post-tool hook masks email, card numbers, IBANs and the listed types in tool output",
+                "run": "builtin:redact-pii classes=\"email,card,iban,{{answer.pii-extra}}\""
+              },
+              {
+                "tier": 1,
+                "check": "Do not paste personal data into prompts or files; a prompt and a file write are never masked"
+              }
+            ],
+            "body": "## Guardrail\n\nTool output that carries email addresses, card numbers or IBANs (and [{{answer.pii-extra}}]) reaches the agent with each value replaced by a per-session name. Hosts that cannot replace tool output show it unmasked (the coverage report lists them); prompts and file writes are never masked, so personal data is not pasted into either.\n"
+          }
+        ]
+      },
+      "off": {
+        "decisions": [
+          {
+            "slug": "pii-masking",
+            "title": "Personal data in tool output is not masked",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nTool output reaches the agent unmasked (pack {{pack.id}}@{{pack.version}}); secrets are still redacted where restricted paths are enforced.\n\n## Why\n\nThe project accepted the exposure for less machinery and no pseudonym state (decision 0106).\n"
+          }
+        ]
+      }
+    },
+    "pii-extra": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "pii-extra",
+            "title": "The locale-bound types masked in tool output are listed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "pii-extra": "{{answer.pii-extra}}"
+              }
+            },
+            "body": "## Decision\n\nThe types masked in addition to email, card numbers and IBANs are [{{answer.pii-extra}}] (pack {{pack.id}}@{{pack.version}}); an empty list adds none.\n\n## Why\n\nPhone and national-id formats are locale-bound and match ordinary numbers, so the project opts in (decision 0106).\n"
+          }
+        ]
+      }
+    },
+    "mcp-argument-scan": {
+      "on": {
+        "decisions": [
+          {
+            "slug": "mcp-arguments-scanned",
+            "title": "MCP call arguments are scanned for secrets",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nA call to an MCP server whose arguments contain a secret is refused before it leaves, naming the kind of secret and never its text (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nAn MCP server is third-party code; a secret in a tool call would leave the project with it (decision 0138).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "mcp-arguments-hold-no-secret",
+            "title": "MCP calls carry no secret",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.mcp-argument-scan}}",
+              "grounded-in": [
+                "{{id.decision.mcp-argument-scan}}"
+              ],
+              "derivation-note": "Given an MCP server is third-party code reached with the project's context (0138), a secret in a call's arguments must be stopped by the host's hook before it leaves, since an instruction alone fails silently."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "The pre-tool hook denies an MCP call whose arguments contain a secret",
+                "run": "builtin:mcp-scan"
+              }
+            ],
+            "body": "## Guardrail\n\nDo not put a secret in the arguments of an MCP tool call. The pre-tool hook denies a call whose input matches the secret patterns and names the kind; remove the value and use `go-getter secret run` or an environment variable the server reads itself. `go-getter coverage` shows the tier per host.\n"
+          }
+        ]
+      },
+      "off": {
+        "decisions": [
+          {
+            "slug": "mcp-arguments-not-scanned",
+            "title": "MCP call arguments are not scanned",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nThe project does not scan the arguments of MCP calls for secrets (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project accepted the risk for fewer blocked calls (decision 0138).\n"
+          }
+        ]
+      }
+    }
+  }
+}

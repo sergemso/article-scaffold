@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "go-getter host capabilities manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["host", "fact", "instructions", "skills", "agents", "commands", "hooks", "permissions", "routing", "telemetry", "sandbox", "checkpointing", "nodeAtRuntime", "tiers"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "host": { "enum": ["claude-code", "codex", "kilo", "opencode", "cursor", "gemini-cli", "copilot"] },
+    "fact": { "type": "string", "pattern": "^\\d{4}-" },
+    "instructions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "readsAgentsMd"],
+      "properties": {
+        "file": { "type": "string" },
+        "readsAgentsMd": { "type": "boolean" },
+        "agentsMdVia": { "enum": ["native", "symlink", "setting"] }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dirs"],
+      "properties": { "dirs": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }
+    },
+    "agents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "dir", "extension", "model", "effort", "tools"],
+      "properties": {
+        "format": { "enum": ["markdown", "toml"] },
+        "dir": { "type": "string" },
+        "extension": { "type": "string" },
+        "model": { "type": "boolean" },
+        "effort": { "type": "boolean" },
+        "tools": { "type": "boolean" },
+        "nesting": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["native"],
+      "properties": { "native": { "type": "boolean" }, "dir": { "type": "string" }, "format": { "enum": ["markdown", "toml"] } }
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["config", "blockPreTool", "rewriteToolInput", "rewriteOutput", "blockStop", "modelSwap"],
+      "properties": {
+        "config": { "type": "string" },
+        "blockPreTool": { "type": "boolean" },
+        "askPreTool": { "type": "boolean" },
+        "rewriteToolInput": { "type": "boolean" },
+        "rewriteOutput": { "type": "boolean" },
+        "rewriteMcpOutput": { "type": "boolean" },
+        "blockStop": { "type": "boolean" },
+        "modelSwap": { "type": "boolean" },
+        "runtime": { "enum": ["command", "javascript"] },
+        "watcher": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tool", "field"],
+          "properties": { "tool": { "type": "string" }, "field": { "type": "string" } }
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pathReadDeny"],
+      "properties": {
+        "pathReadDeny": { "type": "boolean" },
+        "config": { "type": "string" },
+        "ask": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "format"],
+          "properties": {
+            "file": { "type": "string" },
+            "format": { "enum": ["claude-permissions", "opencode-permission"] }
+          }
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localEndpoints", "spendCap", "cacheTokensVisible"],
+      "properties": {
+        "localEndpoints": { "type": "boolean" },
+        "spendCap": { "enum": ["none", "headless", "autopilot"] },
+        "cacheTokensVisible": { "type": "boolean" },
+        "cacheTtl": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "main", "subagent"],
+          "properties": {
+            "file": { "type": "string" },
+            "main": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "subagent": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          }
+        },
+        "delegation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tool", "update"],
+          "properties": {
+            "tool": { "type": "string" },
+            "update": { "enum": ["hookSpecificOutput", "updated_input"] },
+            "models": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["prefix", "alias"],
+                "properties": { "prefix": { "type": "string" }, "alias": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["otel", "cost", "spendSource"],
+      "properties": {
+        "otel": { "type": "boolean" },
+        "cost": { "type": "boolean" },
+        "spendSource": { "enum": ["none", "transcript", "sessions"] },
+        "logsPromptsByDefault": { "type": "boolean" },
+        "promptLogOff": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "key"],
+          "properties": { "file": { "type": "string" }, "key": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }
+        }
+      }
+    },
+    "sandbox": { "type": "boolean" },
+    "secretLevers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "scope", "fact", "confirmed"],
+        "properties": {
+          "kind": { "enum": ["credentials-deny", "credentials-mask", "profile-deny-glob", "env-redaction", "secret-env-vars"] },
+          "scope": { "type": "string" },
+          "fact": { "type": "string", "pattern": "^\\d{4}$" },
+          "confirmed": { "type": "boolean" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "checkpointing": { "type": "boolean" },
+    "checkpointRestore": { "type": "string" },
+    "nodeAtRuntime": { "type": "boolean" },
+    "tiers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["3", "6", "7", "8", "9", "10", "11", "12"],
+      "patternProperties": { "^(3|6|7|8|9|10|11|12)$": { "type": "integer", "minimum": 0, "maximum": 2 } }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

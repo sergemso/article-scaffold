@@ -1,0 +1,457 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "hitl",
+  "version": "0.6.0",
+  "family": "harness",
+  "components": [
+    8
+  ],
+  "title": "Human-in-the-loop gates",
+  "summary": "Which shell commands need a human: irreversible ones, outward-facing ones, project-specific patterns, and whether a host prompts natively or the pre-tool hook hands the command over.",
+  "questions": [
+    {
+      "id": "gated-classes",
+      "prompt": "Which shell commands need a human?",
+      "options": [
+        {
+          "id": "both",
+          "label": "Irreversible and outward-facing commands",
+          "tradeoff": "Pushes, pull requests, releases and destructive commands always ask; more prompts, and a feature-branch push is not told from a default-branch push; free-commands lets chosen ones (git-push) through.",
+          "recommended": true
+        },
+        {
+          "id": "irreversible",
+          "label": "Irreversible commands only",
+          "tradeoff": "Force-push, hard reset, rm -rf and destructive SQL ask; pushes and releases go through unprompted."
+        },
+        {
+          "id": "outward",
+          "label": "Outward-facing commands only",
+          "tradeoff": "Pushes, pull requests, releases and publishing ask; local destructive commands go through unprompted."
+        },
+        {
+          "id": "advisory-only",
+          "label": "Instruction only",
+          "tradeoff": "No friction; depends on the agent complying."
+        }
+      ]
+    },
+    {
+      "id": "extra-patterns",
+      "type": "list",
+      "prompt": "Which project commands also need a human? A command prefix or a /regex/.",
+      "pattern": "^[^\\s\",][^\",]*$",
+      "default": [],
+      "since": "0.1.0",
+      "when": {
+        "question": "gated-classes",
+        "in": [
+          "both",
+          "irreversible",
+          "outward"
+        ]
+      }
+    },
+    {
+      "id": "free-commands",
+      "type": "list",
+      "prompt": "Which outward-facing commands may run without asking? A catalog id such as git-push (plain pushes; force-push and branch deletion still ask), pr-merge (merging a pull request; opening and closing one still ask) or comment-post. The ids name the action; the hosting provider (GitHub) supplies its commands. The earlier GitHub-named ids (gh-pr, gh-pr-merge and the like) still work.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "default": [],
+      "since": "0.3.0",
+      "when": {
+        "question": "gated-classes",
+        "in": [
+          "both",
+          "outward"
+        ]
+      }
+    },
+    {
+      "id": "run-grants",
+      "type": "list",
+      "prompt": "Which outward commands may an autonomous run or a remembered approval allow without asking? Only these are decided at use, by their preconditions (merge: green checks, the default branch as base, and in a run a pull request tied to a step of the run); the rest keep asking. Tags, releases and publishing can never be listed. Where the host's hook can ask it asks the first time and remembers; elsewhere a person starts a run or runs go-getter approvals allow <id>. An MCP write tool is listed as mcp:<server>:<tool>.",
+      "pattern": "^(git-push|pr-create|pr-merge|pr-close|comment-post|mcp:[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+)$",
+      "default": [
+        "git-push",
+        "pr-create",
+        "pr-merge",
+        "pr-close"
+      ],
+      "since": "0.5.0",
+      "when": {
+        "question": "gated-classes",
+        "in": [
+          "both",
+          "outward"
+        ]
+      }
+    },
+    {
+      "id": "mcp-policy",
+      "prompt": "May agents use MCP servers without a project list?",
+      "options": [
+        {
+          "id": "off",
+          "label": "No project policy",
+          "tradeoff": "The host's own MCP settings decide; go-getter neither allows nor denies a server.",
+          "recommended": true
+        },
+        {
+          "id": "allowlist",
+          "label": "Only listed servers",
+          "tradeoff": "The pre-tool hook denies a call to any MCP server not on the list, on hosts whose hook shows the server; an empty list allows no MCP at all."
+        }
+      ],
+      "since": "0.6.0"
+    },
+    {
+      "id": "mcp-servers",
+      "type": "list",
+      "prompt": "Which MCP servers may agents use? Write each as the host shows it (letters, digits, _ . -); a server the host renames (spaces and dots become _ on some hosts) is compared after the same renaming. An empty list allows no MCP.",
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "default": [],
+      "since": "0.6.0",
+      "when": {
+        "question": "mcp-policy",
+        "in": [
+          "allowlist"
+        ]
+      }
+    },
+    {
+      "id": "mcp-read-tools",
+      "type": "list",
+      "prompt": "Which MCP tools only read? Write each as server:tool. These run without asking; any other tool of an allowed server is a write and asks once (or is granted by a run).",
+      "pattern": "^[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$",
+      "default": [],
+      "since": "0.6.0",
+      "when": {
+        "question": "mcp-policy",
+        "in": [
+          "allowlist"
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "gated-classes": {
+      "both": {
+        "decisions": [
+          {
+            "slug": "gated-actions",
+            "title": "Gated actions need a human",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nIrreversible and outward-facing shell commands need a human: native ask rules on hosts that support them, a pre-tool hook hand-over on the others (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nDecision 0043 asks agents to stop before costly actions; nothing enforces it without a gate (decision 0094).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "gated-actions-need-human-approval",
+            "title": "Irreversible and outward-facing commands need a human",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.gated-classes}}",
+              "grounded-in": [
+                "{{id.decision.gated-classes}}",
+                "0043-human-escalation"
+              ],
+              "derivation-note": "Given agents must hand over before irreversible or outward-facing actions (0043), the host must ask a human or deny the command, since an instruction alone fails silently."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "Host ask rules and the pre-tool hook gate these commands",
+                "run": "builtin:gate-command classes=irreversible,outward extra=\"{{answer.extra-patterns}}\" free=\"{{answer.free-commands}}\" grantable=\"{{answer.run-grants}}\""
+              }
+            ],
+            "body": "## Guardrail\n\nShell commands of the irreversible and outward-facing classes need a human: do not run them yourself, ask the user to run them or approve them. Hosts with project ask rules prompt natively, because `go-getter apply` writes the rules into their settings. The other hosts get a hand-over: the pre-tool hook denies the command and the human runs it. `go-getter coverage` shows the tier per host. A mode that skips permission prompts defeats the native rules. A wrapped command (`sh -c`, `eval`) is matched on its literal text only.\n"
+          }
+        ]
+      },
+      "irreversible": {
+        "decisions": [
+          {
+            "slug": "gated-actions",
+            "title": "Irreversible commands need a human",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nIrreversible shell commands (force-push, history rewrite, hard reset, `rm -rf`, destructive SQL, deleting a branch or tag) need a human: native ask rules on hosts that support them, a pre-tool hook hand-over on the others (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nDecision 0043 asks agents to stop before costly actions; nothing enforces it without a gate (decision 0094).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "gated-actions-need-human-approval",
+            "title": "Irreversible commands need a human",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.gated-classes}}",
+              "grounded-in": [
+                "{{id.decision.gated-classes}}",
+                "0043-human-escalation"
+              ],
+              "derivation-note": "Given agents must hand over before irreversible or outward-facing actions (0043), the host must ask a human or deny the command, since an instruction alone fails silently."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "Host ask rules and the pre-tool hook gate these commands",
+                "run": "builtin:gate-command classes=irreversible extra=\"{{answer.extra-patterns}}\""
+              }
+            ],
+            "body": "## Guardrail\n\nShell commands of the irreversible class need a human: do not run them yourself, ask the user to run them or approve them. Hosts with project ask rules prompt natively, because `go-getter apply` writes the rules into their settings. The other hosts get a hand-over: the pre-tool hook denies the command and the human runs it. `go-getter coverage` shows the tier per host. A mode that skips permission prompts defeats the native rules. A wrapped command (`sh -c`, `eval`) is matched on its literal text only.\n"
+          }
+        ]
+      },
+      "outward": {
+        "decisions": [
+          {
+            "slug": "gated-actions",
+            "title": "Outward-facing commands need a human",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nOutward-facing shell commands (push, pull requests, releases, tags, publishing, issue comments) need a human: native ask rules on hosts that support them, a pre-tool hook hand-over on the others (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nDecision 0043 asks agents to stop before costly actions; nothing enforces it without a gate (decision 0094).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "gated-actions-need-human-approval",
+            "title": "Outward-facing commands need a human",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.gated-classes}}",
+              "grounded-in": [
+                "{{id.decision.gated-classes}}",
+                "0043-human-escalation"
+              ],
+              "derivation-note": "Given agents must hand over before irreversible or outward-facing actions (0043), the host must ask a human or deny the command, since an instruction alone fails silently."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "Host ask rules and the pre-tool hook gate these commands",
+                "run": "builtin:gate-command classes=outward extra=\"{{answer.extra-patterns}}\" free=\"{{answer.free-commands}}\" grantable=\"{{answer.run-grants}}\""
+              }
+            ],
+            "body": "## Guardrail\n\nShell commands of the outward-facing class need a human: do not run them yourself, ask the user to run them or approve them. Hosts with project ask rules prompt natively, because `go-getter apply` writes the rules into their settings. The other hosts get a hand-over: the pre-tool hook denies the command and the human runs it. `go-getter coverage` shows the tier per host. A mode that skips permission prompts defeats the native rules. A wrapped command (`sh -c`, `eval`) is matched on its literal text only.\n"
+          }
+        ]
+      },
+      "advisory-only": {
+        "decisions": [
+          {
+            "slug": "gated-actions",
+            "title": "Gated actions are advisory",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nAgents are told to hand over before irreversible or outward-facing actions; nothing blocks them (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project accepted the risk for less friction (decision 0043).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "gated-actions-need-human-approval",
+            "title": "Agents hand over before irreversible or outward-facing actions",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.gated-classes}}",
+              "grounded-in": [
+                "{{id.decision.gated-classes}}",
+                "0043-human-escalation"
+              ],
+              "derivation-note": "Given the project chose no mechanical gate, the rule rests on the agent following it."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nAsk the user before irreversible or outward-facing commands. Advisory (tier 1): nothing blocks them.\n"
+          }
+        ]
+      }
+    },
+    "extra-patterns": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "gated-extra-patterns",
+            "title": "Project-specific commands that also need a human are listed",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nCommands matching the extra patterns [{{answer.extra-patterns}}] also need a human, on top of the gated classes (pack {{pack.id}}@{{pack.version}}); an empty list adds none.\n\n## Why\n\nThe catalog cannot know a project's own deploy or release commands, so the project names them (decision 0094).\n"
+          }
+        ]
+      }
+    },
+    "free-commands": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "gated-free-commands",
+            "title": "Outward-facing commands that run without asking are listed",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nThe commands [{{answer.free-commands}}] run without a human, though they are outward-facing (pack {{pack.id}}@{{pack.version}}); an empty list frees none. Irreversible commands and every other outward-facing command still need a human.\n\n## Why\n\nA plain push to a feature branch is reversible, and a push to the default branch is stopped by a git hook or branch protection, so asking for each one adds friction without protection (decision 0120).\n"
+          }
+        ]
+      }
+    },
+    "run-grants": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "gated-run-grants",
+            "title": "Outward commands a run or a remembered approval may allow are listed",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "run-grants": "{{answer.run-grants}}"
+              }
+            },
+            "body": "## Decision\n\nThe outward commands [{{answer.run-grants}}] may run without a prompt when an autonomous run grants them or a person approved them once, and only while their preconditions hold at that use (pack {{pack.id}}@{{pack.version}}); an empty list grants none. Tags, releases, publishing and history rewrites always need a human.\n\n## Why\n\nConfirming each merge of a plan whose order is fixed is friction without protection when required checks and branch protection already bound the work; the preconditions keep a remembered approval from outliving the conditions that made it safe (decision 0130).\n"
+          }
+        ]
+      }
+    },
+    "mcp-policy": {
+      "allowlist": {
+        "decisions": [
+          {
+            "slug": "mcp-servers-allowlisted",
+            "title": "MCP servers agents may use are listed",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "mcp-servers": "{{answer.mcp-servers}}"
+              }
+            },
+            "body": "## Decision\n\nAgents may use the MCP servers [{{answer.mcp-servers}}]; a call to any other server is denied by the pre-tool hook where the host shows the server in the tool name (pack {{pack.id}}@{{pack.version}}); an empty list allows no MCP.\n\n## Why\n\nAn MCP server is third-party code and data an agent calls with the project's context; a list is cheap to state and to audit (decision 0138).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "mcp-servers-are-allowlisted",
+            "title": "Agents use only the allowlisted MCP servers",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.mcp-policy}}",
+              "grounded-in": [
+                "{{id.decision.mcp-policy}}"
+              ],
+              "derivation-note": "Given an MCP server is third-party code reached with the project's context (0138), a call to a server the project did not list must be refused by the host's hook, since an instruction alone fails silently."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "The pre-tool hook denies a call to an MCP server that is not listed",
+                "run": "builtin:mcp-allow servers=\"{{answer.mcp-servers}}\" reads=\"{{answer.mcp-read-tools}}\""
+              }
+            ],
+            "body": "## Guardrail\n\nUse only the MCP servers the project lists. A call to another server is denied by the pre-tool hook on hosts whose hook shows the server name in the tool call; on the others the list is advisory (fact 0036). A tool not marked read is a write: it asks once where the hook can ask and is remembered, or a run grants it; elsewhere a person runs `go-getter approvals allow mcp:<server>:<tool>`. `go-getter coverage` shows the tier per host.\n"
+          }
+        ]
+      },
+      "off": {
+        "decisions": [
+          {
+            "slug": "mcp-no-project-policy",
+            "title": "No project list of MCP servers",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nThe project sets no list of MCP servers; the host's own settings decide which servers agents use (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project accepted the host's defaults for less setup (decision 0138); choosing `allowlist` makes the pre-tool hook deny unlisted servers.\n"
+          }
+        ]
+      }
+    },
+    "mcp-read-tools": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "mcp-read-tools-listed",
+            "title": "MCP tools that only read run without asking",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "mcp-read-tools": "{{answer.mcp-read-tools}}"
+              }
+            },
+            "body": "## Decision\n\nThe MCP tools [{{answer.mcp-read-tools}}] only read and run without a prompt; every other tool of an allowed server is a write and needs a remembered approval or a run grant (pack {{pack.id}}@{{pack.version}}); an empty list marks none.\n\n## Why\n\nReads stay usable unattended while writes ask once and are remembered, reusing the approvals store and the run record (decision 0138).\n"
+          }
+        ]
+      }
+    }
+  }
+}

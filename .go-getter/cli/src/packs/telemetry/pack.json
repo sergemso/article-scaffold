@@ -1,0 +1,228 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "telemetry",
+  "version": "0.1.0",
+  "family": "harness",
+  "components": [
+    12
+  ],
+  "title": "Telemetry",
+  "summary": "What the harness records about its own steps: a local metadata-only log, how long it is kept and whether it is exported.",
+  "questions": [
+    {
+      "id": "recording",
+      "prompt": "How are agent steps recorded?",
+      "options": [
+        {
+          "id": "metadata-log",
+          "label": "A local metadata log, one JSON line per step",
+          "tradeoff": "Works on every host and feeds routing calibration; token and cost fields are partial where a host hook lacks them.",
+          "recommended": true
+        },
+        {
+          "id": "host-otel",
+          "label": "The host's own OpenTelemetry export only",
+          "tradeoff": "Richest data; exists on three hosts, needs a collector and a DLP review of what the host exports."
+        },
+        {
+          "id": "off",
+          "label": "No recording",
+          "tradeoff": "Nothing to store or review; routing cannot be calibrated and cost stays invisible."
+        }
+      ]
+    },
+    {
+      "id": "retention",
+      "type": "text",
+      "when": {
+        "question": "recording",
+        "in": [
+          "metadata-log"
+        ]
+      },
+      "prompt": "How many days is the metadata log kept?",
+      "pattern": "^[1-9][0-9]*$",
+      "default": "30"
+    },
+    {
+      "id": "export",
+      "prompt": "Is telemetry exported off the machine?",
+      "options": [
+        {
+          "id": "none",
+          "label": "No export",
+          "tradeoff": "No new data-handling surface; no team-wide view until the observability pack.",
+          "recommended": true
+        },
+        {
+          "id": "otlp",
+          "label": "Export to an OTLP endpoint",
+          "tradeoff": "Team visibility early; needs a collector and a DLP review of the endpoint."
+        }
+      ]
+    },
+    {
+      "id": "otlp-endpoint",
+      "type": "text",
+      "when": {
+        "question": "export",
+        "in": [
+          "otlp"
+        ]
+      },
+      "prompt": "What is the OTLP endpoint URL?",
+      "pattern": "^https?://[^\\s]+$",
+      "default": "http://localhost:4318"
+    }
+  ],
+  "outputs": {
+    "recording": {
+      "metadata-log": {
+        "decisions": [
+          {
+            "slug": "telemetry-recording",
+            "title": "Each routed step is recorded as one metadata JSON line in the local state directory",
+            "tags": [
+              "practice-packs",
+              "observability",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "telemetry-recording": "metadata-log"
+              }
+            },
+            "body": "## Decision\n\nRecord one JSON line of metadata per step in the gitignored state directory (`telemetry.jsonl`): model, effort, token counts by cache state, cost, task class, outcome, escalations and timestamps, never prompt or file content (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nRouting calibration (decision 0017) needs outcomes on every host, and keeping data local avoids a new data-handling surface (decision 0018).\n"
+          }
+        ]
+      },
+      "host-otel": {
+        "decisions": [
+          {
+            "slug": "telemetry-recording",
+            "title": "Steps are recorded only through the host's own OpenTelemetry export",
+            "tags": [
+              "practice-packs",
+              "observability",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "telemetry-recording": "host-otel"
+              }
+            },
+            "body": "## Decision\n\nDo not keep a go-getter log; rely on each host's OpenTelemetry export where it has one (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nHosts that export OpenTelemetry give the richest data without a second recorder; hosts without it are not observed.\n"
+          }
+        ]
+      },
+      "off": {
+        "decisions": [
+          {
+            "slug": "telemetry-recording",
+            "title": "Steps are not recorded",
+            "tags": [
+              "practice-packs",
+              "observability",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "telemetry-recording": "off"
+              }
+            },
+            "body": "## Decision\n\nRecord nothing about agent steps (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nNothing recorded means no new data-handling surface; routing then runs on defaults without calibration (decision 0017).\n"
+          }
+        ]
+      }
+    },
+    "retention": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "telemetry-retention",
+            "title": "The metadata log keeps {{answer.retention}} days",
+            "tags": [
+              "practice-packs",
+              "observability",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "telemetry-retention-days": "{{answer.retention}}"
+              }
+            },
+            "body": "## Decision\n\nKeep log lines for {{answer.retention}} days; every write prunes older lines (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nCalibration needs recent data only, and old metadata is a liability without a use.\n"
+          }
+        ]
+      }
+    },
+    "export": {
+      "none": {
+        "decisions": [
+          {
+            "slug": "telemetry-export",
+            "title": "Telemetry is not exported",
+            "tags": [
+              "practice-packs",
+              "observability",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "telemetry-export": "none"
+              }
+            },
+            "body": "## Decision\n\nTelemetry stays on the machine (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nTeam export arrives with the v0.2 observability pack; until then local data adds no new data-handling surface (decision 0018).\n"
+          }
+        ]
+      },
+      "otlp": {
+        "decisions": [
+          {
+            "slug": "telemetry-export",
+            "title": "Telemetry is exported to an OTLP endpoint",
+            "tags": [
+              "practice-packs",
+              "observability",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "telemetry-export": "otlp"
+              }
+            },
+            "body": "## Decision\n\nExport telemetry to the OTLP endpoint named in the endpoint decision (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nTeam visibility needs one place to read the data.\n"
+          }
+        ]
+      }
+    },
+    "otlp-endpoint": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "telemetry-otlp-endpoint",
+            "title": "The OTLP endpoint is {{answer.otlp-endpoint}}",
+            "tags": [
+              "practice-packs",
+              "observability",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "telemetry-otlp-endpoint": "{{answer.otlp-endpoint}}"
+              }
+            },
+            "body": "## Decision\n\nExport to {{answer.otlp-endpoint}} (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nAn explicit endpoint keeps the export destination reviewable.\n"
+          }
+        ]
+      }
+    }
+  }
+}

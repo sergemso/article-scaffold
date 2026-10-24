@@ -1,0 +1,75 @@
+{
+  "$schema": "../schemas/capabilities.schema.json",
+  "host": "opencode",
+  "fact": "0005-kilo-opencode-integration-surface",
+  "instructions": {
+    "file": "AGENTS.md",
+    "readsAgentsMd": true,
+    "agentsMdVia": "native"
+  },
+  "skills": {
+    "dirs": [
+      ".agents/skills",
+      ".claude/skills"
+    ]
+  },
+  "agents": {
+    "format": "markdown",
+    "dir": ".opencode/agents",
+    "extension": ".md",
+    "model": true,
+    "effort": true,
+    "tools": true
+  },
+  "commands": {
+    "native": true,
+    "dir": ".opencode/commands",
+    "format": "markdown"
+  },
+  "hooks": {
+    "config": ".opencode/plugins/go-getter.js",
+    "blockPreTool": true,
+    "rewriteToolInput": false,
+    "rewriteOutput": false,
+    "blockStop": false,
+    "modelSwap": false,
+    "runtime": "javascript"
+  },
+  "permissions": {
+    "pathReadDeny": true,
+    "config": "opencode.json",
+    "ask": {
+      "file": "opencode.json",
+      "format": "opencode-permission"
+    }
+  },
+  "routing": {
+    "localEndpoints": true,
+    "spendCap": "none",
+    "cacheTokensVisible": false
+  },
+  "telemetry": {
+    "otel": false,
+    "cost": false,
+    "spendSource": "sessions"
+  },
+  "sandbox": false,
+  "checkpointing": false,
+  "nodeAtRuntime": false,
+  "tiers": {
+    "3": 0,
+    "6": 1,
+    "7": 2,
+    "8": 2,
+    "9": 2,
+    "10": 2,
+    "11": 2,
+    "12": 1
+  },
+  "notes": [
+    "Plugins run under Bun; argument mutation for routing unconfirmed.",
+    "Effort via model variants.",
+    "Component 9 tier 2: the pre-tool hook takes the checkpoint before a gated command (decision 0097); the host has no native checkpoint."
+  ],
+  "secretLevers": []
+}

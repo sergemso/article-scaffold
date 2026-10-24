@@ -1,0 +1,80 @@
+{
+  "$schema": "../schemas/capabilities.schema.json",
+  "host": "copilot",
+  "fact": "0008-copilot-integration-surface",
+  "instructions": {
+    "file": "AGENTS.md",
+    "readsAgentsMd": true,
+    "agentsMdVia": "native"
+  },
+  "skills": {
+    "dirs": [
+      ".agents/skills",
+      ".github/skills",
+      ".claude/skills"
+    ]
+  },
+  "agents": {
+    "format": "markdown",
+    "dir": ".github/agents",
+    "extension": ".agent.md",
+    "model": true,
+    "effort": false,
+    "tools": true
+  },
+  "commands": {
+    "native": false
+  },
+  "hooks": {
+    "config": ".github/hooks/go-getter.json",
+    "blockPreTool": true,
+    "rewriteToolInput": false,
+    "rewriteOutput": true,
+    "blockStop": false,
+    "modelSwap": false,
+    "runtime": "command"
+  },
+  "permissions": {
+    "pathReadDeny": false
+  },
+  "routing": {
+    "localEndpoints": false,
+    "spendCap": "autopilot",
+    "cacheTokensVisible": false
+  },
+  "telemetry": {
+    "otel": false,
+    "cost": false,
+    "spendSource": "none"
+  },
+  "sandbox": true,
+  "checkpointing": false,
+  "nodeAtRuntime": false,
+  "tiers": {
+    "3": 2,
+    "6": 1,
+    "7": 2,
+    "8": 1,
+    "9": 1,
+    "10": 2,
+    "11": 2,
+    "12": 1
+  },
+  "notes": [
+    "Only preToolUse can deny.",
+    "Component 8 stays at 1: the gated-command hand-over reads the shell command from the tool input, and the docs do not say which field of toolArgs holds it; hooks also run only in the CLI and cloud agent. Raise to 2 once a real payload confirms the field.",
+    "Content exclusion support in CLI/agent mode is contradictory in docs; treated as unenforced.",
+    "Sandbox = cloud agent firewall.",
+    "Node needed only for npm installs (>=22).",
+    "Component 9 stays tier 1 until Copilot's hook payload is confirmed (as for component 8)."
+  ],
+  "secretLevers": [
+    {
+      "kind": "secret-env-vars",
+      "scope": "command-line flag",
+      "fact": "0031",
+      "confirmed": true,
+      "note": "Redacts named variables from shell and MCP environments."
+    }
+  ]
+}

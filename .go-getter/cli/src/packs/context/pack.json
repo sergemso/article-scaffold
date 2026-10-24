@@ -1,0 +1,816 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "context",
+  "version": "0.3.1",
+  "family": "harness",
+  "components": [
+    4
+  ],
+  "title": "Context management",
+  "summary": "Keeps the always-loaded context small and the prompt cache stable: instruction-file cap, procedure delivery, noisy-work placement, cache hygiene, compaction timing and watcher noise.",
+  "questions": [
+    {
+      "id": "instruction-cap",
+      "prompt": "How many lines may the always-loaded instruction file (AGENTS.md) have?",
+      "options": [
+        {
+          "id": "cap-150",
+          "label": "150 lines",
+          "tradeoff": "Cheapest on every request and subagent; forces detail into skills.",
+          "recommended": true
+        },
+        {
+          "id": "cap-300",
+          "label": "300 lines",
+          "tradeoff": "More inline guidance; roughly double the steady token cost."
+        },
+        {
+          "id": "no-cap",
+          "label": "No cap",
+          "tradeoff": "No friction; the file grows and every request pays for it."
+        }
+      ]
+    },
+    {
+      "id": "procedures",
+      "prompt": "How are detailed procedures delivered to the agent?",
+      "options": [
+        {
+          "id": "skills-on-demand",
+          "label": "Skills loaded on demand",
+          "tradeoff": "Procedure text costs tokens only when used; relies on skill descriptions triggering.",
+          "recommended": true
+        },
+        {
+          "id": "always-on-rules",
+          "label": "Always-on rules",
+          "tradeoff": "Reliably present; paid on every request."
+        },
+        {
+          "id": "one-line-pointers",
+          "label": "One-line pointers to docs",
+          "tradeoff": "Smallest footprint; the agent must choose to read the doc."
+        }
+      ]
+    },
+    {
+      "id": "noisy-work",
+      "prompt": "Where does noisy work (search, logs, test output) run?",
+      "options": [
+        {
+          "id": "delegate-when-cheaper",
+          "label": "Delegate to a subagent only when the cost model says the handoff is cheaper",
+          "tradeoff": "Keeps the main context lean without paying handoff costs that do not pay off.",
+          "recommended": true
+        },
+        {
+          "id": "always-delegate",
+          "label": "Always delegate to a subagent",
+          "tradeoff": "Cleanest main context; pays a handoff and cold cache on every delegation."
+        },
+        {
+          "id": "inline",
+          "label": "Run inline",
+          "tradeoff": "No handoff cost; noise stays in context and is re-read on every request."
+        }
+      ]
+    },
+    {
+      "id": "cache-hygiene",
+      "prompt": "How is the prompt cache protected from mid-task model, effort or instruction-file changes?",
+      "options": [
+        {
+          "id": "advisory-and-confirm",
+          "label": "Advisory instruction plus a confirm-before-switch hook where the host has one",
+          "tradeoff": "Strongest protection available; a confirmation prompt on legitimate switches.",
+          "recommended": true
+        },
+        {
+          "id": "advisory-only",
+          "label": "Advisory instruction only",
+          "tradeoff": "No prompts; nothing stops an accidental cache-busting change."
+        },
+        {
+          "id": "no-hygiene",
+          "label": "None",
+          "tradeoff": "No friction; each switch can re-pay a cold cache."
+        }
+      ]
+    },
+    {
+      "id": "compaction",
+      "prompt": "When is context compacted?",
+      "options": [
+        {
+          "id": "task-boundaries",
+          "label": "At task boundaries",
+          "tradeoff": "Keeps the cache warm mid-task and drops finished work; needs discipline at each boundary.",
+          "recommended": true
+        },
+        {
+          "id": "host-automatic",
+          "label": "When the host decides",
+          "tradeoff": "No effort; may compact mid-task and lose detail or cache."
+        },
+        {
+          "id": "fresh-session",
+          "label": "Fresh session per task",
+          "tradeoff": "Cleanest context; pays the cold start every task."
+        }
+      ]
+    },
+    {
+      "id": "watcher-noise",
+      "prompt": "How many notifications may a watcher (a script that syncs on a CI run, a long command or a log) send?",
+      "options": [
+        {
+          "id": "quiet",
+          "label": "Quiet: state changes and a summary, at most 6 an hour",
+          "tradeoff": "Fewest woken turns; can hide a line you wanted.",
+          "recommended": true
+        },
+        {
+          "id": "normal",
+          "label": "Normal: changes, at most 30 an hour",
+          "tradeoff": "More detail; each notification can wake a turn that re-reads the context."
+        },
+        {
+          "id": "verbose",
+          "label": "Verbose: every line except repeats",
+          "tradeoff": "Nothing hidden; a busy watch wakes many turns."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "instruction-cap": {
+      "cap-150": {
+        "decisions": [
+          {
+            "slug": "instruction-file-cap",
+            "title": "The always-loaded instruction file is capped at 150 lines",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nKeep `AGENTS.md`, the always-loaded instruction file, at or under 150 lines (pack {{pack.id}}@{{pack.version}}). Host instruction files that are symlinks to it share the cap.\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "instruction-file-within-cap",
+            "title": "The instruction file must stay within 150 lines",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.instruction-cap}}",
+              "grounded-in": [
+                "{{id.decision.instruction-cap}}"
+              ],
+              "derivation-note": "Given the cap decision, every line past it is paid on every request."
+            },
+            "enforcement": [
+              {
+                "tier": 3,
+                "check": "AGENTS.md line count within the cap",
+                "run": "builtin:file-max-lines path=AGENTS.md max=150"
+              }
+            ],
+            "body": "## Guardrail\n\nKeep `AGENTS.md` within 150 lines; move detail into skills.\n"
+          }
+        ]
+      },
+      "cap-300": {
+        "decisions": [
+          {
+            "slug": "instruction-file-cap",
+            "title": "The always-loaded instruction file is capped at 300 lines",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nKeep `AGENTS.md`, the always-loaded instruction file, at or under 300 lines (pack {{pack.id}}@{{pack.version}}). Host instruction files that are symlinks to it share the cap.\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "instruction-file-within-cap",
+            "title": "The instruction file must stay within 300 lines",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.instruction-cap}}",
+              "grounded-in": [
+                "{{id.decision.instruction-cap}}"
+              ],
+              "derivation-note": "Given the cap decision, every line past it is paid on every request."
+            },
+            "enforcement": [
+              {
+                "tier": 3,
+                "check": "AGENTS.md line count within the cap",
+                "run": "builtin:file-max-lines path=AGENTS.md max=300"
+              }
+            ],
+            "body": "## Guardrail\n\nKeep `AGENTS.md` within 300 lines; move detail into skills.\n"
+          }
+        ]
+      },
+      "no-cap": {
+        "decisions": [
+          {
+            "slug": "instruction-file-uncapped",
+            "title": "The always-loaded instruction file has no line cap",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nDo not cap `AGENTS.md`; accept the steady token cost of its growth (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ]
+      }
+    },
+    "procedures": {
+      "skills-on-demand": {
+        "decisions": [
+          {
+            "slug": "procedure-delivery",
+            "title": "Detailed procedures live in skills loaded on demand",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nPut detailed procedures in skills; the always-loaded instruction file only names them. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "procedure-delivery-rule",
+            "title": "Detailed procedures live in skills loaded on demand",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.procedures}}",
+              "grounded-in": [
+                "{{id.decision.procedures}}"
+              ],
+              "derivation-note": "Given the delivery decision, procedures placed elsewhere cost tokens or go unread."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Procedures follow the delivery decision; reviewed with the change"
+              }
+            ],
+            "body": "## Guardrail\n\nKeep procedures in skills, not in the always-loaded instruction file.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      },
+      "always-on-rules": {
+        "decisions": [
+          {
+            "slug": "procedure-delivery",
+            "title": "Detailed procedures live in always-on rules",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nPut detailed procedures in always-on rules loaded with every request. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ]
+      },
+      "one-line-pointers": {
+        "decisions": [
+          {
+            "slug": "procedure-delivery",
+            "title": "Detailed procedures are one-line pointers to docs",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nThe instruction file holds one-line pointers; the agent reads the linked doc when needed. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "procedure-delivery-rule",
+            "title": "Detailed procedures are one-line pointers to docs",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.procedures}}",
+              "grounded-in": [
+                "{{id.decision.procedures}}"
+              ],
+              "derivation-note": "Given the delivery decision, procedures placed elsewhere cost tokens or go unread."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Procedures follow the delivery decision; reviewed with the change"
+              }
+            ],
+            "body": "## Guardrail\n\nReference procedures with a one-line pointer to the doc; do not inline them.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      }
+    },
+    "noisy-work": {
+      "delegate-when-cheaper": {
+        "decisions": [
+          {
+            "slug": "noisy-work-placement",
+            "title": "Noisy work is delegated only when the cost model says the handoff is cheaper",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nDelegate searches, log reads and test runs to a subagent only when expected total step cost, including handoff and cache loss, is lower than running inline; see the cost-routing pack. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "noisy-work-rule",
+            "title": "Noisy work is delegated only when the cost model says the handoff is cheaper",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.noisy-work}}",
+              "grounded-in": [
+                "{{id.decision.noisy-work}}"
+              ],
+              "derivation-note": "Given the placement decision, noise kept in the wrong context is re-paid on every request."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Noisy work follows the placement decision; reviewed with the change"
+              }
+            ],
+            "body": "## Guardrail\n\nDelegate noisy work to a subagent only when the cost model says the handoff is cheaper.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      },
+      "always-delegate": {
+        "decisions": [
+          {
+            "slug": "noisy-work-placement",
+            "title": "Noisy work is always delegated to a subagent",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nDelegate every search, log read and test run to a subagent. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "noisy-work-rule",
+            "title": "Noisy work is always delegated to a subagent",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.noisy-work}}",
+              "grounded-in": [
+                "{{id.decision.noisy-work}}"
+              ],
+              "derivation-note": "Given the placement decision, noise kept in the wrong context is re-paid on every request."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Noisy work follows the placement decision; reviewed with the change"
+              }
+            ],
+            "body": "## Guardrail\n\nDelegate noisy work (search, logs, test output) to a subagent.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      },
+      "inline": {
+        "decisions": [
+          {
+            "slug": "noisy-work-placement",
+            "title": "Noisy work runs inline",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nRun searches, log reads and test runs in the main context. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ]
+      }
+    },
+    "cache-hygiene": {
+      "advisory-and-confirm": {
+        "decisions": [
+          {
+            "slug": "cache-hygiene",
+            "title": "No mid-task model, effort or instruction-file change; switches are confirmed",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nDo not change model, effort or the instruction file mid-task. Where a host offers a pre-model-switch hook, switches ask for confirmation. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "cache-hygiene-rule",
+            "title": "No mid-task model, effort or instruction-file change; switches are confirmed",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.cache-hygiene}}",
+              "grounded-in": [
+                "{{id.decision.cache-hygiene}}"
+              ],
+              "derivation-note": "Given the cache decision, a mid-task switch changes the prefix and re-pays full input price."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only; the confirm-before-switch hook is not generated yet"
+              }
+            ],
+            "body": "## Guardrail\n\nDo not change model, effort or instruction files mid-task; confirm before any switch.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      },
+      "advisory-only": {
+        "decisions": [
+          {
+            "slug": "cache-hygiene",
+            "title": "No mid-task model, effort or instruction-file change (advisory)",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nDo not change model, effort or the instruction file mid-task; nothing enforces this. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "cache-hygiene-rule",
+            "title": "No mid-task model, effort or instruction-file change (advisory)",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.cache-hygiene}}",
+              "grounded-in": [
+                "{{id.decision.cache-hygiene}}"
+              ],
+              "derivation-note": "Given the cache decision, a mid-task switch changes the prefix and re-pays full input price."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only; the confirm-before-switch hook is not generated yet"
+              }
+            ],
+            "body": "## Guardrail\n\nDo not change model, effort or instruction files mid-task.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      },
+      "no-hygiene": {
+        "decisions": [
+          {
+            "slug": "cache-hygiene",
+            "title": "Cache hygiene is not enforced",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nAllow model, effort and instruction-file changes at any time; accept cold-cache costs. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ]
+      }
+    },
+    "compaction": {
+      "task-boundaries": {
+        "decisions": [
+          {
+            "slug": "compaction-timing",
+            "title": "Context is compacted at task boundaries",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nCompact context when a task finishes, not mid-task. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "compaction-timing-rule",
+            "title": "Context is compacted at task boundaries",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.compaction}}",
+              "grounded-in": [
+                "{{id.decision.compaction}}"
+              ],
+              "derivation-note": "Given the timing decision, compacting at other moments loses detail or cache."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Compaction follows the timing decision; reviewed with the change"
+              }
+            ],
+            "body": "## Guardrail\n\nCompact context at task boundaries, not mid-task.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      },
+      "host-automatic": {
+        "decisions": [
+          {
+            "slug": "compaction-timing",
+            "title": "Context compaction is left to the host",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nLeave compaction to the host's automatic behaviour. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ]
+      },
+      "fresh-session": {
+        "decisions": [
+          {
+            "slug": "compaction-timing",
+            "title": "Each task starts in a fresh session",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nStart a fresh session for each task instead of compacting. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEvery always-loaded token is paid on every request and every subagent; cached prefixes stay cheap only if stable (facts 0003, 0011).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "compaction-timing-rule",
+            "title": "Each task starts in a fresh session",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.compaction}}",
+              "grounded-in": [
+                "{{id.decision.compaction}}"
+              ],
+              "derivation-note": "Given the timing decision, compacting at other moments loses detail or cache."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Compaction follows the timing decision; reviewed with the change"
+              }
+            ],
+            "body": "## Guardrail\n\nStart a fresh session for each task.\nAdvisory (tier 1 only).\n"
+          }
+        ]
+      }
+    },
+    "watcher-noise": {
+      "quiet": {
+        "decisions": [
+          {
+            "slug": "watcher-noise",
+            "title": "Watchers are quiet",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "watcher-noise": "quiet"
+              }
+            },
+            "body": "## Decision\n\nWatchers started through `go-getter watch` report state changes and a final summary, collapse duplicates and bursts (60 s window) and stop after 6 notifications an hour with one notice; `--until done` prints one result. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEach watcher line can wake a model turn that re-reads the whole context from cache, and hosts offer no throttle.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "watches-use-the-wrapper",
+            "title": "Watches start through go-getter watch, --until done for CI runs and long commands",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.watcher-noise}}",
+              "grounded-in": [
+                "{{id.decision.watcher-noise}}"
+              ],
+              "derivation-note": "Given the noise decision, a watch started outside the wrapper is not throttled."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Where no hook wraps the watch, start it through `go-getter watch`"
+              },
+              {
+                "tier": 2,
+                "check": "Pre-tool hook wraps the host watcher command in `go-getter watch` where the host allows",
+                "run": "builtin:wrap-watch"
+              }
+            ],
+            "body": "## Guardrail\n\nStart watches through `go-getter watch`; use `--until done` for CI runs and long commands. Where the host allows, the pre-tool hook wraps the watch command.\n"
+          }
+        ]
+      },
+      "normal": {
+        "decisions": [
+          {
+            "slug": "watcher-noise",
+            "title": "Watchers are normal",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "watcher-noise": "normal"
+              }
+            },
+            "body": "## Decision\n\nWatchers started through `go-getter watch` report changes, collapse bursts (10 s window) and stop after 30 notifications an hour with one notice; `--until done` prints one result. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEach watcher line can wake a model turn that re-reads the whole context from cache, and hosts offer no throttle.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "watches-use-the-wrapper",
+            "title": "Watches start through go-getter watch, --until done for CI runs and long commands",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.watcher-noise}}",
+              "grounded-in": [
+                "{{id.decision.watcher-noise}}"
+              ],
+              "derivation-note": "Given the noise decision, a watch started outside the wrapper is not throttled."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Where no hook wraps the watch, start it through `go-getter watch`"
+              },
+              {
+                "tier": 2,
+                "check": "Pre-tool hook wraps the host watcher command in `go-getter watch` where the host allows",
+                "run": "builtin:wrap-watch"
+              }
+            ],
+            "body": "## Guardrail\n\nStart watches through `go-getter watch`; use `--until done` for CI runs and long commands. Where the host allows, the pre-tool hook wraps the watch command.\n"
+          }
+        ]
+      },
+      "verbose": {
+        "decisions": [
+          {
+            "slug": "watcher-noise",
+            "title": "Watchers are verbose",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "cost"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "watcher-noise": "verbose"
+              }
+            },
+            "body": "## Decision\n\nWatchers started through `go-getter watch` report every line except repeats; `--until done` prints one result. (pack {{pack.id}}@{{pack.version}}.)\n\n## Why\n\nEach watcher line can wake a model turn that re-reads the whole context from cache, and hosts offer no throttle.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "watches-use-the-wrapper",
+            "title": "Watches start through go-getter watch, --until done for CI runs and long commands",
+            "tags": [
+              "practice-packs",
+              "harness",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.watcher-noise}}",
+              "grounded-in": [
+                "{{id.decision.watcher-noise}}"
+              ],
+              "derivation-note": "Given the noise decision, a watch started outside the wrapper is not throttled."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Where no hook wraps the watch, start it through `go-getter watch`"
+              },
+              {
+                "tier": 2,
+                "check": "Pre-tool hook wraps the host watcher command in `go-getter watch` where the host allows",
+                "run": "builtin:wrap-watch"
+              }
+            ],
+            "body": "## Guardrail\n\nStart watches through `go-getter watch`; use `--until done` for CI runs and long commands. Where the host allows, the pre-tool hook wraps the watch command.\n"
+          }
+        ]
+      }
+    }
+  }
+}

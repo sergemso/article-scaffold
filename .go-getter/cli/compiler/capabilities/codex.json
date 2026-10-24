@@ -1,0 +1,82 @@
+{
+  "$schema": "../schemas/capabilities.schema.json",
+  "host": "codex",
+  "fact": "0004-codex-integration-surface",
+  "instructions": {
+    "file": "AGENTS.md",
+    "readsAgentsMd": true,
+    "agentsMdVia": "native"
+  },
+  "skills": {
+    "dirs": [
+      ".agents/skills"
+    ]
+  },
+  "agents": {
+    "format": "toml",
+    "dir": ".codex/agents",
+    "extension": ".toml",
+    "model": true,
+    "effort": true,
+    "tools": false
+  },
+  "commands": {
+    "native": false
+  },
+  "hooks": {
+    "config": ".codex/hooks.json",
+    "blockPreTool": true,
+    "rewriteToolInput": true,
+    "rewriteOutput": true,
+    "blockStop": true,
+    "modelSwap": false,
+    "runtime": "command"
+  },
+  "permissions": {
+    "pathReadDeny": false
+  },
+  "routing": {
+    "localEndpoints": true,
+    "spendCap": "none",
+    "cacheTokensVisible": true,
+    "delegation": {
+      "tool": "spawn_agent",
+      "update": "hookSpecificOutput"
+    }
+  },
+  "telemetry": {
+    "otel": true,
+    "cost": false,
+    "spendSource": "none",
+    "logsPromptsByDefault": false
+  },
+  "sandbox": true,
+  "checkpointing": false,
+  "nodeAtRuntime": false,
+  "tiers": {
+    "3": 2,
+    "6": 2,
+    "7": 2,
+    "8": 2,
+    "9": 2,
+    "10": 2,
+    "11": 2,
+    "12": 2
+  },
+  "notes": [
+    "Hooks gated by features.hooks.",
+    "Model providers and otel are user-level config only.",
+    "Per-path read deny exists in permission profiles for sandboxed commands; project-level support unconfirmed (fact 0031).",
+    "Checkpointing unconfirmed.",
+    "Component 9 tier 2: the pre-tool hook takes the checkpoint before a gated command (decision 0097); the host has no native checkpoint."
+  ],
+  "secretLevers": [
+    {
+      "kind": "profile-deny-glob",
+      "scope": "a permission profile",
+      "fact": "0031",
+      "confirmed": false,
+      "note": "Applies to sandboxed commands only. Not confirmed: that a project config file loads permission profiles."
+    }
+  ]
+}

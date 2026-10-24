@@ -1,0 +1,392 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "data-policy",
+  "version": "0.6.0",
+  "family": "harness",
+  "components": [
+    7
+  ],
+  "title": "Data policy and model eligibility",
+  "summary": "Decides which providers may receive internal and confidential data, and whether host prompt logging stays off.",
+  "replaces": {
+    "pack": "governance",
+    "questions": [
+      "internal-data",
+      "provider",
+      "confidential-zdr",
+      "prompt-logging"
+    ]
+  },
+  "questions": [
+    {
+      "id": "internal-data",
+      "prompt": "Which models may receive internal data?",
+      "options": [
+        {
+          "id": "approved-cloud",
+          "label": "Approved cloud providers on paid, no-training terms",
+          "tradeoff": "Keeps routing flexible across providers; requires paid API tiers and trust in provider terms.",
+          "recommended": true
+        },
+        {
+          "id": "single-provider",
+          "label": "One approved provider",
+          "tradeoff": "One contract to audit; no cross-provider routing for internal data."
+        },
+        {
+          "id": "local-only",
+          "label": "Local models only",
+          "tradeoff": "Nothing leaves the machine; only some hosts can reach local models and quality is lower."
+        }
+      ]
+    },
+    {
+      "id": "provider",
+      "type": "text",
+      "prompt": "Which provider is the approved one?",
+      "default": "anthropic",
+      "pattern": "^(anthropic|openai|google)$",
+      "when": {
+        "question": "internal-data",
+        "in": [
+          "single-provider"
+        ]
+      }
+    },
+    {
+      "id": "confidential-zdr",
+      "prompt": "Does confidential data require a zero-data-retention endpoint?",
+      "options": [
+        {
+          "id": "zdr-not-required",
+          "label": "No: confidential data goes where internal data may go",
+          "tradeoff": "Works without a retention agreement; the class stays distinct for audit and path rules.",
+          "recommended": true
+        },
+        {
+          "id": "zdr-required",
+          "label": "Yes: only zero-data-retention or local models",
+          "tradeoff": "Strongest guarantee; confidential steps go to a human until a provider is recorded with zero data retention."
+        },
+        {
+          "id": "no-confidential-class",
+          "label": "No confidential class",
+          "tradeoff": "Fewer classes to maintain; confidential-looking data is handled as restricted."
+        }
+      ]
+    },
+    {
+      "id": "prompt-logging",
+      "prompt": "When is host prompt and content logging disabled?",
+      "options": [
+        {
+          "id": "disable-everywhere",
+          "label": "On every host that has a setting for it",
+          "tradeoff": "No prompt content in host telemetry, so no restricted content leaks into it; you lose prompt-level debugging.",
+          "recommended": true
+        },
+        {
+          "id": "disable-restricted-hosts",
+          "label": "Only on hosts permitted near restricted data",
+          "tradeoff": "Keeps prompt logging on other hosts; relies on the hosts rule being right."
+        },
+        {
+          "id": "host-defaults",
+          "label": "Leave host defaults",
+          "tradeoff": "No changes; some hosts log prompts unless told not to."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "internal-data": {
+      "approved-cloud": {
+        "decisions": [
+          {
+            "slug": "internal-data-routing",
+            "title": "Internal data goes only to approved cloud providers on paid no-training terms",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "model-routing"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "model-registry": {
+                  "internal": "approved-cloud",
+                  "providers": [
+                    {
+                      "id": "anthropic",
+                      "terms": "paid-no-training",
+                      "zdr": false
+                    },
+                    {
+                      "id": "openai",
+                      "terms": "paid-no-training",
+                      "zdr": false
+                    },
+                    {
+                      "id": "google",
+                      "terms": "paid-no-training",
+                      "zdr": false
+                    }
+                  ]
+                }
+              }
+            },
+            "body": "## Decision\n\nInternal data may go to local models and to anthropic, openai and google on their paid API tiers. (pack {{pack.id}}@{{pack.version}}).\n\nProviders count as approved only on their paid API tier; free tiers may train on content. Routing removes every model of another provider before it compares cost (guardrail routing-governance-before-cost). Add providers or local models by a new decision or a fact carrying `go-getter.models`.\n\n## Why\n\nRouting for cost must never move data outside the boundary its class allows (decision 0018).\n"
+          }
+        ]
+      },
+      "single-provider": {
+        "decisions": [
+          {
+            "slug": "internal-data-routing",
+            "title": "Internal data goes only to {{answer.provider}} and local models",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "model-routing"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "model-registry": {
+                  "internal": "single-provider",
+                  "providers": [
+                    {
+                      "id": "{{answer.provider}}",
+                      "terms": "paid-no-training",
+                      "zdr": false
+                    }
+                  ]
+                }
+              }
+            },
+            "body": "## Decision\n\nInternal data may go to local models and to {{answer.provider}} on its paid API tier. (pack {{pack.id}}@{{pack.version}}).\n\nProviders count as approved only on their paid API tier; free tiers may train on content. Routing removes every model of another provider before it compares cost (guardrail routing-governance-before-cost). Add providers or local models by a new decision or a fact carrying `go-getter.models`.\n\n## Why\n\nRouting for cost must never move data outside the boundary its class allows (decision 0018).\n"
+          }
+        ]
+      },
+      "local-only": {
+        "decisions": [
+          {
+            "slug": "internal-data-routing",
+            "title": "Internal data stays on local models",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "model-routing"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "model-registry": {
+                  "internal": "local-only",
+                  "providers": []
+                }
+              }
+            },
+            "body": "## Decision\n\nInternal data may go to local models only. (pack {{pack.id}}@{{pack.version}}).\n\nProviders count as approved only on their paid API tier; free tiers may train on content. Routing removes every model of another provider before it compares cost (guardrail routing-governance-before-cost). Add providers or local models by a new decision or a fact carrying `go-getter.models`.\n\n## Why\n\nRouting for cost must never move data outside the boundary its class allows (decision 0018).\n"
+          }
+        ]
+      }
+    },
+    "confidential-zdr": {
+      "zdr-not-required": {
+        "decisions": [
+          {
+            "slug": "confidential-data-routing",
+            "title": "Confidential data may go wherever internal data may",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "data-classes": {
+                  "confidential": {
+                    "enabled": true,
+                    "requires-zdr": false
+                  }
+                }
+              }
+            },
+            "body": "## Decision\n\nConfidential data goes to the models internal data may go to. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nConfidential data needs a retention guarantee only some teams have contracted (decision 0018).\n"
+          }
+        ]
+      },
+      "zdr-required": {
+        "decisions": [
+          {
+            "slug": "confidential-data-routing",
+            "title": "Confidential data requires zero data retention",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "data-classes": {
+                  "confidential": {
+                    "enabled": true,
+                    "requires-zdr": true
+                  }
+                }
+              }
+            },
+            "body": "## Decision\n\nConfidential data goes only to local models and to providers recorded with zero data retention. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nConfidential data needs a retention guarantee only some teams have contracted (decision 0018).\n"
+          }
+        ]
+      },
+      "no-confidential-class": {
+        "decisions": [
+          {
+            "slug": "confidential-data-routing",
+            "title": "There is no confidential data class",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "data-classes": {
+                  "confidential": {
+                    "enabled": false
+                  }
+                }
+              }
+            },
+            "body": "## Decision\n\nThe project has no confidential class; confidential-looking data is handled as restricted. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nConfidential data needs a retention guarantee only some teams have contracted (decision 0018).\n"
+          }
+        ]
+      }
+    },
+    "prompt-logging": {
+      "disable-everywhere": {
+        "decisions": [
+          {
+            "slug": "prompt-logging",
+            "title": "Host prompt logging is disabled on every host",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "observability"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "prompt-logging": {
+                  "scope": "all"
+                }
+              }
+            },
+            "body": "## Decision\n\n`go-getter apply` switches off prompt and content logging in every host setting that has one (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA host that logs prompts by default would copy restricted content into its telemetry (decision 0018).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "prompt-logging-disabled",
+            "title": "Host prompt logging must stay disabled",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.prompt-logging}}",
+              "grounded-in": [
+                "{{id.decision.prompt-logging}}"
+              ],
+              "derivation-note": "Given host telemetry can export prompt content, a restricted path read once would leave the machine through logs, so the setting must be off wherever the host exposes it."
+            },
+            "enforcement": [
+              {
+                "tier": 3,
+                "check": "Host settings files that exist have prompt logging switched off",
+                "run": "builtin:prompt-logging-off"
+              }
+            ],
+            "body": "## Guardrail\n\nKeep prompt and content logging disabled in host settings; `go-getter apply` sets it and the check fails when a settings file turns it back on.\n"
+          }
+        ]
+      },
+      "disable-restricted-hosts": {
+        "decisions": [
+          {
+            "slug": "prompt-logging",
+            "title": "Host prompt logging is disabled on hosts permitted near restricted data",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "observability"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "prompt-logging": {
+                  "scope": "restricted-hosts"
+                }
+              }
+            },
+            "body": "## Decision\n\n`go-getter apply` switches off prompt and content logging on the hosts permitted near restricted data (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nPrompts on those hosts may contain restricted content (decision 0018).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "prompt-logging-disabled",
+            "title": "Host prompt logging must stay disabled on hosts near restricted data",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.prompt-logging}}",
+              "grounded-in": [
+                "{{id.decision.prompt-logging}}"
+              ],
+              "derivation-note": "Given host telemetry can export prompt content, hosts that may handle restricted data must not log it."
+            },
+            "enforcement": [
+              {
+                "tier": 3,
+                "check": "Settings files of hosts permitted near restricted data have prompt logging switched off",
+                "run": "builtin:prompt-logging-off"
+              }
+            ],
+            "body": "## Guardrail\n\nKeep prompt and content logging disabled on hosts permitted near restricted data; `go-getter apply` sets it and the check fails when a settings file turns it back on.\n"
+          }
+        ]
+      },
+      "host-defaults": {
+        "decisions": [
+          {
+            "slug": "prompt-logging",
+            "title": "Host prompt logging keeps host defaults",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "observability"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "prompt-logging": {
+                  "scope": "host-defaults"
+                }
+              }
+            },
+            "body": "## Decision\n\nHost prompt and content logging settings are left as the hosts ship them (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project accepted the leak risk of default prompt logging.\n"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,951 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "verification-gate",
+  "version": "0.4.0",
+  "family": "harness",
+  "components": [
+    6
+  ],
+  "title": "Verification gate",
+  "summary": "What counts as done: the checks implement and debug steps must pass, where each check runs (locally or in CI), the review bar, and whether failing checks block completion.",
+  "questions": [
+    {
+      "id": "checks",
+      "prompt": "Which checks must implement and debug steps pass?",
+      "options": [
+        {
+          "id": "detected",
+          "label": "The detected check commands (format, lint, typecheck, static analysis, build and tests)",
+          "tradeoff": "Strongest bar from commands the project already has; the machine profile decides which run locally, and an empty command is skipped.",
+          "recommended": true
+        },
+        {
+          "id": "tests-only",
+          "label": "Tests only",
+          "tradeoff": "Faster steps; lint and type errors surface in CI instead."
+        },
+        {
+          "id": "affected-tests",
+          "label": "A command that runs only the affected tests",
+          "tradeoff": "Fastest; go-getter has no test-impact mapping, so the project must supply the command and keep it correct."
+        }
+      ]
+    },
+    {
+      "id": "test-command",
+      "type": "text",
+      "detect": "commands.test",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "prompt": "Which command runs the tests? (empty skips them)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected",
+          "tests-only"
+        ]
+      }
+    },
+    {
+      "id": "lint-command",
+      "type": "text",
+      "detect": "commands.lint",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "prompt": "Which command runs the linter? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "typecheck-command",
+      "type": "text",
+      "detect": "commands.typecheck",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "prompt": "Which command runs the type checker? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "format-command",
+      "type": "text",
+      "detect": "commands.format",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "since": "0.2.0",
+      "prompt": "Which command checks formatting? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "static-analysis-command",
+      "type": "text",
+      "detect": "commands.static-analysis",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "since": "0.2.0",
+      "prompt": "Which command runs static analysis? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "build-command",
+      "type": "text",
+      "detect": "commands.build",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "since": "0.2.0",
+      "prompt": "Which command builds the project? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "unit-command",
+      "type": "text",
+      "detect": "commands.unit",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "since": "0.2.0",
+      "prompt": "Which command runs the unit tests? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "integration-command",
+      "type": "text",
+      "detect": "commands.integration",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "since": "0.2.0",
+      "prompt": "Which command runs the integration tests? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "e2e-command",
+      "type": "text",
+      "detect": "commands.e2e",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "since": "0.2.0",
+      "prompt": "Which command runs the end-to-end tests? (empty skips it)",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "coverage-command",
+      "type": "text",
+      "detect": "commands.coverage",
+      "pattern": "^[^\\n]*$",
+      "default": "",
+      "since": "0.4.0",
+      "prompt": "Which command measures test coverage? (empty skips it) go-getter runs it where the machine profile places it and treats a non-zero exit as failing the bar; it does not read coverage reports itself.",
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "coverage-bar",
+      "since": "0.4.0",
+      "prompt": "What bar must coverage meet? The coverage command enforces it: go-getter passes the bar in GO_GETTER_COVERAGE_BAR (and GO_GETTER_COVERAGE_MIN for a threshold) and fails the check when the command exits non-zero.",
+      "options": [
+        {
+          "id": "command",
+          "label": "Whatever the coverage command enforces",
+          "tradeoff": "No second place to keep a number; the bar lives in the project's own coverage configuration.",
+          "recommended": true
+        },
+        {
+          "id": "threshold",
+          "label": "A minimum percentage",
+          "tradeoff": "One number the whole team can read; the command must use GO_GETTER_COVERAGE_MIN, or the number is only recorded."
+        },
+        {
+          "id": "no-regression",
+          "label": "No drop below the base branch",
+          "tradeoff": "Never blocks a legacy project on its starting level; the command must compare with the base, or the bar is only recorded."
+        }
+      ],
+      "when": {
+        "question": "checks",
+        "in": [
+          "detected"
+        ]
+      }
+    },
+    {
+      "id": "coverage-threshold",
+      "type": "text",
+      "pattern": "^(100|[1-9]?[0-9])$",
+      "default": "80",
+      "since": "0.4.0",
+      "prompt": "What minimum coverage percentage (0 to 100)?",
+      "when": {
+        "question": "coverage-bar",
+        "in": [
+          "threshold"
+        ]
+      }
+    },
+    {
+      "id": "affected-command",
+      "type": "text",
+      "pattern": "^[^\\n]*$",
+      "default": "npm test",
+      "prompt": "Which command runs only the tests affected by the change?",
+      "when": {
+        "question": "checks",
+        "in": [
+          "affected-tests"
+        ]
+      }
+    },
+    {
+      "id": "machine-profile",
+      "since": "0.2.0",
+      "prompt": "Where do the checks run?",
+      "options": [
+        {
+          "id": "thin",
+          "label": "Thin machine: format, lint, typecheck and tests locally; static analysis, build, integration, e2e and coverage in CI only",
+          "tradeoff": "Fast local loop on any machine; slow checks report through CI, so a pushed branch waits for CI before it is done. Tests also run in CI.",
+          "recommended": true
+        },
+        {
+          "id": "full",
+          "label": "Full machine: every check locally",
+          "tradeoff": "Every failure is caught before done; slow on thin machines, and CI runs only what the project already has there."
+        },
+        {
+          "id": "ci-only",
+          "label": "CI only: no check locally",
+          "tradeoff": "Cheapest machines; the agent loses the fast local signal and waits for CI on every step. Guardrail checks still run locally."
+        }
+      ]
+    },
+    {
+      "id": "review-bar",
+      "prompt": "What must a review step pass? (This pack owns the review bar; the reviewer agent's role and access are defined by the orchestration pack.)",
+      "options": [
+        {
+          "id": "reviewer-verdict",
+          "label": "A reviewer-agent verdict",
+          "tradeoff": "A second model checks the change against the brief and guardrails; costs one reviewer step.",
+          "recommended": true
+        },
+        {
+          "id": "verdict-conform",
+          "label": "A reviewer verdict and a passing guardrail check",
+          "tradeoff": "Adds the deterministic guardrail checks to the verdict; slower, and the checks may repeat what CI runs."
+        },
+        {
+          "id": "none",
+          "label": "No review bar",
+          "tradeoff": "No review cost; the change reaches pull request review unreviewed by an agent."
+        }
+      ]
+    },
+    {
+      "id": "gate",
+      "prompt": "Do failing checks block \"done\"?",
+      "options": [
+        {
+          "id": "block",
+          "label": "Block completion through stop hooks until the checks pass",
+          "tradeoff": "Cheaper tiers cannot ship failures, so they escalate; flaky checks cost loops, bounded by the escalation limit. Advisory on hosts without a blocking stop hook.",
+          "recommended": true
+        },
+        {
+          "id": "report",
+          "label": "Report the failures only",
+          "tradeoff": "No loops on flaky checks; failures reach pull request review."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "checks": {
+      "detected": {
+        "decisions": [
+          {
+            "slug": "verification-checks",
+            "title": "Implement and debug steps pass the project's detected check commands",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-scope": "detected"
+              }
+            },
+            "body": "## Decision\n\nA step of class implement or debug is verified by `go-getter verify --class <class>`, which runs the commands recorded in the command decisions that the machine profile places locally; an empty command is skipped.\n\n## Why\n\nThe quality bar of routing (decisions 0016, 0017) is these checks: a cheaper tier that passes them is as good as a dearer one, and one that fails them escalates instead of shipping (pack {{pack.id}}@{{pack.version}}).\n"
+          }
+        ]
+      },
+      "tests-only": {
+        "decisions": [
+          {
+            "slug": "verification-checks",
+            "title": "Implement and debug steps pass the project's test command",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-scope": "tests-only"
+              }
+            },
+            "body": "## Decision\n\nA step of class implement or debug is verified by `go-getter verify --class <class>`, which runs the test command recorded in its decision; lint and typecheck are left to CI.\n\n## Why\n\nThe quality bar of routing (decisions 0016, 0017) is these checks: a cheaper tier that passes them is as good as a dearer one, and one that fails them escalates instead of shipping (pack {{pack.id}}@{{pack.version}}).\n"
+          }
+        ]
+      },
+      "affected-tests": {
+        "decisions": [
+          {
+            "slug": "verification-checks",
+            "title": "Implement and debug steps pass a command that runs only the affected tests",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-scope": "affected-tests"
+              }
+            },
+            "body": "## Decision\n\nA step of class implement or debug is verified by `go-getter verify --class <class>`, which runs the affected-tests command recorded in its decision. go-getter does no test-impact mapping: the project keeps that command correct, and CI still runs everything.\n\n## Why\n\nThe quality bar of routing (decisions 0016, 0017) is these checks: a cheaper tier that passes them is as good as a dearer one, and one that fails them escalates instead of shipping (pack {{pack.id}}@{{pack.version}}).\n"
+          }
+        ]
+      }
+    },
+    "review-bar": {
+      "reviewer-verdict": {
+        "decisions": [
+          {
+            "slug": "verification-review-bar",
+            "title": "Review steps pass a reviewer-agent verdict",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-review-bar": "reviewer-verdict"
+              }
+            },
+            "body": "## Decision\n\nA review step ends with a reviewer-agent verdict on the change against the brief, the decisions and the guardrails; no review step passes without one. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA reviewer sees what the author's own checks cannot: intent, scope and guardrail conformance (decisions 0014, 0031).\n"
+          }
+        ]
+      },
+      "verdict-conform": {
+        "decisions": [
+          {
+            "slug": "verification-review-bar",
+            "title": "Review steps pass a reviewer-agent verdict and a guardrail check",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-review-bar": "verdict-conform"
+              }
+            },
+            "body": "## Decision\n\nA review step ends with a reviewer-agent verdict, and `go-getter verify --class review` must also pass: it runs every tier-3 guardrail check. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA reviewer sees what the author's own checks cannot: intent, scope and guardrail conformance (decisions 0014, 0031).\n"
+          }
+        ]
+      },
+      "none": {
+        "decisions": [
+          {
+            "slug": "verification-review-bar",
+            "title": "Review steps have no verification bar",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-review-bar": "none"
+              }
+            },
+            "body": "## Decision\n\nA review step has no pass bar of its own; the change goes to pull request review. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA reviewer sees what the author's own checks cannot: intent, scope and guardrail conformance (decisions 0014, 0031).\n"
+          }
+        ]
+      }
+    },
+    "gate": {
+      "block": {
+        "decisions": [
+          {
+            "slug": "verification-gate",
+            "title": "\"Done\" is blocked while the verification checks fail",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-gate": "block"
+              }
+            },
+            "body": "## Decision\n\nA stop hook runs the implement checks when the working tree has changes and keeps the agent working while they fail, at most the maximum number of escalations per session (decision 0032, default 2), then hands over to a human. On a clean tree pushed as it is, with checks placed in CI, it reads the CI result instead (`go-getter ci status`, decision 0071): red counts as failing, pending ends the stop with a hand-over message. Hosts without a blocking stop hook are advisory (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nWithout a blocking gate, cheaper tiers would ship failures instead of escalating (decision 0031).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "verification-gate-blocks-done",
+            "title": "A step is not done while its verification checks fail",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.gate}}",
+              "grounded-in": [
+                "{{id.decision.gate}}"
+              ],
+              "derivation-note": "Given the quality bar of routing is the verification checks (0016, 0031), completion must wait for them, since an instruction alone lets a failing step end."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Run `go-getter verify --class implement` before reporting a step done"
+              },
+              {
+                "tier": 2,
+                "check": "Stop hook keeps the agent working while the checks fail, bounded by the escalation limit",
+                "run": "builtin:verify-gate"
+              }
+            ],
+            "body": "## Guardrail\n\nBefore reporting an implement or debug step done, run `go-getter verify --class <class>` and fix every failure; on a pushed branch, wait for CI with `go-getter watch --until done -- go-getter ci status --wait` and fix every red job. Where the host supports it, a stop hook enforces this and hands over to a human after the escalation limit.\n"
+          }
+        ]
+      },
+      "report": {
+        "decisions": [
+          {
+            "slug": "verification-gate",
+            "title": "Failing verification checks are reported, not blocking",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-gate": "report"
+              }
+            },
+            "body": "## Decision\n\nVerification failures are reported by `go-getter verify`; no hook blocks completion (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nNo loops on flaky checks; failures surface at pull request review (decision 0031).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "verification-gate-blocks-done",
+            "title": "A step is not done while its verification checks fail",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.gate}}",
+              "grounded-in": [
+                "{{id.decision.gate}}"
+              ],
+              "derivation-note": "Given failures are only reported (0031), the rule rests on the agent running the checks itself."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Run `go-getter verify --class implement` before reporting a step done"
+              }
+            ],
+            "body": "## Guardrail\n\nBefore reporting an implement or debug step done, run `go-getter verify --class <class>` and report every failure; on a pushed branch, wait for CI with `go-getter watch --until done -- go-getter ci status --wait` and report every red job.\n"
+          }
+        ]
+      }
+    },
+    "test-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-test-command",
+            "title": "The verification test command is \"{{answer.test-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-test-command": "{{answer.test-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.test-command}}` for the test check; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "lint-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-lint-command",
+            "title": "The verification lint command is \"{{answer.lint-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-lint-command": "{{answer.lint-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.lint-command}}` for the lint check; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "typecheck-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-typecheck-command",
+            "title": "The verification typecheck command is \"{{answer.typecheck-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-typecheck-command": "{{answer.typecheck-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.typecheck-command}}` for the typecheck check; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "format-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-format-command",
+            "title": "The verification format command is \"{{answer.format-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-format-command": "{{answer.format-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.format-command}}` for the format check, where the machine profile places it; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "static-analysis-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-static-analysis-command",
+            "title": "The verification static-analysis command is \"{{answer.static-analysis-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-static-analysis-command": "{{answer.static-analysis-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.static-analysis-command}}` for the static-analysis check, where the machine profile places it; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "build-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-build-command",
+            "title": "The verification build command is \"{{answer.build-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-build-command": "{{answer.build-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.build-command}}` for the build check, where the machine profile places it; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "unit-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-unit-command",
+            "title": "The verification unit command is \"{{answer.unit-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-unit-command": "{{answer.unit-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.unit-command}}` for the unit check, where the machine profile places it; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "integration-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-integration-command",
+            "title": "The verification integration command is \"{{answer.integration-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-integration-command": "{{answer.integration-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.integration-command}}` for the integration check, where the machine profile places it; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "e2e-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-e2e-command",
+            "title": "The verification e2e command is \"{{answer.e2e-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-e2e-command": "{{answer.e2e-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.e2e-command}}` for the e2e check, where the machine profile places it; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "affected-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-affected-command",
+            "title": "The verification affected-tests command is \"{{answer.affected-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-affected-command": "{{answer.affected-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.affected-command}}` for the affected-tests check; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time.\n"
+          }
+        ]
+      }
+    },
+    "machine-profile": {
+      "thin": {
+        "decisions": [
+          {
+            "slug": "verification-machine-profile",
+            "title": "Cheap checks run locally, slow checks only in CI (thin machine profile)",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness",
+              "ci"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-profile": "thin",
+                "verify-where": {
+                  "format": "local",
+                  "lint": "local",
+                  "typecheck": "local",
+                  "static-analysis": "ci",
+                  "build": "ci",
+                  "test": "both",
+                  "unit": "both",
+                  "integration": "ci",
+                  "e2e": "ci",
+                  "coverage": "ci"
+                }
+              }
+            },
+            "body": "## Decision\n\nFormat, lint and typecheck run locally; tests run locally and in CI; static analysis, build, integration, e2e and coverage run only in CI. `go-getter verify` and the stop gate run only `local` and `both` checks; `ci` and `both` checks belong to CI (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThin machines should not run builds, full suites or analyzers locally, yet the quality bar must still hold (decision 0071).\n"
+          }
+        ]
+      },
+      "full": {
+        "decisions": [
+          {
+            "slug": "verification-machine-profile",
+            "title": "Every verification check runs locally (full machine profile)",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness",
+              "ci"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-profile": "full",
+                "verify-where": {
+                  "format": "local",
+                  "lint": "local",
+                  "typecheck": "local",
+                  "static-analysis": "local",
+                  "build": "local",
+                  "test": "local",
+                  "unit": "local",
+                  "integration": "local",
+                  "e2e": "local",
+                  "coverage": "local"
+                }
+              }
+            },
+            "body": "## Decision\n\nEvery check runs locally; CI runs only what the project already has there. `go-getter verify` and the stop gate run only `local` and `both` checks; `ci` and `both` checks belong to CI (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThin machines should not run builds, full suites or analyzers locally, yet the quality bar must still hold (decision 0071).\n"
+          }
+        ]
+      },
+      "ci-only": {
+        "decisions": [
+          {
+            "slug": "verification-machine-profile",
+            "title": "Verification checks run only in CI (ci-only machine profile)",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness",
+              "ci"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-profile": "ci-only",
+                "verify-where": {
+                  "format": "ci",
+                  "lint": "ci",
+                  "typecheck": "ci",
+                  "static-analysis": "ci",
+                  "build": "ci",
+                  "test": "ci",
+                  "unit": "ci",
+                  "integration": "ci",
+                  "e2e": "ci",
+                  "coverage": "ci"
+                }
+              }
+            },
+            "body": "## Decision\n\nNo check runs locally; every check runs in CI. Guardrail checks still run locally. `go-getter verify` and the stop gate run only `local` and `both` checks; `ci` and `both` checks belong to CI (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThin machines should not run builds, full suites or analyzers locally, yet the quality bar must still hold (decision 0071).\n"
+          }
+        ]
+      }
+    },
+    "coverage-command": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-coverage-command",
+            "title": "The verification coverage command is \"{{answer.coverage-command}}\"",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-coverage-command": "{{answer.coverage-command}}"
+              }
+            },
+            "body": "## Decision\n\nVerification runs `{{answer.coverage-command}}` for the coverage check, where the machine profile places it; an empty command skips it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe command is project-specific, so it is recorded as an answer rather than guessed at run time. This pack owns coverage; no other pack asks about it.\n"
+          }
+        ]
+      }
+    },
+    "coverage-bar": {
+      "command": {
+        "decisions": [
+          {
+            "slug": "verification-coverage-bar",
+            "title": "Coverage must meet what the coverage command enforces",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-coverage-bar": "command"
+              }
+            },
+            "body": "## Decision\n\nThe coverage check passes when the coverage command exits zero; the command holds the bar. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nGo-getter does not read coverage reports, so the bar is passed to the coverage command, which fails when the bar is missed; the check fails on a non-zero exit. A command that ignores the variables enforces only its own configuration.\n"
+          }
+        ]
+      },
+      "threshold": {
+        "decisions": [
+          {
+            "slug": "verification-coverage-bar",
+            "title": "Coverage must reach a minimum percentage",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-coverage-bar": "threshold"
+              }
+            },
+            "body": "## Decision\n\nThe coverage command runs with `GO_GETTER_COVERAGE_BAR=threshold` and the minimum in `GO_GETTER_COVERAGE_MIN`; the check passes when it exits zero. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nGo-getter does not read coverage reports, so the bar is passed to the coverage command, which fails when the bar is missed; the check fails on a non-zero exit. A command that ignores the variables enforces only its own configuration.\n"
+          }
+        ]
+      },
+      "no-regression": {
+        "decisions": [
+          {
+            "slug": "verification-coverage-bar",
+            "title": "Coverage must not drop below the base branch",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-coverage-bar": "no-regression"
+              }
+            },
+            "body": "## Decision\n\nThe coverage command runs with `GO_GETTER_COVERAGE_BAR=no-regression`; the check passes when it exits zero. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nGo-getter does not read coverage reports, so the bar is passed to the coverage command, which fails when the bar is missed; the check fails on a non-zero exit. A command that ignores the variables enforces only its own configuration.\n"
+          }
+        ]
+      }
+    },
+    "coverage-threshold": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "verification-coverage-threshold",
+            "title": "The minimum coverage is {{answer.coverage-threshold}} percent",
+            "tags": [
+              "practice-packs",
+              "verification",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "verify-coverage-min": "{{answer.coverage-threshold}}"
+              }
+            },
+            "body": "## Decision\n\nThe minimum coverage is {{answer.coverage-threshold}} percent, passed to the coverage command as `GO_GETTER_COVERAGE_MIN` (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nOne number the team agrees on, kept next to the other verification answers.\n"
+          }
+        ]
+      }
+    }
+  }
+}

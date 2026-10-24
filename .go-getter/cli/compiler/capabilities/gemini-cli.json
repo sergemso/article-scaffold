@@ -1,0 +1,90 @@
+{
+  "$schema": "../schemas/capabilities.schema.json",
+  "host": "gemini-cli",
+  "fact": "0007-gemini-cli-integration-surface",
+  "instructions": {
+    "file": "GEMINI.md",
+    "readsAgentsMd": false,
+    "agentsMdVia": "setting"
+  },
+  "skills": {
+    "dirs": [
+      ".agents/skills",
+      ".gemini/skills"
+    ]
+  },
+  "agents": {
+    "format": "markdown",
+    "dir": ".gemini/agents",
+    "extension": ".md",
+    "model": true,
+    "effort": false,
+    "tools": true,
+    "nesting": 0
+  },
+  "commands": {
+    "native": true,
+    "dir": ".gemini/commands",
+    "format": "toml"
+  },
+  "hooks": {
+    "config": ".gemini/settings.json",
+    "blockPreTool": true,
+    "rewriteToolInput": false,
+    "rewriteOutput": true,
+    "blockStop": true,
+    "modelSwap": true,
+    "runtime": "command"
+  },
+  "permissions": {
+    "pathReadDeny": false,
+    "config": "~/.gemini/policies"
+  },
+  "routing": {
+    "localEndpoints": false,
+    "spendCap": "none",
+    "cacheTokensVisible": true
+  },
+  "telemetry": {
+    "otel": true,
+    "cost": false,
+    "spendSource": "none",
+    "logsPromptsByDefault": true,
+    "promptLogOff": {
+      "file": ".gemini/settings.json",
+      "key": [
+        "telemetry",
+        "logPrompts"
+      ]
+    }
+  },
+  "sandbox": true,
+  "checkpointing": true,
+  "checkpointRestore": "/restore",
+  "nodeAtRuntime": true,
+  "tiers": {
+    "3": 2,
+    "6": 2,
+    "7": 2,
+    "8": 2,
+    "9": 2,
+    "10": 2,
+    "11": 2,
+    "12": 2
+  },
+  "notes": [
+    "Set context.fileName to include AGENTS.md.",
+    "Workspace-tier policies are currently disabled; user tier is ~/.gemini/policies.",
+    "Telemetry logPrompts defaults to true and must be disabled for DLP.",
+    "Prompt caching only with API key or Vertex AI auth."
+  ],
+  "secretLevers": [
+    {
+      "kind": "env-redaction",
+      "scope": "settings",
+      "fact": "0031",
+      "confirmed": false,
+      "note": "Best effort, off by default. Not confirmed: that workspace settings apply."
+    }
+  ]
+}

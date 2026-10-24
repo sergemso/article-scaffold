@@ -1,0 +1,260 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "checkpointing",
+  "version": "0.2.0",
+  "family": "harness",
+  "components": [
+    9
+  ],
+  "requires": [
+    "hitl"
+  ],
+  "title": "State and checkpointing",
+  "summary": "Whether the work in progress is saved to a hidden git ref before a gated command or a plan step, who takes the checkpoint, and how many are kept.",
+  "questions": [
+    {
+      "id": "creation",
+      "prompt": "Who takes a checkpoint before a gated command?",
+      "options": [
+        {
+          "id": "hook-and-instruction",
+          "label": "The pre-tool hook, with an instruction where no hook runs",
+          "tradeoff": "Automatic on every host with a working pre-tool hook, at the cost of one working-tree snapshot per gated command; other hosts rely on the agent following the instruction.",
+          "recommended": true
+        },
+        {
+          "id": "instruction-only",
+          "label": "Instruction only",
+          "tradeoff": "Nothing runs by itself; depends on the agent taking the checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "triggers",
+      "prompt": "When is a checkpoint taken?",
+      "multi": true,
+      "when": {
+        "question": "creation",
+        "in": [
+          "hook-and-instruction"
+        ]
+      },
+      "options": [
+        {
+          "id": "gated-action",
+          "label": "Before a gated command",
+          "tradeoff": "Rare moments where rollback matters (force-push, hard reset, rm -rf, publishing); costs one snapshot each.",
+          "recommended": true
+        },
+        {
+          "id": "plan-step",
+          "label": "Before a plan step starts",
+          "tradeoff": "Every step can be rolled back to its start; one more snapshot per step."
+        }
+      ]
+    },
+    {
+      "id": "retention",
+      "prompt": "How many checkpoints are kept?",
+      "when": {
+        "question": "creation",
+        "in": [
+          "hook-and-instruction"
+        ]
+      },
+      "options": [
+        {
+          "id": "10",
+          "label": "The 10 newest",
+          "tradeoff": "Bounded size, nothing to clean up; an older checkpoint is gone after 10 newer ones.",
+          "recommended": true
+        },
+        {
+          "id": "all",
+          "label": "All of them",
+          "tradeoff": "Nothing is lost, but refs and the objects they keep alive accumulate."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "creation": {
+      "hook-and-instruction": {
+        "decisions": [
+          {
+            "slug": "checkpoint-before-gated-action",
+            "title": "Work is checkpointed before a gated action",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nThe pre-tool hook saves the working tree to a hidden git ref before a gated command (triggers: {{answer.triggers}}; keep: {{answer.retention}}), and the agent does it where no hook runs (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA hard reset or a recursive delete cannot be undone from the host (decision 0097); a checkpoint costs a few kilobytes.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "checkpoint-before-gated-action",
+            "title": "A gated action is preceded by a checkpoint",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.creation}}",
+              "grounded-in": [
+                "{{id.decision.creation}}",
+                "0097-checkpoints-are-hidden-git-refs-taken-before-gated-actions"
+              ],
+              "derivation-note": "Given work in progress must be recoverable after an irreversible command (0097), a checkpoint must exist before the command runs, since the host cannot undo what a shell command did."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "The pre-tool hook takes a checkpoint before a gated command",
+                "run": "builtin:checkpoint-before-gated triggers=\"{{answer.triggers}}\" keep={{answer.retention}}"
+              },
+              {
+                "tier": 1,
+                "check": "Where no hook runs, run `go-getter checkpoint create --label <what>` before a gated command"
+              }
+            ],
+            "body": "## Guardrail\n\nBefore a gated command, or a plan step when the project checkpoints those, a checkpoint of the working tree exists: the pre-tool hook takes it, or you run `go-getter checkpoint create --label <what>` where no hook runs. Restore with `go-getter checkpoint restore` (see the procedure).\n"
+          }
+        ],
+        "procedures": [
+          {
+            "slug": "restoring-a-checkpoint",
+            "title": "Restore work from a checkpoint",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "procedural"
+            ],
+            "frontmatter": {
+              "operationalizes": [
+                "checkpoint-before-gated-action"
+              ]
+            },
+            "body": "## Procedure\n\n1. `go-getter checkpoint list`: newest first, with the label and ref.\n2. `go-getter checkpoint restore <label>` shows what would change (M modified, D deleted, A created since) and changes nothing.\n3. If the list is right, add `--yes`: it puts back the M and D files in the working tree only. Files created since stay; remove them yourself if unwanted.\n4. A host's own rewind or restore command may undo editor changes, but not what a shell command did: use the checkpoint for that.\n"
+          }
+        ]
+      },
+      "instruction-only": {
+        "decisions": [
+          {
+            "slug": "checkpoint-before-gated-action",
+            "title": "Checkpointing is advisory",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nAgents are told to take a checkpoint before a gated command; nothing takes one automatically (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project accepted the risk for less machinery (decision 0097).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "checkpoint-before-gated-action",
+            "title": "Agents checkpoint before a gated action",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.creation}}",
+              "grounded-in": [
+                "{{id.decision.creation}}",
+                "0097-checkpoints-are-hidden-git-refs-taken-before-gated-actions"
+              ],
+              "derivation-note": "Given the project chose no mechanical checkpoint, the rule rests on the agent following it."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Run `go-getter checkpoint create --label <what>` before a gated command"
+              }
+            ],
+            "body": "## Guardrail\n\nBefore a gated command, run `go-getter checkpoint create --label <what>`. Advisory (tier 1): nothing takes it for you. Restore with `go-getter checkpoint restore`.\n"
+          }
+        ]
+      }
+    },
+    "triggers": {
+      "gated-action": {
+        "decisions": [
+          {
+            "slug": "checkpoint-trigger-gated-action",
+            "title": "A checkpoint is taken before a gated command",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nThe pre-tool hook takes a checkpoint before any command in the gated catalog (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nForce-pushes, hard resets and recursive deletes cannot be undone from the host, and a checkpoint costs a few kilobytes (decision 0097).\n"
+          }
+        ]
+      },
+      "plan-step": {
+        "decisions": [
+          {
+            "slug": "checkpoint-trigger-plan-step",
+            "title": "A checkpoint is taken before a plan step starts",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\n`go-getter plan start` takes a checkpoint before it marks a step in progress (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nEvery step can then be rolled back to its start, for one more snapshot per step (decision 0097).\n"
+          }
+        ]
+      }
+    },
+    "retention": {
+      "10": {
+        "decisions": [
+          {
+            "slug": "checkpoint-retention",
+            "title": "The 10 newest checkpoints are kept",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nCheckpoints beyond the 10 newest are pruned when a new one is taken (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nSize stays bounded with nothing to clean up by hand (decision 0097).\n"
+          }
+        ]
+      },
+      "all": {
+        "decisions": [
+          {
+            "slug": "checkpoint-retention",
+            "title": "Every checkpoint is kept",
+            "tags": [
+              "practice-packs",
+              "hooks"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nCheckpoints are never pruned automatically (pack {{pack.id}}@{{pack.version}}); `go-getter checkpoint prune` removes them by hand.\n\n## Why\n\nNothing is lost, at the price of refs and the objects they keep alive accumulating (decision 0097).\n"
+          }
+        ]
+      }
+    }
+  }
+}

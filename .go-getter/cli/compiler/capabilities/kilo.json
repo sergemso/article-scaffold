@@ -1,0 +1,77 @@
+{
+  "$schema": "../schemas/capabilities.schema.json",
+  "host": "kilo",
+  "fact": "0005-kilo-opencode-integration-surface",
+  "instructions": {
+    "file": "AGENTS.md",
+    "readsAgentsMd": true,
+    "agentsMdVia": "native"
+  },
+  "skills": {
+    "dirs": [
+      ".agents/skills",
+      ".claude/skills"
+    ]
+  },
+  "agents": {
+    "format": "markdown",
+    "dir": ".kilo/agents",
+    "extension": ".md",
+    "model": true,
+    "effort": true,
+    "tools": true
+  },
+  "commands": {
+    "native": true,
+    "dir": ".kilo/commands",
+    "format": "markdown"
+  },
+  "hooks": {
+    "config": ".kilo/plugin/go-getter.js",
+    "blockPreTool": true,
+    "rewriteToolInput": false,
+    "rewriteOutput": true,
+    "blockStop": false,
+    "modelSwap": false,
+    "runtime": "javascript"
+  },
+  "permissions": {
+    "pathReadDeny": true,
+    "config": "kilo.json",
+    "ask": {
+      "file": "kilo.json",
+      "format": "opencode-permission"
+    }
+  },
+  "routing": {
+    "localEndpoints": true,
+    "spendCap": "none",
+    "cacheTokensVisible": false
+  },
+  "telemetry": {
+    "otel": false,
+    "cost": false,
+    "spendSource": "sessions"
+  },
+  "sandbox": false,
+  "checkpointing": false,
+  "nodeAtRuntime": false,
+  "tiers": {
+    "3": 0,
+    "6": 1,
+    "7": 2,
+    "8": 2,
+    "9": 2,
+    "10": 2,
+    "11": 2,
+    "12": 1
+  },
+  "notes": [
+    "Kilo Code CLI is a fork of OpenCode that uses kilo.json[c] and .kilo/ instead of opencode.json and .opencode/ (fact 0005); its plugin directory is .kilo/plugin/ (fact 0031); the other subdirectory names under .kilo/ are assumed to mirror OpenCode's and are unconfirmed.",
+    "Plugins run under Bun; argument mutation for routing unconfirmed.",
+    "Effort via model variants.",
+    "Remote skills: skills.urls serving plugins/go-getter/skills/index.json.",
+    "Component 9 tier 2: the pre-tool hook takes the checkpoint before a gated command (decision 0097); the host has no native checkpoint."
+  ],
+  "secretLevers": []
+}

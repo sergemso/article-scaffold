@@ -1,0 +1,903 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "orchestration",
+  "version": "0.1.1",
+  "family": "harness",
+  "components": [
+    10
+  ],
+  "title": "Multi-agent orchestration",
+  "summary": "Agent roles compiled to each host's native agent format, with parallel isolation by worktree, a concurrency limit, human escalation and a handoff contract.",
+  "questions": [
+    {
+      "id": "roster",
+      "prompt": "Which agent roles does the project delegate to?",
+      "options": [
+        {
+          "id": "five-roles",
+          "label": "Planner, explorer, implementer, reviewer, tester",
+          "tradeoff": "Every routing class gets its own role; more definitions to maintain and more handoffs.",
+          "recommended": true
+        },
+        {
+          "id": "implementer-reviewer",
+          "label": "Implementer and reviewer",
+          "tradeoff": "Fewest roles that still separate writing from verifying; exploration and planning stay with the main agent."
+        },
+        {
+          "id": "no-roles",
+          "label": "None",
+          "tradeoff": "No definitions and no handoffs; no per-role routing and no independent review."
+        }
+      ]
+    },
+    {
+      "id": "reviewer",
+      "prompt": "What may the reviewer change? (Only the role's access is set here; what a review step must pass is the review bar of the verification-gate pack.)",
+      "when": {
+        "question": "roster",
+        "in": [
+          "five-roles",
+          "implementer-reviewer"
+        ]
+      },
+      "options": [
+        {
+          "id": "read-only",
+          "label": "Nothing: findings only",
+          "tradeoff": "Independent verdict; fixes cost an extra handoff back to the implementer.",
+          "recommended": true
+        },
+        {
+          "id": "trivial-fixes",
+          "label": "Trivial fixes (typos, formatting)",
+          "tradeoff": "Saves handoffs on nits; the reviewer's independence is slightly weaker."
+        },
+        {
+          "id": "full-write",
+          "label": "Anything",
+          "tradeoff": "Fastest to done; the reviewer marks its own work and independence is lost."
+        }
+      ]
+    },
+    {
+      "id": "isolation",
+      "prompt": "How are parallel tasks isolated?",
+      "options": [
+        {
+          "id": "worktree-per-task",
+          "label": "A git worktree per task",
+          "tradeoff": "Agents cannot overwrite each other; one checkout and one cold build per task.",
+          "recommended": true
+        },
+        {
+          "id": "branches-in-one-tree",
+          "label": "Branches in one working tree",
+          "tradeoff": "One checkout; tasks must run one at a time."
+        },
+        {
+          "id": "no-isolation",
+          "label": "None",
+          "tradeoff": "No setup; parallel agents can clobber each other."
+        }
+      ]
+    },
+    {
+      "id": "worktree-location",
+      "prompt": "Where do task worktrees live?",
+      "when": {
+        "question": "isolation",
+        "in": [
+          "worktree-per-task"
+        ]
+      },
+      "options": [
+        {
+          "id": "sibling-dir",
+          "label": "../<repo>-wt/<slug>",
+          "tradeoff": "Outside the repo, so tools never index them; one more directory next to the repo.",
+          "recommended": true
+        },
+        {
+          "id": "in-repo-dir",
+          "label": ".worktrees/ inside the repo (gitignored)",
+          "tradeoff": "Easy to find; editors and search may index them."
+        },
+        {
+          "id": "host-default",
+          "label": "Wherever the host agent puts them",
+          "tradeoff": "Nothing to configure; the location differs per host and `go-getter worktree new` is not used."
+        }
+      ]
+    },
+    {
+      "id": "max-concurrent",
+      "type": "text",
+      "prompt": "How many agents may run at once?",
+      "pattern": "^[1-9][0-9]*$",
+      "default": "3"
+    },
+    {
+      "id": "escalation",
+      "prompt": "When must an agent hand over to a human?",
+      "options": [
+        {
+          "id": "blocked-irreversible-denial",
+          "label": "When blocked, before irreversible or outward-facing actions, and on a guardrail denial",
+          "tradeoff": "Catches the costly mistakes; a few confirmations per task.",
+          "recommended": true
+        },
+        {
+          "id": "only-when-blocked",
+          "label": "Only when blocked",
+          "tradeoff": "Fewest interruptions; irreversible actions rely on guardrails alone."
+        },
+        {
+          "id": "before-every-commit",
+          "label": "Also before every commit",
+          "tradeoff": "A person sees every change land; slows autonomous work."
+        }
+      ]
+    },
+    {
+      "id": "handoff",
+      "prompt": "What is the handoff contract between agents?",
+      "options": [
+        {
+          "id": "brief-result-evidence",
+          "label": "Brief in; result and evidence out",
+          "tradeoff": "Small, checkable handoffs; the delegator must write a proper brief.",
+          "recommended": true
+        },
+        {
+          "id": "free-form",
+          "label": "Free-form summary",
+          "tradeoff": "Least friction; results are not checkable and drift in size."
+        },
+        {
+          "id": "structured-json",
+          "label": "Structured JSON",
+          "tradeoff": "Machine-checkable; rigid, and models spend tokens on the format."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "roster": {
+      "five-roles": {
+        "decisions": [
+          {
+            "slug": "agent-roster",
+            "title": "Work is delegated to planner, explorer, implementer, reviewer and tester agents",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "roles": [
+                  {
+                    "id": "planner",
+                    "description": "Turns a brief into an ordered plan with a done-when check per step.",
+                    "task-class": "plan",
+                    "access": "read-only",
+                    "instructions": "Turn the brief into an ordered plan with a done-when check per step. Read the code and docs you need; do not change files."
+                  },
+                  {
+                    "id": "explorer",
+                    "description": "Searches and reads the codebase to answer questions, with file and line references.",
+                    "task-class": "explore",
+                    "access": "read-only",
+                    "instructions": "Search and read the code to answer the brief's questions. Report file paths and line numbers; do not change files."
+                  },
+                  {
+                    "id": "implementer",
+                    "description": "Makes the change a brief describes and runs the project checks.",
+                    "task-class": "implement",
+                    "access": "write",
+                    "instructions": "Make the change the brief describes, nothing more. Run the project's checks before you report."
+                  },
+                  {
+                    "id": "reviewer",
+                    "description": "Reviews a change against the brief, decisions and guardrails and reports findings by severity.",
+                    "task-class": "review",
+                    "access": "read-only",
+                    "instructions": "Review the change against the brief and the project's decisions and guardrails. Report findings by severity, each with file and line; say so when there are none."
+                  },
+                  {
+                    "id": "tester",
+                    "description": "Writes and runs tests for a change and reports failures with their output.",
+                    "task-class": "debug",
+                    "access": "write",
+                    "instructions": "Write and run tests for the change. Report failures with the command and its output; do not change production code."
+                  }
+                ]
+              }
+            },
+            "body": "## Decision\n\nDelegate work to these agent roles: planner (plan), explorer (explore), implementer (implement), reviewer (review), tester (debug); the parenthesis is the routing task class. `go-getter apply` compiles them into each host agent's native format. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nSeparate roles are the routing lever and keep verification independent of implementation (decisions 0014, 0016).\n"
+          }
+        ]
+      },
+      "implementer-reviewer": {
+        "decisions": [
+          {
+            "slug": "agent-roster",
+            "title": "Work is delegated to implementer and reviewer agents",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "roles": [
+                  {
+                    "id": "implementer",
+                    "description": "Makes the change a brief describes and runs the project checks.",
+                    "task-class": "implement",
+                    "access": "write",
+                    "instructions": "Make the change the brief describes, nothing more. Run the project's checks before you report."
+                  },
+                  {
+                    "id": "reviewer",
+                    "description": "Reviews a change against the brief, decisions and guardrails and reports findings by severity.",
+                    "task-class": "review",
+                    "access": "read-only",
+                    "instructions": "Review the change against the brief and the project's decisions and guardrails. Report findings by severity, each with file and line; say so when there are none."
+                  }
+                ]
+              }
+            },
+            "body": "## Decision\n\nDelegate work to these agent roles: implementer (implement), reviewer (review); the parenthesis is the routing task class. `go-getter apply` compiles them into each host agent's native format. (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nSeparate roles are the routing lever and keep verification independent of implementation (decisions 0014, 0016).\n"
+          }
+        ]
+      },
+      "no-roles": {
+        "decisions": [
+          {
+            "slug": "agent-roster",
+            "title": "No agent roles are defined",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "roles": []
+              }
+            },
+            "body": "## Decision\n\nDo not define agent roles; the main agent works alone (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nSeparate roles are the routing lever and keep verification independent of implementation (decisions 0014, 0016).\n"
+          }
+        ]
+      }
+    },
+    "reviewer": {
+      "read-only": {
+        "decisions": [
+          {
+            "slug": "reviewer-access",
+            "title": "The reviewer reports findings and changes nothing",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "role-access": {
+                  "reviewer": "read-only"
+                },
+                "role-notes": {
+                  "reviewer": "Do not modify files; report findings only."
+                }
+              }
+            },
+            "body": "## Decision\n\nThe reviewer agent gets read-only access and reports findings only (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe reviewer's independence is what makes its verdict worth a gate (decision 0013).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "reviewer-read-only",
+            "title": "The reviewer must not modify files",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.reviewer}}",
+              "grounded-in": [
+                "{{id.decision.reviewer}}"
+              ],
+              "derivation-note": "Given a findings-only reviewer, a reviewer that edits marks its own work."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction plus the agent file's tool restriction where the host has one"
+              }
+            ],
+            "body": "## Guardrail\n\nThe reviewer reports findings and changes nothing. Hosts with tool lists restrict it natively; elsewhere this is advisory (tier 1).\n"
+          }
+        ]
+      },
+      "trivial-fixes": {
+        "decisions": [
+          {
+            "slug": "reviewer-access",
+            "title": "The reviewer may fix trivial issues and reports the rest",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "role-access": {
+                  "reviewer": "write"
+                },
+                "role-notes": {
+                  "reviewer": "You may fix typos and formatting directly and must list each fix; report everything else as findings."
+                }
+              }
+            },
+            "body": "## Decision\n\nThe reviewer agent may fix typos and formatting directly and reports everything else as findings (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe reviewer's independence is what makes its verdict worth a gate (decision 0013).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "reviewer-trivial-fixes-only",
+            "title": "The reviewer may fix only typos and formatting",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.reviewer}}",
+              "grounded-in": [
+                "{{id.decision.reviewer}}"
+              ],
+              "derivation-note": "Given a reviewer allowed trivial fixes, anything larger must go back to the implementer."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nThe reviewer fixes only typos and formatting, lists each fix and reports everything else. Advisory (tier 1).\n"
+          }
+        ]
+      },
+      "full-write": {
+        "decisions": [
+          {
+            "slug": "reviewer-access",
+            "title": "The reviewer may change anything",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "role-access": {
+                  "reviewer": "write"
+                },
+                "role-notes": {
+                  "reviewer": "You may fix the issues you find; list every change you make."
+                }
+              }
+            },
+            "body": "## Decision\n\nThe reviewer agent has full write access (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe reviewer's independence is what makes its verdict worth a gate (decision 0013).\n"
+          }
+        ]
+      }
+    },
+    "isolation": {
+      "worktree-per-task": {
+        "decisions": [
+          {
+            "slug": "parallel-isolation",
+            "title": "Each parallel task runs in its own git worktree",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "isolation": "worktree"
+              }
+            },
+            "body": "## Decision\n\nRun every parallel task in its own git worktree, created with `go-getter worktree new <slug>` (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nParallel agents on one working tree overwrite each other's edits.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "parallel-tasks-use-worktrees",
+            "title": "Parallel tasks must each use their own worktree",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.isolation}}",
+              "grounded-in": [
+                "{{id.decision.isolation}}"
+              ],
+              "derivation-note": "Given worktree isolation, two agents in one working tree overwrite each other."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nGive each parallel task its own worktree (`go-getter worktree new <slug>`). Advisory (tier 1).\n"
+          }
+        ]
+      },
+      "branches-in-one-tree": {
+        "decisions": [
+          {
+            "slug": "parallel-isolation",
+            "title": "Each task has its own branch in the single working tree and tasks run one at a time",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "isolation": "branches"
+              }
+            },
+            "body": "## Decision\n\nGive each task its own branch in the single working tree and run tasks one at a time (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nParallel agents on one working tree overwrite each other's edits.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "one-task-at-a-time",
+            "title": "Tasks sharing a working tree must run one at a time",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.isolation}}",
+              "grounded-in": [
+                "{{id.decision.isolation}}"
+              ],
+              "derivation-note": "Given branches in one tree, two agents editing it at once overwrite each other."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nRun one task at a time in the working tree, each on its own branch. Advisory (tier 1).\n"
+          }
+        ]
+      },
+      "no-isolation": {
+        "decisions": [
+          {
+            "slug": "parallel-isolation",
+            "title": "Parallel tasks are not isolated",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "isolation": "none"
+              }
+            },
+            "body": "## Decision\n\nDo not isolate parallel tasks (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nParallel agents on one working tree overwrite each other's edits.\n"
+          }
+        ]
+      }
+    },
+    "worktree-location": {
+      "sibling-dir": {
+        "decisions": [
+          {
+            "slug": "worktree-location",
+            "title": "Task worktrees live next to the repository",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "worktree-location": "sibling"
+              }
+            },
+            "body": "## Decision\n\nCreate task worktrees in `../<repo>-wt/<slug>` (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA fixed location keeps worktrees discoverable and out of the main tree's way.\n"
+          }
+        ]
+      },
+      "in-repo-dir": {
+        "decisions": [
+          {
+            "slug": "worktree-location",
+            "title": "Task worktrees live in the gitignored .worktrees directory",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "worktree-location": "in-repo"
+              }
+            },
+            "body": "## Decision\n\nCreate task worktrees in `.worktrees/<slug>` and keep the directory gitignored (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA fixed location keeps worktrees discoverable and out of the main tree's way.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "worktree-dir-is-gitignored",
+            "title": "The .worktrees directory must be gitignored",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.worktree-location}}",
+              "grounded-in": [
+                "{{id.decision.worktree-location}}"
+              ],
+              "derivation-note": "Given worktrees inside the repo, an unignored directory gets committed as untracked noise."
+            },
+            "enforcement": [
+              {
+                "tier": 3,
+                "check": ".gitignore lists .worktrees/",
+                "run": "builtin:gitignore-includes patterns=.worktrees/"
+              }
+            ],
+            "body": "## Guardrail\n\nKeep `.worktrees/` in `.gitignore`.\n"
+          }
+        ]
+      },
+      "host-default": {
+        "decisions": [
+          {
+            "slug": "worktree-location",
+            "title": "Task worktrees live wherever the host agent creates them",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "worktree-location": "host-default"
+              }
+            },
+            "body": "## Decision\n\nLet the host agent choose the worktree location; `go-getter worktree new` is not used (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA fixed location keeps worktrees discoverable and out of the main tree's way.\n"
+          }
+        ]
+      }
+    },
+    "max-concurrent": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "max-concurrent-agents",
+            "title": "At most {{answer.max-concurrent}} agents run at once",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "max-concurrent": "{{answer.max-concurrent}}"
+              }
+            },
+            "body": "## Decision\n\nRun at most {{answer.max-concurrent}} agents concurrently; `go-getter worktree new` refuses to exceed it (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nEach concurrent agent adds a cold cache and a merge to resolve.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "max-concurrent-agents-rule",
+            "title": "No more than {{answer.max-concurrent}} agents run at once",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.max-concurrent}}",
+              "grounded-in": [
+                "{{id.decision.max-concurrent}}"
+              ],
+              "derivation-note": "Given the limit, each extra agent adds a cold cache and a merge."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction; worktree creation is refused beyond the limit"
+              }
+            ],
+            "body": "## Guardrail\n\nRun at most {{answer.max-concurrent}} agents at once. `go-getter worktree new` refuses more than that many worktrees. Advisory (tier 1) otherwise.\n"
+          }
+        ]
+      }
+    },
+    "escalation": {
+      "blocked-irreversible-denial": {
+        "decisions": [
+          {
+            "slug": "human-escalation",
+            "title": "Agents hand over to a human when blocked, before irreversible or outward-facing actions, and on a guardrail denial",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "escalation": "Stop and hand over to a human when blocked, before any irreversible or outward-facing action, and when a guardrail denies an action."
+              }
+            },
+            "body": "## Decision\n\nHand over to a human when blocked, before any irreversible or outward-facing action, and on a guardrail denial (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nAgents must stop where a wrong guess is costly or the way forward needs a person (decision 0009).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "human-escalation-rule",
+            "title": "Agents must hand over to a human when blocked, before irreversible actions and on a guardrail denial",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.escalation}}",
+              "grounded-in": [
+                "{{id.decision.escalation}}"
+              ],
+              "derivation-note": "Given the escalation decision, an agent that routes around a denial defeats the guardrail."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nStop and ask a human when blocked, before irreversible or outward-facing actions, and when a guardrail denies an action. Advisory (tier 1).\n"
+          }
+        ]
+      },
+      "only-when-blocked": {
+        "decisions": [
+          {
+            "slug": "human-escalation",
+            "title": "Agents hand over to a human only when blocked",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "escalation": "Stop and hand over to a human only when you cannot proceed."
+              }
+            },
+            "body": "## Decision\n\nHand over to a human only when blocked (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nAgents must stop where a wrong guess is costly or the way forward needs a person (decision 0009).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "human-escalation-rule",
+            "title": "Agents hand over to a human only when blocked",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.escalation}}",
+              "grounded-in": [
+                "{{id.decision.escalation}}"
+              ],
+              "derivation-note": "Given the escalation decision, agents proceed unless they cannot."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nAsk a human only when you cannot proceed. Advisory (tier 1).\n"
+          }
+        ]
+      },
+      "before-every-commit": {
+        "decisions": [
+          {
+            "slug": "human-escalation",
+            "title": "Agents hand over to a human when blocked, before irreversible actions, on a guardrail denial and before every commit",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "escalation": "Stop and hand over to a human when blocked, before any irreversible or outward-facing action, when a guardrail denies an action and before every commit."
+              }
+            },
+            "body": "## Decision\n\nHand over to a human when blocked, before any irreversible or outward-facing action, on a guardrail denial and before every commit (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nAgents must stop where a wrong guess is costly or the way forward needs a person (decision 0009).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "human-escalation-rule",
+            "title": "Agents must hand over to a human before every commit as well as when blocked or denied",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.escalation}}",
+              "grounded-in": [
+                "{{id.decision.escalation}}"
+              ],
+              "derivation-note": "Given the escalation decision, a person sees every change before it lands."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nStop and ask a human when blocked, before irreversible or outward-facing actions, on a guardrail denial and before every commit. Advisory (tier 1).\n"
+          }
+        ]
+      }
+    },
+    "handoff": {
+      "brief-result-evidence": {
+        "decisions": [
+          {
+            "slug": "handoff-contract",
+            "title": "Handoffs are a brief in, then a result and evidence out",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "handoff": "The brief gives goal, scope and done-when. Reply with the result, then the evidence: commands run with their outcome, and file references."
+              }
+            },
+            "body": "## Decision\n\nThe delegator sends a brief (goal, scope, done-when); the agent replies with the result, then the evidence (commands run and their outcome, file references) (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA fixed handoff keeps delegated context small and every result checkable (decision 0014).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "handoff-has-brief-result-evidence",
+            "title": "Handoffs must carry a brief, a result and evidence",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.handoff}}",
+              "grounded-in": [
+                "{{id.decision.handoff}}"
+              ],
+              "derivation-note": "Given the contract, a result without evidence cannot be checked and a brief without done-when cannot be verified."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nDelegate with goal, scope and done-when; reply with the result and its evidence. Advisory (tier 1).\n"
+          }
+        ]
+      },
+      "free-form": {
+        "decisions": [
+          {
+            "slug": "handoff-contract",
+            "title": "Handoffs are free-form summaries",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "handoff": "Reply with a concise summary of what you did and found."
+              }
+            },
+            "body": "## Decision\n\nAgents hand over work with a free-form summary (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA fixed handoff keeps delegated context small and every result checkable (decision 0014).\n"
+          }
+        ]
+      },
+      "structured-json": {
+        "decisions": [
+          {
+            "slug": "handoff-contract",
+            "title": "Handoffs are structured JSON objects",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "harness"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "handoff": "Reply with one JSON object: {\"status\": \"done\" | \"blocked\", \"summary\": string, \"files\": string[], \"evidence\": string[]}."
+              }
+            },
+            "body": "## Decision\n\nAgents reply with one JSON object: status, summary, files and evidence (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA fixed handoff keeps delegated context small and every result checkable (decision 0014).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "handoff-is-structured-json",
+            "title": "Agent replies must be one JSON object with status, summary, files and evidence",
+            "tags": [
+              "practice-packs",
+              "agent-roles",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.handoff}}",
+              "grounded-in": [
+                "{{id.decision.handoff}}"
+              ],
+              "derivation-note": "Given structured handoffs, a reply that is not parseable breaks the delegator."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nReply with exactly one JSON object with status, summary, files and evidence. Advisory (tier 1).\n"
+          }
+        ]
+      }
+    }
+  }
+}

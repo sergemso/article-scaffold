@@ -1,0 +1,78 @@
+{
+  "$schema": "../schemas/capabilities.schema.json",
+  "host": "cursor",
+  "fact": "0006-cursor-integration-surface",
+  "instructions": {
+    "file": "AGENTS.md",
+    "readsAgentsMd": true,
+    "agentsMdVia": "native"
+  },
+  "skills": {
+    "dirs": [
+      ".agents/skills",
+      ".cursor/skills",
+      ".claude/skills"
+    ]
+  },
+  "agents": {
+    "format": "markdown",
+    "dir": ".cursor/agents",
+    "extension": ".md",
+    "model": true,
+    "effort": true,
+    "tools": false,
+    "nesting": 1
+  },
+  "commands": {
+    "native": false
+  },
+  "hooks": {
+    "config": ".cursor/hooks.json",
+    "blockPreTool": true,
+    "rewriteToolInput": true,
+    "rewriteOutput": false,
+    "rewriteMcpOutput": true,
+    "blockStop": true,
+    "modelSwap": false,
+    "runtime": "command"
+  },
+  "permissions": {
+    "pathReadDeny": true,
+    "config": ".cursor/cli.json"
+  },
+  "routing": {
+    "localEndpoints": false,
+    "spendCap": "none",
+    "cacheTokensVisible": false,
+    "delegation": {
+      "tool": "Task",
+      "update": "updated_input"
+    }
+  },
+  "telemetry": {
+    "otel": false,
+    "cost": false,
+    "spendSource": "none"
+  },
+  "sandbox": true,
+  "checkpointing": false,
+  "nodeAtRuntime": false,
+  "tiers": {
+    "3": 2,
+    "6": 2,
+    "7": 2,
+    "8": 2,
+    "9": 2,
+    "10": 2,
+    "11": 2,
+    "12": 1
+  },
+  "notes": [
+    "Effort via model id parameters, e.g. model[effort=high].",
+    "Agent frontmatter supports readonly instead of a tool list.",
+    "Non-zero hook exits other than 2 fail open.",
+    "CLI permissions may not apply to the IDE agent (unconfirmed).",
+    "Component 9 tier 2: the pre-tool hook takes the checkpoint before a gated command (decision 0097); the host has no native checkpoint."
+  ],
+  "secretLevers": []
+}

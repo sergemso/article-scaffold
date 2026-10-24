@@ -1,0 +1,449 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "restricted-data",
+  "version": "0.6.0",
+  "family": "harness",
+  "components": [
+    7
+  ],
+  "title": "Restricted data",
+  "summary": "Keeps restricted data away from agents: which paths are restricted, how each is protected, how secrets are used and where they may go, and which hosts may handle restricted data.",
+  "replaces": {
+    "pack": "governance",
+    "questions": [
+      "restricted-paths",
+      "restricted-modes",
+      "enforcement",
+      "use-commands",
+      "sink-sources",
+      "restricted-hosts"
+    ]
+  },
+  "questions": [
+    {
+      "id": "restricted-paths",
+      "type": "list",
+      "prompt": "Which paths hold restricted data (secrets, keys, credentials)? Detected sensitive paths are added to the standard patterns.",
+      "detect": "sensitivePaths",
+      "pattern": "^[^\\s\",]+$",
+      "default": [
+        ".env",
+        ".env.*",
+        "*.pem",
+        "*.key",
+        "id_rsa",
+        "id_ed25519"
+      ]
+    },
+    {
+      "id": "restricted-modes",
+      "type": "list",
+      "prompt": "Which restricted path patterns get a mode other than deny? use:<pattern> lets go-getter secret run pass the content to an approved command without the agent reading it; sink:<pattern> lets go-getter secret put write it from a declared source without reading it back. Every other path stays denied.",
+      "pattern": "^(use|sink):[^\\s\",]+$",
+      "default": []
+    },
+    {
+      "id": "enforcement",
+      "prompt": "How are restricted paths enforced?",
+      "options": [
+        {
+          "id": "hook-and-never-committed",
+          "label": "Host hook blocks agent access and CI fails if one is tracked",
+          "tradeoff": "Holds even when the agent ignores instructions; hosts differ in what their hook can see, so the coverage report shows the tier per host.",
+          "recommended": true
+        },
+        {
+          "id": "never-committed",
+          "label": "CI and pre-push fail if one is tracked",
+          "tradeoff": "Stops leaks into git only; the agent can still read the files."
+        },
+        {
+          "id": "advisory",
+          "label": "Instruction only",
+          "tradeoff": "No friction; depends on the agent complying."
+        }
+      ]
+    },
+    {
+      "id": "use-commands",
+      "type": "list",
+      "since": "0.5.0",
+      "default": [],
+      "pattern": "^[^\\s\",|]+\\|[^\",]+$",
+      "prompt": "Which commands may receive each use path? One entry per command, as <pattern>|<command>, for example config/dev.secrets|npm test. go-getter secret run refuses any other command, and refuses all when none is listed. An approved command runs your project's own code, which an agent can edit: approve commands whose scripts you review, since a script that encodes the secret before printing it gets past output scrubbing."
+    },
+    {
+      "id": "sink-sources",
+      "type": "list",
+      "since": "0.5.0",
+      "default": [],
+      "pattern": "^[^\\s\",|]+\\|[A-Za-z0-9_-]+\\|[^\",]+$",
+      "prompt": "Where may each sink path get its value from? One entry per source, as <pattern>|<name>|<command>, for example config/dev.secrets|vault|op read op://vault/dev. go-getter secret put --from-command <name> runs the command (split on spaces, no shell); the agent names a source and never supplies a command."
+    },
+    {
+      "id": "restricted-hosts",
+      "prompt": "Which host agents may handle restricted data?",
+      "options": [
+        {
+          "id": "hook-hosts",
+          "label": "Hosts with a blocking pre-tool hook",
+          "tradeoff": "Matches what the hook runtime can enforce; the coverage report flags hosts where DLP is only advisory.",
+          "recommended": true
+        },
+        {
+          "id": "all-hosts",
+          "label": "All hosts",
+          "tradeoff": "No restriction; hosts without enforcement rely on instructions."
+        },
+        {
+          "id": "sandbox-hosts",
+          "label": "Only hosts with an OS sandbox",
+          "tradeoff": "Strongest isolation; fewer hosts qualify."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "restricted-paths": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "restricted-paths",
+            "title": "Restricted data lives at a declared list of paths",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "restricted-paths": "{{answer.restricted-paths}}"
+              }
+            },
+            "body": "## Decision\n\nThe restricted data class is the paths {{answer.restricted-paths}} (pack {{pack.id}}@{{pack.version}}). Agents do not read or write them, and only a local model may receive their content.\n\n## Why\n\nDLP needs a declared list that hooks and CI can enforce (decision 0018).\n"
+          }
+        ]
+      }
+    },
+    "restricted-modes": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "restricted-path-modes",
+            "title": "Restricted paths have an access mode, deny unless listed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "restricted-modes": "{{answer.restricted-modes}}"
+              }
+            },
+            "body": "## Decision\n\nA restricted path pattern listed in `go-getter.restricted-modes` as `use:<pattern>` or `sink:<pattern>` has that mode; every other one is `deny` (pack {{pack.id}}@{{pack.version}}). A `use` path may be passed to an approved command by a call that is exactly `go-getter secret run`, and a `sink` path may be written from a declared source by a call that is exactly `go-getter secret put`; every other call that names one is denied like a `deny` path.\n\n## Why\n\nAgents need secrets they can use or fill without reading them, and no other go-getter command may be the exemption, since one that runs a user-supplied command would leak the content (decision 0072).\n"
+          }
+        ]
+      }
+    },
+    "enforcement": {
+      "hook-and-never-committed": {
+        "decisions": [
+          {
+            "slug": "restricted-paths-enforcement",
+            "title": "Restricted paths are blocked in the host and never committed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "enforcement"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nA host pre-tool hook blocks tool calls that touch a restricted path (tier 2) and CI and pre-push fail if one is tracked (tier 3) (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nDLP must not depend on agent compliance (decisions 0009, 0018).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "restricted-paths-denied",
+            "title": "Agents must not touch restricted paths and none may be committed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.enforcement}}",
+              "grounded-in": [
+                "{{id.decision.enforcement}}"
+              ],
+              "derivation-note": "Given restricted data must not reach a model or a repository (0018), the host must block access and git must refuse the files, since instructions alone fail silently."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "Pre-tool hook blocks tool calls that touch a restricted path",
+                "run": "builtin:deny-path paths=\"{{answer.restricted-paths}}\""
+              },
+              {
+                "tier": 3,
+                "check": "No tracked file matches a restricted path",
+                "run": "builtin:deny-path paths=\"{{answer.restricted-paths}}\""
+              }
+            ],
+            "body": "## Guardrail\n\nNever read, write or commit a path on the restricted list. The host hook blocks tool calls that mention one where the host supports it; git hooks and CI fail when a tracked file matches.\n"
+          }
+        ]
+      },
+      "never-committed": {
+        "decisions": [
+          {
+            "slug": "restricted-paths-enforcement",
+            "title": "Restricted paths are never committed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "enforcement"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nCI and pre-push fail if a tracked file matches a restricted path (tier 3) (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA public history is world-readable (decision 0018).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "restricted-paths-denied",
+            "title": "No restricted path may be committed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.enforcement}}",
+              "grounded-in": [
+                "{{id.decision.enforcement}}"
+              ],
+              "derivation-note": "Given committed secrets are exposed to everyone with repository access (0018), git must refuse them."
+            },
+            "enforcement": [
+              {
+                "tier": 3,
+                "check": "No tracked file matches a restricted path",
+                "run": "builtin:deny-path paths=\"{{answer.restricted-paths}}\""
+              }
+            ],
+            "body": "## Guardrail\n\nNever commit a path on the restricted list. Git hooks and CI fail when a tracked file matches.\n"
+          }
+        ]
+      },
+      "advisory": {
+        "decisions": [
+          {
+            "slug": "restricted-paths-enforcement",
+            "title": "Restricted paths are protected by instruction only",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "enforcement"
+            ],
+            "frontmatter": {
+              "track": "process"
+            },
+            "body": "## Decision\n\nAgents are told not to read, write or commit restricted paths; nothing blocks them (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project accepted the risk for less friction.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "restricted-paths-denied",
+            "title": "Agents must not read, write or commit restricted paths",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.enforcement}}",
+              "grounded-in": [
+                "{{id.decision.enforcement}}"
+              ],
+              "derivation-note": "Given the project chose no mechanical block, the rule rests on the agent following it."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction only"
+              }
+            ],
+            "body": "## Guardrail\n\nNever read, write or commit a path on the restricted list. Advisory (tier 1): nothing blocks it.\n"
+          }
+        ]
+      }
+    },
+    "use-commands": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "use-commands",
+            "title": "The commands approved to receive a use path are listed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "use-commands": "{{answer.use-commands}}"
+              }
+            },
+            "body": "## Decision\n\nOnly the commands [{{answer.use-commands}}] may receive a use path through `go-getter secret run`, each for its own pattern (pack {{pack.id}}@{{pack.version}}); with none listed `secret run` refuses every command.\n\n## Why\n\nScrubbing an exact value cannot catch a re-encoded one, so a human decides which commands may hold a secret (decision 0107).\n"
+          }
+        ]
+      }
+    },
+    "sink-sources": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "sink-sources",
+            "title": "The sources allowed to fill a sink path are listed",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "sink-sources": "{{answer.sink-sources}}"
+              }
+            },
+            "body": "## Decision\n\n`go-getter secret put` may fill a sink path only from standard input or from the declared sources [{{answer.sink-sources}}], each for its own pattern (pack {{pack.id}}@{{pack.version}}); the agent names a source and never supplies a command.\n\n## Why\n\nA secret manager with a command-line tool is reached through a declared command, with no platform code and no keychain (decision 0107).\n"
+          }
+        ]
+      }
+    },
+    "restricted-hosts": {
+      "hook-hosts": {
+        "decisions": [
+          {
+            "slug": "restricted-data-hosts",
+            "title": "Restricted data is handled only on hosts with a blocking pre-tool hook",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "restricted-data-hosts": {
+                  "rule": "blocking-hook"
+                }
+              }
+            },
+            "body": "## Decision\n\nOnly host agents with a blocking pre-tool hook handle restricted data; `go-getter coverage` shows each host's tier for guardrails and DLP (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nWhere a host cannot block, DLP is advisory (decision 0018).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "restricted-data-hosts-rule",
+            "title": "Restricted data is handled only on hosts with a blocking pre-tool hook",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.restricted-hosts}}",
+              "grounded-in": [
+                "{{id.decision.restricted-hosts}}"
+              ],
+              "derivation-note": "Given DLP must not depend on agent compliance (0018), only hosts whose hook can block may be near restricted data."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction; the coverage report shows the tier per host"
+              }
+            ],
+            "body": "## Guardrail\n\nHandle restricted data only in host agents with a blocking pre-tool hook. Advisory (tier 1): `go-getter coverage` shows where DLP is only advisory.\n"
+          }
+        ]
+      },
+      "all-hosts": {
+        "decisions": [
+          {
+            "slug": "restricted-data-hosts",
+            "title": "Any host may handle restricted data",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "restricted-data-hosts": {
+                  "rule": "all"
+                }
+              }
+            },
+            "body": "## Decision\n\nNo host is excluded from restricted data; `go-getter coverage` shows each host's tier (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project accepted advisory DLP on hosts that cannot block.\n"
+          }
+        ]
+      },
+      "sandbox-hosts": {
+        "decisions": [
+          {
+            "slug": "restricted-data-hosts",
+            "title": "Restricted data is handled only on hosts with an OS sandbox",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "security"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "restricted-data-hosts": {
+                  "rule": "sandbox"
+                }
+              }
+            },
+            "body": "## Decision\n\nOnly host agents with an OS sandbox handle restricted data (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nA sandbox contains what a tool call can reach even when a hook misses it (decision 0018).\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "restricted-data-hosts-rule",
+            "title": "Restricted data is handled only on hosts with an OS sandbox",
+            "tags": [
+              "practice-packs",
+              "governance",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.restricted-hosts}}",
+              "grounded-in": [
+                "{{id.decision.restricted-hosts}}"
+              ],
+              "derivation-note": "Given a hook can miss a path, only hosts that also contain tool calls in an OS sandbox may be near restricted data."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Instruction; the coverage report shows the tier per host"
+              }
+            ],
+            "body": "## Guardrail\n\nHandle restricted data only in host agents with an OS sandbox. Advisory (tier 1).\n"
+          }
+        ]
+      }
+    }
+  }
+}

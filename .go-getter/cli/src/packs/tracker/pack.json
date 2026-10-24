@@ -1,0 +1,535 @@
+{
+  "$schema": "../../../compiler/schemas/pack.schema.json",
+  "id": "tracker",
+  "version": "0.3.0",
+  "family": "sdlc",
+  "title": "Plan tracker",
+  "summary": "Where plan steps live: in the plan files, in the project's GitHub Issues or in Jira, and whether go-getter may create, comment on and close issues from a plan.",
+  "questions": [
+    {
+      "id": "tracker",
+      "prompt": "Where do plan steps live?",
+      "options": [
+        {
+          "id": "files",
+          "label": "In the plan files",
+          "tradeoff": "Steps and their state are Markdown in docs/plans, read offline and changed through git; teammates who do not use git do not see them, and nothing links a step to an issue.",
+          "recommended": true
+        },
+        {
+          "id": "github",
+          "label": "In GitHub Issues, with the plan files holding the step text",
+          "tradeoff": "A step that names an issue takes its state from the issue, so the work is visible where the team already tracks it; plan status needs gh and the network (the last state read is shown, marked stale, when it fails), and a step without an issue stays file-driven."
+        },
+        {
+          "id": "jira",
+          "label": "In Jira issues, with the plan files holding the step text",
+          "tradeoff": "A step that names an issue (PROJ-123) takes its state from the issue's status category, so the work is visible where the team already tracks it; plan status needs network access and credentials in environment variables you name (never stored), and a step without an issue stays file-driven."
+        }
+      ]
+    },
+    {
+      "id": "jira-site",
+      "type": "text",
+      "prompt": "What is your Jira site's base URL, for example https://yourteam.atlassian.net? Leave empty until you know it: reading and writing then report the missing setting.",
+      "pattern": "^(?:https://[^\\s\"]+)?$",
+      "default": "",
+      "since": "0.2.0",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "id": "jira-auth",
+      "prompt": "How does go-getter authenticate to Jira?",
+      "since": "0.2.0",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "jira"
+        ]
+      },
+      "options": [
+        {
+          "id": "basic",
+          "label": "Account email and API token (Jira Cloud)",
+          "tradeoff": "Needs two environment variables, one for the email and one for the token; the token is yours and acts as you.",
+          "recommended": true
+        },
+        {
+          "id": "bearer",
+          "label": "Personal access token (Jira Data Center)",
+          "tradeoff": "Needs one environment variable holding the token; the email is not used."
+        }
+      ]
+    },
+    {
+      "id": "jira-email-env",
+      "type": "text",
+      "prompt": "Which environment variable holds the Jira account email? Only its name is recorded, never its value.",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "default": "JIRA_EMAIL",
+      "since": "0.2.0",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "id": "jira-token-env",
+      "type": "text",
+      "prompt": "Which environment variable holds the Jira API token or personal access token? Only its name is recorded, never its value.",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "default": "JIRA_API_TOKEN",
+      "since": "0.2.0",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "id": "jira-project",
+      "type": "text",
+      "prompt": "Which Jira project key do new issues from a plan go to, for example PROJ? Leave empty if go-getter only reads.",
+      "pattern": "^(?:[A-Z][A-Z0-9_]+)?$",
+      "default": "",
+      "since": "0.2.0",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "id": "jira-issue-type",
+      "type": "text",
+      "prompt": "Which issue type do new issues have?",
+      "pattern": "^[A-Za-z][A-Za-z0-9 _-]{0,40}$",
+      "default": "Task",
+      "since": "0.2.0",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "id": "jira-done-transition",
+      "type": "text",
+      "prompt": "Which transition closes an issue (its name or id)? Leave empty to use the one transition into the done category, which go-getter refuses to guess when there are several.",
+      "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9 _'-]{0,60})?$",
+      "default": "",
+      "since": "0.2.0",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "jira"
+        ]
+      }
+    },
+    {
+      "id": "writes",
+      "prompt": "May go-getter write to the tracker (create an issue from a step, comment, close)?",
+      "when": {
+        "question": "tracker",
+        "in": [
+          "github",
+          "jira"
+        ]
+      },
+      "options": [
+        {
+          "id": "ask",
+          "label": "Yes, with a human approving each write",
+          "tradeoff": "plan issue create, comment and close prompt before they run (a hand-over on hosts without native prompts); dry runs and reads never prompt.",
+          "recommended": true
+        },
+        {
+          "id": "off",
+          "label": "No: go-getter only reads",
+          "tradeoff": "A person creates and closes issues; plan status still shows their state."
+        },
+        {
+          "id": "allow",
+          "label": "Yes, without asking",
+          "tradeoff": "Fastest, and the only writes are the three plan issue verbs, which refuse text containing a secret or personal data; an agent can still create, comment on and close issues unprompted, which others see."
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "tracker": {
+      "files": {
+        "decisions": [
+          {
+            "slug": "plans-in-files",
+            "title": "Plan steps live in the plan files",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker": "files"
+              }
+            },
+            "body": "## Decision\n\nPlan steps and their state live in the plan files under docs/plans; no tracker is read or written (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nThe project keeps its plans in git and has no need to link steps to an issue tracker.\n"
+          }
+        ]
+      },
+      "github": {
+        "decisions": [
+          {
+            "slug": "plans-in-github",
+            "title": "Plan steps live in GitHub Issues",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker": "github"
+              }
+            },
+            "body": "## Decision\n\nA plan step that names a GitHub issue (an `Issue:` field) takes its state from the issue: closed as completed is done, closed as not planned is moved, an open issue is not done. A step without an issue stays file-driven, and the plan file is never rewritten to match (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nWork is visible where the team already tracks it, and issue text is read as data and never run as a command.\n"
+          }
+        ]
+      },
+      "jira": {
+        "decisions": [
+          {
+            "slug": "plans-in-jira",
+            "title": "Plan steps live in Jira issues",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker": "jira"
+              }
+            },
+            "body": "## Decision\n\nA plan step that names a Jira issue (an `Issue:` field such as `PROJ-123`) takes its state from the issue's status category: done is done, in progress is in progress, anything else is open, whatever the status is called. A step without an issue stays file-driven, and the plan file is never rewritten to match (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nWork is visible where the team already tracks it, and issue text is read as data and never run as a command.\n"
+          }
+        ]
+      }
+    },
+    "writes": {
+      "ask": {
+        "decisions": [
+          {
+            "slug": "tracker-writes",
+            "title": "go-getter may write to the tracker with a human approving each write",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-writes": "ask"
+              }
+            },
+            "body": "## Decision\n\n`go-getter plan issue create`, `comment` and `close` write to the tracker only after a human approves the command (pack {{pack.id}}@{{pack.version}}); a dry run and every read need no approval.\n\n## Why\n\nWriting is outward-facing and visible to others; the text sent is checked for secrets and personal data first.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "tracker-writes-follow-the-answer",
+            "title": "Writes to the plan tracker follow the project's answer",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.writes}}",
+              "grounded-in": [
+                "{{id.decision.writes}}"
+              ],
+              "derivation-note": "Given plan writes are visible to others, the project asked for a human on each, which the host must enforce since an instruction alone fails silently."
+            },
+            "enforcement": [
+              {
+                "tier": 2,
+                "check": "The host asks, or hands over, for the commands that write to the tracker, however go-getter is run",
+                "run": "builtin:gate-command classes=\"\" go-getter=\"plan issue create,plan issue comment,plan issue close\""
+              },
+              {
+                "tier": 1,
+                "check": "Ask the user before running go-getter plan issue create, comment or close"
+              }
+            ],
+            "body": "## Guardrail\n\nThe commands that write to the tracker (`plan issue create`, `comment`, `close`) need a human: do not run them yourself, ask the user to approve or run them. go-getter recognises them by what the call runs, so any way of running go-getter (the project runner, a user-level install, `npx`, `node <entry>`) is covered. A host whose hook can ask prompts once per call; hosts with native ask rules prompt for the usual spellings; the others get a hand-over from the pre-tool hook. Raw `gh issue` and `gh api` commands are covered by the human-approval guardrail of the hitl pack, not by this one.\n"
+          }
+        ]
+      },
+      "off": {
+        "decisions": [
+          {
+            "slug": "tracker-writes",
+            "title": "go-getter does not write to the tracker",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-writes": "off"
+              }
+            },
+            "body": "## Decision\n\n`go-getter plan issue` refuses to create, comment on or close issues; go-getter only reads issue state (pack {{pack.id}}@{{pack.version}}).\n\n## Why\n\nPeople create and close the project's issues themselves.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "tracker-writes-follow-the-answer",
+            "title": "Writes to the plan tracker follow the project's answer",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.writes}}",
+              "grounded-in": [
+                "{{id.decision.writes}}"
+              ],
+              "derivation-note": "Given the project chose that go-getter only reads the tracker, the CLI refuses writes and the instruction says why."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Do not run go-getter plan issue create, comment or close; ask the user"
+              }
+            ],
+            "body": "## Guardrail\n\nDo not write to the tracker from a plan: `go-getter plan issue create`, `comment` and `close` refuse while this answer is off. Ask the user to create or close an issue.\n"
+          }
+        ]
+      },
+      "allow": {
+        "decisions": [
+          {
+            "slug": "tracker-writes",
+            "title": "go-getter may write to the tracker without asking",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-writes": "allow"
+              }
+            },
+            "body": "## Decision\n\n`go-getter plan issue create`, `comment` and `close` run without a human approving each one (pack {{pack.id}}@{{pack.version}}); the text they send is checked for secrets and personal data first, and raw `gh issue` commands stay gated by the hitl pack.\n\n## Why\n\nThe project accepted the visibility of agent-written issues for less friction.\n"
+          }
+        ],
+        "guardrails": [
+          {
+            "slug": "tracker-writes-follow-the-answer",
+            "title": "Writes to the plan tracker follow the project's answer",
+            "tags": [
+              "practice-packs",
+              "hooks",
+              "guardrail"
+            ],
+            "frontmatter": {
+              "governed-by": "{{id.decision.writes}}",
+              "grounded-in": [
+                "{{id.decision.writes}}"
+              ],
+              "derivation-note": "Given the project chose no prompt for plan writes, the rule rests on the agent keeping to the verbs and the step text."
+            },
+            "enforcement": [
+              {
+                "tier": 1,
+                "check": "Write to the tracker only through go-getter plan issue and only what the step says"
+              }
+            ],
+            "body": "## Guardrail\n\nWrite to the tracker only through `go-getter plan issue create`, `comment` and `close`, never with raw `gh issue` commands, and only what the plan step says. Advisory (tier 1): nothing prompts for these verbs.\n"
+          }
+        ]
+      }
+    },
+    "jira-site": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-site",
+            "title": "The Jira site is recorded",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-site": "{{answer.jira-site}}"
+              }
+            },
+            "body": "## Decision\n\nThe Jira site is `{{answer.jira-site}}` (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      }
+    },
+    "jira-auth": {
+      "basic": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-auth",
+            "title": "The Jira authentication is recorded",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-auth": "basic"
+              }
+            },
+            "body": "## Decision\n\nJira is reached with `{{answer.jira-auth}}` authentication (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      },
+      "bearer": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-auth",
+            "title": "The Jira authentication is recorded",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-auth": "bearer"
+              }
+            },
+            "body": "## Decision\n\nJira is reached with `{{answer.jira-auth}}` authentication (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      }
+    },
+    "jira-email-env": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-email-env",
+            "title": "The variable holding the Jira email is named",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-email-env": "{{answer.jira-email-env}}"
+              }
+            },
+            "body": "## Decision\n\nThe Jira account email is read from the environment variable `{{answer.jira-email-env}}` (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      }
+    },
+    "jira-token-env": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-token-env",
+            "title": "The variable holding the Jira token is named",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-token-env": "{{answer.jira-token-env}}"
+              }
+            },
+            "body": "## Decision\n\nThe Jira token is read from the environment variable `{{answer.jira-token-env}}` (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      }
+    },
+    "jira-project": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-project",
+            "title": "The Jira project for new issues is recorded",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-project": "{{answer.jira-project}}"
+              }
+            },
+            "body": "## Decision\n\nNew issues from a plan are created in the Jira project `{{answer.jira-project}}` (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      }
+    },
+    "jira-issue-type": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-issue-type",
+            "title": "The Jira issue type for new issues is recorded",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-issue-type": "{{answer.jira-issue-type}}"
+              }
+            },
+            "body": "## Decision\n\nNew issues from a plan have the type `{{answer.jira-issue-type}}` (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      }
+    },
+    "jira-done-transition": {
+      "*": {
+        "decisions": [
+          {
+            "slug": "tracker-jira-done-transition",
+            "title": "The Jira transition that closes an issue is recorded",
+            "tags": [
+              "practice-packs",
+              "roadmap"
+            ],
+            "frontmatter": {
+              "track": "process",
+              "go-getter": {
+                "tracker-jira-done-transition": "{{answer.jira-done-transition}}"
+              }
+            },
+            "body": "## Decision\n\nAn issue is closed by the transition `{{answer.jira-done-transition}}` (pack {{pack.id}}@{{pack.version}}); an empty value means not set.\n\n## Why\n\nGo-getter reads the Jira settings from the project's decisions; the credentials themselves are never recorded, only the names of the environment variables that hold them.\n"
+          }
+        ]
+      }
+    }
+  }
+}

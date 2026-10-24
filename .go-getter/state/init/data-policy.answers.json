@@ -1,0 +1,50 @@
+{
+  "answers": {
+    "internal-data": "approved-cloud",
+    "confidential-zdr": "zdr-not-required",
+    "prompt-logging": "disable-everywhere"
+  },
+  "acceptedBy": "Sergey Strebulaev",
+  "detect": {
+    "languages": [
+      "python"
+    ],
+    "packageManagers": [],
+    "testFrameworks": [
+      "pytest"
+    ],
+    "linters": [
+      "ruff"
+    ],
+    "typecheckers": [],
+    "commands": {
+      "format": "ruff format --check .",
+      "lint": "make lint",
+      "typecheck": null,
+      "static-analysis": null,
+      "build": "python -m build",
+      "test": "make test",
+      "unit": null,
+      "integration": null,
+      "e2e": null,
+      "coverage": null
+    },
+    "nodeVersion": null,
+    "ci": [
+      "github-actions"
+    ],
+    "monorepo": [],
+    "hostAgents": [],
+    "agentFiles": [
+      "AGENTS.md"
+    ],
+    "knowledgeBase": false,
+    "specTool": null,
+    "sensitivePaths": [],
+    "git": {
+      "defaultBranch": "master",
+      "defaultBranchKnown": true,
+      "remoteHost": "github.com"
+    }
+  }
+}

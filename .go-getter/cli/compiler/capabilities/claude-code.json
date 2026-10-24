@@ -1,0 +1,99 @@
+{
+  "$schema": "../schemas/capabilities.schema.json",
+  "host": "claude-code",
+  "fact": "0003-claude-code-integration-surface",
+  "instructions": {
+    "file": "CLAUDE.md",
+    "readsAgentsMd": false,
+    "agentsMdVia": "symlink"
+  },
+  "skills": {
+    "dirs": [
+      ".claude/skills"
+    ]
+  },
+  "agents": {
+    "format": "markdown",
+    "dir": ".claude/agents",
+    "extension": ".md",
+    "model": true,
+    "effort": true,
+    "tools": true,
+    "nesting": 3
+  },
+  "commands": {
+    "native": false
+  },
+  "hooks": {
+    "config": ".claude/settings.json",
+    "blockPreTool": true,
+    "askPreTool": true,
+    "rewriteToolInput": true,
+    "rewriteOutput": true,
+    "blockStop": true,
+    "modelSwap": false,
+    "runtime": "command",
+    "watcher": { "tool": "Monitor", "field": "command" }
+  },
+  "permissions": {
+    "pathReadDeny": true,
+    "config": ".claude/settings.json",
+    "ask": {
+      "file": ".claude/settings.json",
+      "format": "claude-permissions"
+    }
+  },
+  "routing": {
+    "localEndpoints": true,
+    "spendCap": "headless",
+    "cacheTokensVisible": true,
+    "cacheTtl": {
+      "file": ".claude/settings.json",
+      "main": [
+        "promptCacheTtl"
+      ],
+      "subagent": [
+        "subagentPromptCacheTtl"
+      ]
+    },
+    "delegation": {
+      "tool": "Agent",
+      "update": "hookSpecificOutput",
+      "models": [
+        { "prefix": "claude-fable-", "alias": "fable" },
+        { "prefix": "claude-opus-", "alias": "opus" },
+        { "prefix": "claude-sonnet-", "alias": "sonnet" },
+        { "prefix": "claude-haiku-", "alias": "haiku" }
+      ]
+    }
+  },
+  "telemetry": {
+    "otel": true,
+    "cost": true,
+    "spendSource": "transcript",
+    "logsPromptsByDefault": false
+  },
+  "sandbox": true,
+  "checkpointing": true,
+  "checkpointRestore": "/rewind",
+  "nodeAtRuntime": false,
+  "tiers": {
+    "3": 2,
+    "6": 2,
+    "7": 2,
+    "8": 2,
+    "9": 2,
+    "10": 2,
+    "11": 2,
+    "12": 2
+  },
+  "notes": [
+    "Plugins cannot ship permissions settings; project-local .claude/settings.json carries permissions and hooks.",
+    "Endpoints must speak the Anthropic Messages API.",
+    "Checkpointing covers file-tool edits only."
+  ],
+  "secretLevers": [
+    { "kind": "credentials-deny", "scope": "any settings file", "fact": "0027", "confirmed": true, "note": "Entry field names are not given in fact 0027; check the host's sandboxing page." },
+    { "kind": "credentials-mask", "scope": "user or managed settings only", "fact": "0027", "confirmed": true, "note": "Needs network.tlsTerminate. Ignored in a repository's settings." }
+  ]
+}

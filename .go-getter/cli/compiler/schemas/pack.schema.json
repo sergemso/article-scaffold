@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "go-getter practice pack (decision 0022)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "family", "title", "summary", "questions", "outputs"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "family": { "enum": ["harness", "sdlc"] },
+    "components": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 12 } },
+    "replaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pack", "questions"],
+      "properties": {
+        "pack": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "questions": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" } }
+      }
+    },
+    "requires": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" } },
+    "title": { "type": "string" },
+    "summary": { "type": "string" },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "prompt"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "prompt": { "type": "string" },
+          "type": { "enum": ["choice", "text", "list"] },
+          "multi": { "type": "boolean" },
+          "detect": { "type": "string" },
+          "pattern": { "type": "string" },
+          "default": { "type": ["string", "array"], "items": { "type": "string" } },
+          "since": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+          "renamed": {
+            "type": "object",
+            "additionalProperties": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+          },
+          "when": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["question", "in"],
+            "properties": { "question": { "type": "string" }, "in": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }
+          },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "label", "tradeoff"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+                "label": { "type": "string" },
+                "tradeoff": { "type": "string" },
+                "recommended": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "decisions": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },
+            "guardrails": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },
+            "procedures": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },
+            "facts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },
+            "files": { "type": "array", "items": { "$ref": "#/$defs/file" } }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slug", "title", "tags", "body"],
+      "properties": {
+        "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "title": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "body": { "type": "string" },
+        "frontmatter": { "type": "object" },
+        "enforcement": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tier", "check"],
+            "properties": { "tier": { "enum": [1, 2, 3] }, "check": { "type": "string" }, "run": { "type": "string" }, "stages": { "type": "array", "minItems": 1, "items": { "enum": ["pre-commit", "pre-push"] } } }
+          }
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "content"],
+      "properties": { "path": { "type": "string" }, "content": { "type": "string" } }
+    }
+  }
+}
