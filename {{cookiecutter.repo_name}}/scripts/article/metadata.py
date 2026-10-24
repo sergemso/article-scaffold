@@ -1014,13 +1014,24 @@ def _read_required(root: Path, path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _section_path(root: Path, name: str, default: str) -> Path:
+    """Find ``paper/sections/NN_<name>.tex`` whatever its number, so renumbering is safe.
+
+    Falls back to the template's own file name when there is not exactly one match, so
+    the error for a missing file still names a concrete path.
+    """
+    sections = root / "paper" / "sections"
+    matches = sorted(sections.glob(f"[0-9][0-9]_{name}.tex"))
+    return matches[0] if len(matches) == 1 else sections / default
+
+
 def collect_expected(root: Path, metadata: dict) -> dict[Path, str]:
     """Return the exact content each generated file should have."""
     citation_path = root / "CITATION.cff"
     zenodo_path = root / ".zenodo.json"
     article_path = root / "paper" / "article.tex"
-    abstract_path = root / "paper" / "sections" / "00_abstract.tex"
-    backmatter_path = root / "paper" / "sections" / "08_backmatter.tex"
+    abstract_path = _section_path(root, "abstract", "00_abstract.tex")
+    backmatter_path = _section_path(root, "backmatter", "08_backmatter.tex")
     changes_path = root / "CHANGES.md"
     readme_path = root / "README.md"
 

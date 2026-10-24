@@ -86,3 +86,19 @@ def test_regeneration_is_idempotent(tmp_path: Path) -> None:
     assert second.returncode == 0, second.stderr + second.stdout
     after = {path: path.read_text() for path in paths}
     assert before == after
+
+
+def test_renumbered_sections_are_still_found(tmp_path: Path) -> None:
+    """Authors renumber sections; the generator finds abstract and backmatter by name."""
+    project = render(tmp_path=tmp_path)
+    sections = project / "paper" / "sections"
+    (sections / "08_backmatter.tex").rename(sections / "15_backmatter.tex")
+    (sections / "00_abstract.tex").rename(sections / "01_abstract.tex")
+
+    result = run(project, "make", "metadata")
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "version~" in (sections / "15_backmatter.tex").read_text(encoding="utf-8")
+    assert not (sections / "08_backmatter.tex").exists()
+    assert not (sections / "00_abstract.tex").exists()
+    assert run(project, "make", "metadata-check").returncode == 0

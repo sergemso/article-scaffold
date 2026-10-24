@@ -5,6 +5,15 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.5] - 2026-10-24
+
+### Fixed
+
+- `make metadata` and `metadata-check` find the abstract and backmatter sections by
+  name (`NN_abstract.tex`, `NN_backmatter.tex`) instead of by the template's numbers.
+  A repo whose sections were renumbered failed with `required file is missing:
+  paper/sections/08_backmatter.tex`, which also stopped `upgrade --finish`.
+
 ## [1.1.4] - 2026-10-24
 
 ### Fixed
