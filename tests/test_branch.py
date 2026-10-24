@@ -2,32 +2,30 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
+import pytest
 import yaml
+from conftest import render
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW_DIR = ROOT / "cookiecutter.repo_name" / ".github" / "workflows"
 BOOTSTRAP = ROOT / ".github" / "workflows" / "bootstrap-article.yml"
 
-# Regex to catch hard-coded branch filters like "branches: [master]" or
-# "branches: ['main']" in YAML. The dynamic pattern
-# "${{ github.event.repository.default_branch }}" is the only allowed form.
-HARDCODED_BRANCH_RE = re.compile(
-    r"branches:\s*\[\s*(?:'?\w+'?)\s*\]", re.IGNORECASE
-)
+# Actions does not evaluate expressions in `on:` (docs/facts/0001), so a branch
+# filter must be the literal branch chosen at generation time (decision 0056).
 
 
-def _yaml_branches(doc: dict) -> list[str]:
-    """Extract literal branch lists from a parsed workflow."""
-    on = doc.get("on")
+def _push_branches(workflow: Path) -> list[str] | None:
+    doc = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+    # PyYAML reads the bare key `on` as the boolean True.
+    on = doc.get("on", doc.get(True))
     if not isinstance(on, dict):
-        return []
-    branches = on.get("push", {}).get("branches")
-    if isinstance(branches, list):
-        return [str(b) for b in branches]
-    return []
+        return None
+    push = on.get("push")
+    if not isinstance(push, dict):
+        return None
+    branches = push.get("branches")
+    return [str(b) for b in branches] if isinstance(branches, list) else None
 
 
 def test_bootstrap_has_no_hardcoded_master() -> None:
@@ -39,45 +37,24 @@ def test_bootstrap_has_no_hardcoded_master() -> None:
     assert "rev-parse --abbrev-ref HEAD" in text
 
 
-def test_template_workflows_use_dynamic_default_branch() -> None:
-    for workflow in WORKFLOW_DIR.glob("*.yml"):
-        text = workflow.read_text()
-        doc = yaml.safe_load(text)
-        for branch in _yaml_branches(doc):
-            if branch not in ("${{ github.event.repository.default_branch }}",):
-                raise AssertionError(
-                    f"{workflow.name}: hard-coded branch filter {branch!r}; "
-                    "use '${{ github.event.repository.default_branch }}' instead"
-                )
-        # Also grep the raw text for any literal master/main in branches context
-        if HARDCODED_BRANCH_RE.search(text):
-            # Allow the dynamic pattern; fail if anything else looks like a
-            # static branch name in a branches list.
-            for match in HARDCODED_BRANCH_RE.finditer(text):
-                if "default_branch" not in match.group(0):
-                    raise AssertionError(
-                        f"{workflow.name}: possible hard-coded branch filter: {match.group(0)}"
-                    )
+@pytest.mark.parametrize("branch", ["main", "master"])
+def test_rendered_workflows_filter_on_the_chosen_branch(tmp_path: Path, branch: str) -> None:
+    project = render(tmp_path=tmp_path, default_branch=branch)
+    filtered = 0
+    for workflow in sorted((project / ".github" / "workflows").glob("*.yml")):
+        text = workflow.read_text(encoding="utf-8")
+        assert "__DEFAULT_BRANCH__" not in text, f"{workflow.name}: placeholder left behind"
+        branches = _push_branches(workflow)
+        if branches is None:
+            continue
+        filtered += 1
+        assert branches == [branch], f"{workflow.name}: on.push.branches is {branches!r}"
+    assert filtered, "no rendered workflow has an on.push.branches filter to check"
 
 
-def test_post_gen_uses_cookiecutter_default_branch() -> None:
-    hook = ROOT / "hooks" / "post_gen_project.py"
-    text = hook.read_text()
-    assert '{{ cookiecutter.default_branch }}' in text
-    assert "master" not in text or "default_branch" in text  # master only via default_branch
-
-
-def test_cookiecutter_has_default_branch_choice() -> None:
-    data = yaml.safe_load(ROOT.joinpath("cookiecutter.json").read_text())
-    assert "default_branch" in data
-    choices = data["default_branch"]
-    assert isinstance(choices, list)
-    assert "main" in choices
-    assert "master" in choices
-
-
-def test_cookiecutter_prompts_for_default_branch() -> None:
-    data = yaml.safe_load(ROOT.joinpath("cookiecutter.json").read_text())
-    prompts = data.get("__prompts__", {})
-    assert "default_branch" in prompts
-    assert "__prompt__" in prompts["default_branch"]
+def test_template_workflows_keep_the_placeholder() -> None:
+    """The unrendered template keeps the placeholder the post-gen hook substitutes."""
+    workflows = ROOT / "{{cookiecutter.repo_name}}" / ".github" / "workflows"
+    texts = [w.read_text(encoding="utf-8") for w in workflows.glob("*.yml")]
+    assert any("__DEFAULT_BRANCH__" in t for t in texts)
+    assert not any("github.event.repository.default_branch" in t for t in texts)

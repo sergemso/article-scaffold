@@ -103,19 +103,12 @@ def _install_pre_push_hook(project_dir: Path, git: str) -> None:
         )
 
 
-def _replace_default_branch_placeholder(project_dir: Path) -> None:
-    """Replace __DEFAULT_BRANCH__ placeholder with GitHub Actions expression.
+def _replace_default_branch_placeholder(project_dir: Path, default_branch: str) -> None:
+    """Replace the __DEFAULT_BRANCH__ placeholder with the chosen default branch.
 
-    The placeholder is used in workflow files because they are copied without
-    rendering to avoid Jinja2 conflicts with GitHub Actions expressions.
+    Workflow files are copied without rendering, and GitHub Actions does not
+    evaluate expressions in ``on.push.branches``, so the filter must be a literal.
     """
-    # Construct the GitHub Actions expression without triggering Jinja2 during hook rendering
-    # chr(36)='$', chr(123)='{', chr(125)='}'
-    github_expr = (
-        chr(36) + chr(123) + chr(123)
-        + " github.event.repository.default_branch "
-        + chr(125) + chr(125)
-    )
     workflow_dir = project_dir / ".github" / "workflows"
     if not workflow_dir.is_dir():
         return
@@ -123,13 +116,13 @@ def _replace_default_branch_placeholder(project_dir: Path) -> None:
         try:
             content = workflow_file.read_text(encoding="utf-8")
             if "__DEFAULT_BRANCH__" in content:
-                new_content = content.replace("__DEFAULT_BRANCH__", github_expr)
+                new_content = content.replace("__DEFAULT_BRANCH__", default_branch)
                 workflow_file.write_text(new_content, encoding="utf-8")
                 print(
-                f"  updated {workflow_file.relative_to(project_dir)} "
-                "with default branch expression"
-            )
-        except Exception as exc:
+                    f"  updated {workflow_file.relative_to(project_dir)} "
+                    f"with default branch {default_branch}"
+                )
+        except (OSError, UnicodeDecodeError) as exc:
             print(
                 f"WARNING: could not update {workflow_file}: {exc}",
                 file=sys.stderr,
@@ -267,10 +260,10 @@ def main() -> None:
     else:
         print("WARNING: scripts/generate-metadata.py not found; skipping metadata generation.")
 
-    # 4b. Replace __DEFAULT_BRANCH__ placeholder in workflow files with the actual
-    # GitHub Actions expression. The placeholder is used because workflow files are
-    # copied without rendering to avoid Jinja2 conflicts with GitHub Actions expressions.
-    _replace_default_branch_placeholder(project_dir)
+    # 4b. Replace __DEFAULT_BRANCH__ in workflow files with the chosen default branch.
+    # Workflow files are copied without rendering (to keep Jinja2 away from Actions
+    # expressions), and Actions does not evaluate expressions in on.push.branches.
+    _replace_default_branch_placeholder(project_dir, "{{ cookiecutter.default_branch }}")
 
     # 4c. Stamp the template version so the repo can be upgraded later.
     _stamp_template_version(project_dir, git)

@@ -36,9 +36,9 @@ UNPINNED_ALLOWLIST = {
 }
 
 
-# Workflows written by `go-getter apply` ("do not edit"). Permissions and concurrency are configured by
-# decision 0058, so they are tested like any other workflow; only the action pins are go-getter's own and
-# must merely be SHA-pinned.
+# Workflows written by `go-getter apply` ("do not edit"). Permissions and concurrency are
+# configured by decision 0058, so they are tested like any other workflow; only the action
+# pins are go-getter's own and must merely be SHA-pinned.
 GENERATED_WORKFLOWS = {"go-getter-checks.yml"}
 
 

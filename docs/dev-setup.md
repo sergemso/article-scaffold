@@ -30,6 +30,12 @@ try to package `{{cookiecutter.repo_name}}/`. The install is only a convenient
 way to get pytest, Cookiecutter, cffconvert, jsonschema, and ruff into one
 virtual environment.
 
+## Cookiecutter version
+
+`pyproject.toml` allows `cookiecutter>=2.6` for development, while the bootstrap
+workflow pins `cookiecutter==2.7.1` so a CI render is reproducible. The suite is
+run against 2.7.1; a newer release is untested until the pin is bumped.
+
 ## Running a single test
 
 ```bash
