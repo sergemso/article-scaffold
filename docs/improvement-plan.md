@@ -1,12 +1,12 @@
 # article-scaffold — improvement plan
 
-Status: accepted 2026-10-21; executable tasks in `plan/tasks.json`
+Status: accepted 2026-10-21; executable tasks in `docs/plans/archive/t-queue/tasks.json`
 Owner: maintainer
 Last updated: 2026-10-21
 
 > **Decisions settled 2026-10-21.** The answers to §10 are recorded in
-> [`plan/decisions.md`](./plan/decisions.md). Where this document conflicts
-> with that file or `plan/tasks.json`, the plan wins. Key changes: empirical
+> [`docs/plans/archive/t-queue/decisions.md`](./plans/archive/t-queue/decisions.md). Where this document conflicts
+> with that file or `docs/plans/archive/t-queue/tasks.json`, the plan wins. Key changes: empirical
 > is core, the v2 break has **no automated migration tool**, the license
 > matrix is **CC-BY-4.0 + MIT**, and journal classes remain parked.
 
@@ -685,7 +685,7 @@ Target: core coverage ≥ 80%; every fixed bug gets a regression fixture.
 
 ---
 
-## 10. Open questions (answered 2026-10-21 — see `plan/decisions.md`)
+## 10. Open questions (answered 2026-10-21 — see `docs/plans/archive/t-queue/decisions.md`)
 
 1. **Audience:** personal template only, or shared/public? Affects default
    neutrality, docs, and how much migration tooling is worth building.

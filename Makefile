@@ -4,7 +4,7 @@ BIN := $(VENV)/bin
 PIP := $(BIN)/python -m pip
 PYTEST_ARGS ?=
 
-.PHONY: setup test lint doctor clean
+.PHONY: setup test lint clean
 
 setup:
 	@test -d $(VENV) || $(PYTHON) -m venv $(VENV)
@@ -29,9 +29,6 @@ lint:
 	else \
 		echo "yamllint not installed; skipping"; \
 	fi
-
-doctor:
-	$(PYTHON) plan/agentctl.py doctor
 
 clean:
 	rm -rf $(VENV) .pytest_cache .ruff_cache build dist *.egg-info

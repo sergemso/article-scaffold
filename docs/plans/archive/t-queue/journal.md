@@ -433,3 +433,10 @@ history after work has started.
 - template.json stamp, post-gen hook, docs/upgrading.md, tests
 - verify: passed
 - scope: clean
+
+## 2026-10-24 — archived
+
+Queue closed at 39/45 (all required tasks done; P0–P4 gates passed: 276 tests, audit clean).
+T38–T41, T43, T44 were optional and are not started. The queue moved from `plan/` to
+`docs/plans/archive/t-queue/` and is read-only history; go-getter's `docs/plans` is the working plan location.
+`agentctl.py` resolves paths relative to `plan/` and no longer runs from here.

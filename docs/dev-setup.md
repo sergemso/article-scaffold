@@ -17,7 +17,6 @@ linters. Generated article repositories keep their own small runtime: Python
 make setup     # creates .venv and installs the [dev] extra
 make test      # runs pytest
 make lint      # ruff + optional shellcheck/yamllint
-make doctor    # validates plan/tasks.json and plan/state.json
 ```
 
 `make setup` is the only step that needs the network. After it, tests and

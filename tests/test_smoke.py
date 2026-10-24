@@ -24,5 +24,6 @@ def test_template_entry_points_exist() -> None:
 
 
 def test_plan_files_exist() -> None:
-    assert (ROOT / "plan" / "tasks.json").is_file()
-    assert (ROOT / "plan" / "state.json").is_file()
+    archive = ROOT / "docs" / "plans" / "archive" / "t-queue"
+    assert (archive / "tasks.json").is_file()
+    assert (archive / "state.json").is_file()
