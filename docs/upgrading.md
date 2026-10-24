@@ -63,14 +63,16 @@ and `python3`):
 curl -fsSLO https://raw.githubusercontent.com/sergemso/article-scaffold/master/scripts/bootstrap-upgrader.py
 python3 bootstrap-upgrader.py            # template from template.json
 python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.0
+rm bootstrap-upgrader.py
 python3 -m pip install cookiecutter PyYAML
+git add scripts schemas && git commit -m 'chore: add the article upgrade command'
 python3 -m scripts.article upgrade --plan
 ```
 
 It copies `scripts/article/` and the `schemas/*.json` the template ships into your
 repo, and nothing else; it does not commit. It refuses to replace an existing
-`scripts/article/` unless you pass `--force`. Delete `bootstrap-upgrader.py`
-afterwards. A repo with no `template.json` cannot be planned: use the manual merge
+`scripts/article/` unless you pass `--force`. Delete the script and commit the
+result before `--plan`, which refuses a dirty tree. A repo with no `template.json` cannot be planned: use the manual merge
 below for that first upgrade.
 
 ## Automatic upgrade pull requests
