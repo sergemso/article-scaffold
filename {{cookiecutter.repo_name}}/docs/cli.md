@@ -24,6 +24,7 @@ Run `python3 -m scripts.article --help` or
 | `build docx` | Build `manuscript.docx`. |
 | `build <kind> --dry-run` | Print the build plan without running it. |
 | `release` | Reserved for release planning; currently a stub. |
+| `upgrade` | Plan, apply or finish an upgrade to a newer template commit. |
 
 `--root PATH` selects a repository root explicitly. Commands default to the
 current directory.
@@ -100,3 +101,35 @@ ignore unknown tool keys.
 `scripts/validate-paper.py` and `scripts/generate-metadata.py` remain as
 deprecated shims for existing repositories. They accept their historical flags
 and delegate to the same core; new automation should call the CLI directly.
+
+## Upgrading to a newer template
+
+`upgrade` brings a generated repository up to a newer commit of the template it
+was generated from, using the `template.json` stamp. Unlike the other commands
+it needs `git`, network access to the template when that is a URL, and
+`cookiecutter` installed for the Python that runs it (`python3 -m pip install
+cookiecutter`). It never merges silently.
+
+```bash
+python3 -m scripts.article upgrade --plan  [--to REF] [--json]   # default; read-only
+python3 -m scripts.article upgrade --apply [--to REF] [--json]   # new branch upgrade/<sha>
+python3 -m scripts.article upgrade --finish [--json]             # after resolving conflicts
+```
+
+- `--plan` writes nothing. It refuses, with a code `U001` to `U008`, when the
+  stamp is missing or has no `template_commit`, the working tree is dirty or not
+  a git repository, `metadata.yaml` is still schema 1 (see
+  `docs/migrating-to-v2.md`), or the template or ref cannot be found.
+- `--apply` renders the old and the new template with the stored answers,
+  applies the difference with `git apply --3way` on a new branch, and reports
+  `applied`, `conflicted` and `skipped` files. It never commits and never
+  resolves a conflict. `template.json` does not change yet.
+- `--finish` refuses while any path is unmerged or has conflict markers, runs
+  `make metadata` and `make validate`, then updates `template_version` and
+  `template_commit` and stages the result for you to review and commit.
+
+`make upgrade` runs `--plan`. A repository generated before this command existed
+cannot use it for its first upgrade; follow the manual procedure in the
+template's `docs/upgrading.md`. The shape of the `--json` output is
+`schemas/upgrade.schema.json`. Exit code `1` also covers refusals and
+conflicts.

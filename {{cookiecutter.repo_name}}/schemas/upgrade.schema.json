@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/upgrade.schema.json",
+  "title": "Template upgrade result",
+  "description": "Stable output of `python3 -m scripts.article upgrade --json` for --plan, --apply and --finish.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "command", "mode"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "command": { "type": "string", "const": "upgrade" },
+    "mode": { "type": "string", "enum": ["plan", "apply", "finish"] },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template", "template_version", "old", "new", "up_to_date"],
+      "properties": {
+        "template": { "type": ["string", "null"] },
+        "template_version": { "type": ["string", "null"] },
+        "old": { "type": ["string", "null"] },
+        "new": { "type": ["string", "null"] },
+        "up_to_date": { "type": "boolean" }
+      }
+    },
+    "refusals": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/problem" }
+    },
+    "up_to_date": { "type": "boolean" },
+    "branch": { "type": ["string", "null"] },
+    "applied": { "type": "array", "items": { "type": "string" } },
+    "conflicted": { "type": "array", "items": { "type": "string" } },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "finished": { "type": "boolean" },
+    "template_commit": { "type": ["string", "null"] },
+    "error": { "$ref": "#/definitions/problem" }
+  },
+  "definitions": {
+    "problem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^U[0-9]{3}$" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

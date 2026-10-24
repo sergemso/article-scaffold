@@ -1,4 +1,4 @@
-.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check analysis analysis-check supp supp-pdf diff arxiv wordcount spell watch figures
+.PHONY: pdf docx html quick clean all validate hooks metadata metadata-check upgrade analysis analysis-check supp supp-pdf diff arxiv wordcount spell watch figures
 
 PAPER_DIR = paper
 
@@ -153,6 +153,11 @@ metadata:
 
 metadata-check:
 	@python3 -m scripts.article metadata --check
+
+# Show what a template upgrade would change. Read-only; see docs/cli.md for
+# `upgrade --apply` and `upgrade --finish`.
+upgrade:
+	@python3 -m scripts.article upgrade --plan
 
 # ─────────────────────────────────────────────────────────────
 

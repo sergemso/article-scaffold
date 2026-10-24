@@ -41,6 +41,10 @@ from .tools import (
     watch_plan,
     wordcount_plan,
 )
+from .upgrade import UpgradeError
+from .upgrade import apply as apply_upgrade
+from .upgrade import finish as finish_upgrade
+from .upgrade import plan as plan_upgrade
 from .validate import validate_paper
 
 CORE_VERSION = "1.0.0"
@@ -91,7 +95,9 @@ __all__ = [
     "OutputDrift",
     "RepoPaths",
     "TOOL_PLANS",
+    "UpgradeError",
     "apply_release",
+    "apply_upgrade",
     "collect_expected",
     "compare_outputs",
     "count_unescaped",
@@ -108,7 +114,9 @@ __all__ = [
     "load_metadata",
     "normalize_metadata",
     "pdf_plan",
+    "finish_upgrade",
     "plan_release",
+    "plan_upgrade",
     "replace_block",
     "strip_comments",
     "validate_paper",

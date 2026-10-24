@@ -306,6 +306,60 @@ def _release(args: argparse.Namespace) -> int:
     return core.ExitCode.OK if plan.get("ok", False) else core.ExitCode.DIAGNOSTICS
 
 
+def _upgrade(args: argparse.Namespace) -> int:
+    """Plan, apply or finish an upgrade to a newer template commit."""
+    root = _root(args)
+    mode = "apply" if args.apply else "finish" if args.finish else "plan"
+    try:
+        if mode == "apply":
+            payload = core.apply_upgrade(root, args.to)
+        elif mode == "finish":
+            payload = core.finish_upgrade(root)
+        else:
+            payload = core.plan_upgrade(root, args.to)
+    except core.UpgradeError as exc:
+        payload = {
+            "ok": False,
+            "command": "upgrade",
+            "error": {"code": exc.code, "message": exc.message},
+        }
+    payload["mode"] = mode
+
+    if args.json:
+        _emit_json(payload)
+    else:
+        _print_upgrade(payload)
+    return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+
+
+def _print_upgrade(payload: dict[str, Any]) -> None:
+    if "error" in payload:
+        error = payload["error"]
+        print(f"ERROR [{error['code']}]: {error['message']}", file=sys.stderr)
+        return
+    for refusal in payload.get("refusals", []):
+        print(f"REFUSED [{refusal['code']}]: {refusal['message']}", file=sys.stderr)
+    info = payload.get("plan")
+    if info:
+        print(f"template: {info['template']}")
+        print(f"from {info['old'] or '(unknown)'} to {info['new'] or '(unknown)'}")
+        if info["up_to_date"]:
+            print("already up to date")
+    if payload.get("finished"):
+        print(f"upgrade finished on {payload['branch']}; review `git diff --cached` and commit")
+    elif payload["mode"] == "apply" and payload.get("branch"):
+        print(f"branch: {payload['branch']}")
+        for key in ("applied", "conflicted"):
+            for path in payload[key]:
+                print(f"  {key}: {path}")
+        for item in payload["skipped"]:
+            print(f"  skipped: {item['path']} ({item['reason']})")
+        if payload["conflicted"]:
+            print("resolve the conflicts, `git add` them, then run `upgrade --finish`")
+        else:
+            print("run `upgrade --finish` to regenerate derived files and bump the stamp")
+
+
 def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
@@ -458,6 +512,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="confirm release application (required with --apply)",
     )
     release.set_defaults(func=_release)
+
+    upgrade = subparsers.add_parser(
+        "upgrade", help="plan or apply an upgrade to a newer template commit"
+    )
+    _add_common(upgrade)
+    mode = upgrade.add_mutually_exclusive_group()
+    mode.add_argument("--plan", action="store_true", help="show the upgrade plan (default)")
+    mode.add_argument(
+        "--apply",
+        action="store_true",
+        help="apply it on a new branch; conflicts are left to you",
+    )
+    mode.add_argument(
+        "--finish",
+        action="store_true",
+        help="after resolving conflicts: check, regenerate derived files, re-stamp",
+    )
+    upgrade.add_argument(
+        "--to", metavar="REF", help="template branch, tag or commit (default: its HEAD)"
+    )
+    upgrade.set_defaults(func=_upgrade)
 
     # Tool subcommands
     diff = subparsers.add_parser("diff", help="generate latexdiff between two refs")

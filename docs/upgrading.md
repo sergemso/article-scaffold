@@ -2,8 +2,9 @@
 
 A generated article repo is archival: it has no runtime dependency on this
 template and is never updated automatically. When a template fix matters to
-you, you can pick it up by hand with a three-way merge. Nothing here merges
-for you.
+you, run `upgrade` to bring it in. It automates every step except resolving
+conflicts, which stay with you; nothing here merges silently. The manual
+procedure further down is the fallback for repos that cannot use the command.
 
 ## What the repo records
 
@@ -15,6 +16,44 @@ for you.
 | `template_version` | Template version (`pyproject.toml`) at generation time |
 | `template_commit` | Template git commit, or `null` for a non-git source |
 | `context.cookiecutter` | Every prompt answer used to render the repo |
+
+## Upgrading with the command
+
+From the generated repo, on a clean working tree (commit first):
+
+```bash
+python3 -m scripts.article upgrade --plan            # or: make upgrade
+python3 -m scripts.article upgrade --apply
+# resolve any conflicts, then `git add` the files
+python3 -m scripts.article upgrade --finish
+git commit
+```
+
+- `--plan` is read-only. It refuses, with a stable code, when `template.json` is
+  missing or has no `template_commit`, the tree is dirty, `metadata.yaml` is still
+  schema 1 (do `docs/migrating-to-v2.md` first), or the template or ref cannot be
+  reached. Add `--to REF` to choose a branch, tag or commit; the default is the
+  template's `HEAD`.
+- `--apply` renders the old and the new template with the answers stored in
+  `template.json`, applies the difference with `git apply --3way` on a new branch
+  `upgrade/<sha>`, and lists `applied`, `conflicted` and `skipped` files. It does
+  not commit, and it leaves conflict markers for you.
+- `--finish` refuses while any file is unmerged or still has conflict markers. It
+  then runs `make metadata` and `make validate`, bumps `template_version` and
+  `template_commit`, and stages the result.
+
+Needs `git` and, for the render, `cookiecutter` installed for the Python that runs
+the command (`python3 -m pip install cookiecutter`); a URL template also needs the
+network. `--json` gives the machine-readable result in `schemas/upgrade.schema.json`.
+
+Limits, deliberately:
+
+- A repository generated before the command existed does not contain it, so its
+  first upgrade is manual (below). Copy `scripts/article/` from the new template
+  once, then use the command from then on.
+- A file you added that the template also adds is skipped, not overwritten.
+- It reproduces the template from the stored answers. Edits you made to
+  `metadata.yaml`, sections and figures are yours and are merged, not replaced.
 
 ## Why not cruft or Copier
 
@@ -28,7 +67,7 @@ for you.
 `template.json` follows the cruft layout (`template`, `commit`, `context`), so
 a team that wants cruft can adopt it later without re-stamping.
 
-## Three-way merge (recommended)
+## Three-way merge by hand (fallback)
 
 Run from the generated repo, on a clean branch. `OLD` is `template_commit` from
 `template.json`; `NEW` is the template commit you want.
@@ -61,7 +100,7 @@ Run from the generated repo, on a clean branch. `OLD` is `template_commit` from
 Never skip step 4: your own edits to `metadata.yaml`, sections and figures will
 conflict where the template changed the same lines.
 
-## Manual fallback
+## Copying files by hand
 
 If the merge is not worth it, read the release notes and copy only the files
 you need (usually `scripts/`, `.github/workflows/` and `Makefile`). Run
