@@ -529,6 +529,7 @@ def normalize_metadata(data: dict) -> dict:
         normalized.get("abstract") or normalized.get("description") or ""
     )
     normalized["_abstract_note"] = normalized.get("abstract_note") or ""
+    normalized["_release_notes"] = str(normalized.get("release_notes") or "").strip("\n")
     raw_date = normalized.get("date", "")
     if isinstance(raw_date, date):
         normalized["_date_iso"] = raw_date.isoformat()
@@ -1003,8 +1004,11 @@ def gen_changes_current_block(metadata: dict) -> str:
     lines = [
         CHANGES_CURRENT_START,
         f"## {metadata.get('version_label', '')} - {metadata['_date_iso']} (current)",
-        CHANGES_CURRENT_END,
     ]
+    notes = metadata.get("_release_notes", "")
+    if notes.strip():
+        lines += ["", notes.rstrip()]
+    lines.append(CHANGES_CURRENT_END)
     return "\n".join(lines) + "\n"
 
 

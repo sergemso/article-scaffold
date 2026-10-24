@@ -46,6 +46,12 @@ authors:
 version: {{ cookiecutter.version | tojson }}
 version_label: {{ cookiecutter.version_label | tojson }}
 date: {{ cookiecutter.date | tojson }}
+# Optional: Markdown printed under the current version heading in CHANGES.md.
+# release_notes: |
+#   First public version.
+#
+#   ### Contents
+#   - What this version contains
 
 license: {{ cookiecutter.license | tojson }}
 # The scaffold code is always MIT; the paper may be CC-BY-4.0 or MIT.

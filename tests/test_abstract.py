@@ -102,3 +102,33 @@ def test_renumbered_sections_are_still_found(tmp_path: Path) -> None:
     assert not (sections / "08_backmatter.tex").exists()
     assert not (sections / "00_abstract.tex").exists()
     assert run(project, "make", "metadata-check").returncode == 0
+
+
+def test_release_notes_are_written_under_the_version_heading(tmp_path: Path) -> None:
+    project = render(tmp_path=tmp_path)
+    changes = project / "CHANGES.md"
+    heading_only = changes.read_text(encoding="utf-8")
+    path = project / "metadata.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["release_notes"] = "First public version.\n\n### Contents\n- One thing\n- Another\n"
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
+
+    assert run(project, "make", "metadata").returncode == 0
+
+    text = changes.read_text(encoding="utf-8")
+    block = text.split("<!-- CHANGES:CURRENT:START -->")[1].split("<!-- CHANGES:CURRENT:END -->")[0]
+    assert block.splitlines()[1:] == [
+        "## v1 preprint - 2026-01-02 (current)",
+        "",
+        "First public version.",
+        "",
+        "### Contents",
+        "- One thing",
+        "- Another",
+    ]
+    assert run(project, "make", "metadata-check").returncode == 0
+
+    del data["release_notes"]
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
+    assert run(project, "make", "metadata").returncode == 0
+    assert changes.read_text(encoding="utf-8") == heading_only

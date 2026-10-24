@@ -5,6 +5,16 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.2.0] - 2026-10-24
+
+### Added
+
+- Optional `release_notes` in `metadata.yaml`: Markdown that `make metadata` prints under
+  the current version heading in `CHANGES.md`. Until now the block held only the
+  heading, so hand-written release notes there were overwritten by regeneration (and
+  blocked `upgrade --finish` through the drift guard). Without the field the output is
+  unchanged.
+
 ## [1.1.9] - 2026-10-24
 
 ### Fixed
