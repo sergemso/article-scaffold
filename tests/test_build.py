@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,3 +185,22 @@ def test_no_aux_files_in_paper_root_after_build() -> None:
                     ".fls", ".fdb_latexmk", ".synctex.gz"):
             aux_files = list(project.glob(f"paper/*{ext}"))
             assert not aux_files, f"Found {ext} files in paper/ root: {aux_files}"
+
+def test_cli_build_pdf_publishes_the_release_artifact(tmp_path: Path) -> None:
+    """`build pdf` must leave paper/article.pdf, the file `release` looks for, as `make pdf` does."""
+    import shutil
+
+    import pytest
+
+    from tests.conftest import render, run
+
+    if shutil.which("latexmk") is None:
+        pytest.skip("latexmk not installed")
+    project = render(tmp_path=tmp_path)
+    result = run(project, "python3", "-m", "scripts.article", "build", "pdf", "--json")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["published_to"] == "paper/article.pdf"
+    built, published = project / "paper/build/article.pdf", project / "paper/article.pdf"
+    assert published.read_bytes() == built.read_bytes()
+    release = run(project, "python3", "-m", "scripts.article", "release", "--dry-run", "--json")
+    assert json.loads(release.stdout)["plan"]["checks"]["has_artifacts"] is True

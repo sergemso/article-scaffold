@@ -5,6 +5,16 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.6] - 2026-10-24
+
+### Fixed
+
+- The title block's `\date{...}` line separates the version label and the date with
+  the LaTeX em-dash `---`, in `paper/article.tex` and in what `make metadata`
+  regenerates, instead of a raw Unicode U+2014, which some PDF text extractors break
+  on. A test checks both the rendered file and that `make metadata` writes it back
+  unchanged.
+
 ## [1.1.5] - 2026-10-24
 
 ### Fixed

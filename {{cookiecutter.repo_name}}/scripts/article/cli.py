@@ -232,6 +232,12 @@ def _build(args: argparse.Namespace) -> int:
             "stderr": result.stderr,
         }
     )
+    if result.returncode == 0 and plan.publish_to:
+        try:
+            shutil.copyfile(root / plan.output, root / plan.publish_to)
+            payload["published_to"] = plan.publish_to
+        except OSError as exc:
+            payload.update({"ok": False, "error": f"could not copy {plan.output}: {exc.strerror}"})
     if args.json:
         _emit_json(payload)
     else:
@@ -239,7 +245,9 @@ def _build(args: argparse.Namespace) -> int:
             print(result.stdout, end="")
         if result.stderr:
             print(result.stderr, end="", file=sys.stderr)
-    return core.ExitCode.OK if result.returncode == 0 else core.ExitCode.DIAGNOSTICS
+        if payload.get("error"):
+            print(f"ERROR: {payload['error']}", file=sys.stderr)
+    return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
 
 
 def _release(args: argparse.Namespace) -> int:

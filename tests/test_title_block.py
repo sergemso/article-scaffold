@@ -51,3 +51,19 @@ def test_empty_subtitle_keeps_pdf_metadata(tmp_path: Path) -> None:
     block = _title_block(project)
     assert "pdftitle" in block
     assert r"\\[0.3em]" not in block
+
+
+def test_date_line_uses_the_latex_em_dash_not_unicode(tmp_path: Path) -> None:
+    """Some PDF text extractors break on a raw U+2014 in the title block."""
+    project = render(tmp_path=tmp_path)
+    article = project / "paper" / "article.tex"
+
+    before = article.read_text(encoding="utf-8")
+    assert "\\date{\\small v1 preprint --- 2026-01-02}" in before
+    assert "—" not in "".join(
+        line for line in before.splitlines() if line.startswith("\\date")
+    )
+
+    # Regenerating from metadata.yaml must write the same line back.
+    assert run(project, "make", "metadata").returncode == 0
+    assert article.read_text(encoding="utf-8") == before

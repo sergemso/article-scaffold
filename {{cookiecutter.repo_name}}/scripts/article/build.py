@@ -14,14 +14,19 @@ class BuildPlan:
     command: tuple[str, ...]
     cwd: str
     output: str
+    # Where a successful build also copies *output*, so the CLI and ``make pdf`` agree.
+    publish_to: str | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        plan: dict[str, object] = {
             "name": self.name,
             "command": list(self.command),
             "cwd": self.cwd,
             "output": self.output,
         }
+        if self.publish_to:
+            plan["publish_to"] = self.publish_to
+        return plan
 
 
 def pdf_plan(root: Path | None = None) -> BuildPlan:
@@ -39,6 +44,7 @@ def pdf_plan(root: Path | None = None) -> BuildPlan:
         ),
         cwd="paper",
         output="paper/build/article.pdf",
+        publish_to="paper/article.pdf",
     )
 
 

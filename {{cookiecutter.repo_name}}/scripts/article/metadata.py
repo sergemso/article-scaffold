@@ -870,7 +870,7 @@ def gen_article_tex_title_block(metadata: dict) -> str:
     title_inner += " }"
     out.append("\\title{" + title_inner + "}")
     out.append("\\author{ " + " \\and ".join(author_blocks) + "}")
-    out.append("\\date{\\small " + version_label + " — " + date_iso + "}")
+    out.append("\\date{\\small " + version_label + " --- " + date_iso + "}")
     keywords = ", ".join(latex_escape(keyword) for keyword in metadata["_keywords_list"])
     subject = latex_escape(metadata.get("manuscript_type", ""))
     out.append("\\hypersetup{")
