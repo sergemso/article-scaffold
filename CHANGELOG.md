@@ -5,6 +5,13 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.8] - 2026-10-24
+
+### Changed
+
+- The pull request that `upgrade.yml` opens explains `U019` and `--regenerate`, so a
+  reviewer who hits the drift guard knows the two ways out.
+
 ## [1.1.7] - 2026-10-24
 
 ### Added

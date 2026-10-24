@@ -140,6 +140,9 @@ jobs:
               "To finish: check out this branch, resolve any conflicts, then run",
               "`python3 -m scripts.article upgrade --finish`, commit and push.",
               "That regenerates derived files, runs `make validate` and updates template.json.",
+              "If it stops with U019, a derived file (README.md, CITATION.cff, ...) has hand",
+              "edits that metadata.yaml lacks: move them into metadata.yaml, or pass",
+              "`--regenerate` to overwrite them.",
           ]
           open(os.path.join(temp, "pr-body.md"), "w").write("\n".join(lines) + "\n")
           open(os.path.join(temp, "draft"), "w").write("yes" if conflicted else "no")

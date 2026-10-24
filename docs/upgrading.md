@@ -65,7 +65,7 @@ and `python3`):
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/sergemso/article-scaffold/master/scripts/bootstrap-upgrader.py
 python3 bootstrap-upgrader.py            # template from template.json
-python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.7
+python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.8
 rm bootstrap-upgrader.py
 python3 -m pip install cookiecutter PyYAML
 git add scripts schemas && git commit -m 'chore: add the article upgrade command'

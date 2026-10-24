@@ -224,6 +224,7 @@ def test_a_clean_upgrade_is_pushed_and_opened_as_a_normal_pull_request(sandbox: 
     assert "--draft" not in gh
     body = (sandbox["temp"] / "pr-body.md").read_text(encoding="utf-8")
     assert STATUS in body and "upgrade --finish" in body
+    assert "U019" in body and "--regenerate" in body
     assert run(sandbox["project"], "git", "status", "--porcelain").stdout == ""
 
 
