@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,12 @@ E_NO_COOKIECUTTER = "U009"
 E_CHECKOUT = "U010"
 E_RENDER = "U011"
 E_NOT_READY = "U012"
+E_BRANCH_EXISTS = "U013"
+E_NO_UPGRADE = "U014"
+E_CONFLICTS = "U015"
+E_CHECKS_FAILED = "U016"
+E_WRONG_BRANCH = "U017"
+STATE_NAME = "upgrade-state.json"
 
 _SHA = re.compile(r"[0-9a-f]{7,40}")
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
@@ -310,4 +317,171 @@ def build_patch(
         "files": files,
         "old_tree": str(trees["old"]),
         "new_tree": str(trees["new"]),
+    }
+
+
+def _git_dir(root: Path) -> Path:
+    out = _run(["git", "rev-parse", "--absolute-git-dir"], root, GIT_TIMEOUT)
+    if out.returncode != 0:
+        raise UpgradeError(E_NOT_GIT, "not a git repository")
+    return Path(out.stdout.strip())
+
+
+def _import_base_blobs(root: Path, old_tree: Path, files: list[dict[str, str]]) -> None:
+    """Store the old render's files as git objects so `git apply --3way` has a merge base.
+
+    Without the base blob, a file the author edited cannot be merged and the apply
+    fails instead. This only adds unreachable objects; the working tree is untouched.
+    """
+    for entry in files:
+        source = old_tree / entry["path"]
+        if entry["status"] in ("M", "D") and source.is_file():
+            _run(["git", "hash-object", "-w", "--", str(source)], root, GIT_TIMEOUT)
+
+
+def _split_patch(patch: str) -> list[str]:
+    return [chunk for chunk in re.split(r"(?m)^(?=diff --git )", patch) if chunk.strip()]
+
+
+def _unmerged(root: Path, path: str) -> bool:
+    return bool(_run(["git", "ls-files", "-u", "--", path], root, GIT_TIMEOUT).stdout.strip())
+
+
+def _apply_chunk(root: Path, chunk: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "apply", "--3way", "-"],
+        cwd=root,
+        input=chunk,
+        capture_output=True,
+        text=True,
+        timeout=GIT_TIMEOUT,
+    )
+
+
+def apply(
+    root: Path, new_ref: str | None = None, *, python: str | None = None
+) -> dict[str, Any]:
+    """Apply the template changes on a new branch. Conflicts are left for the author.
+
+    Never commits and never resolves a conflict. Writes ``upgrade-state.json`` in the
+    git directory for ``finish``; the ``template.json`` stamp is untouched until then.
+    """
+    root = Path(root).resolve()
+    upgrade_plan = plan(root, new_ref)
+    if not upgrade_plan["ok"]:
+        codes = ", ".join(r["code"] for r in upgrade_plan["refusals"])
+        raise UpgradeError(
+            E_NOT_READY, f"the upgrade plan has refusals ({codes}); resolve them first"
+        )
+    info = upgrade_plan["plan"]
+    if info["up_to_date"]:
+        return {"ok": True, "command": "upgrade", "up_to_date": True, "branch": None,
+                "applied": [], "conflicted": [], "skipped": []}
+
+    branch = f"upgrade/{info['new'][:8]}"
+    if _run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], root,
+            GIT_TIMEOUT).returncode == 0:
+        raise UpgradeError(
+            E_BRANCH_EXISTS, f"branch {branch} already exists; delete it or finish it"
+        )
+
+    with tempfile.TemporaryDirectory(prefix="article-upgrade-") as tmp:
+        built = build_patch(root, upgrade_plan, Path(tmp) / "work", python=python)
+        files = built["files"]
+        patch = Path(built["patch"]).read_text(encoding="utf-8") if built["patch"] else ""
+        new_stamp = json.loads((Path(built["new_tree"]) / STAMP_NAME).read_text(encoding="utf-8"))
+        chunks = _split_patch(patch)
+        if len(chunks) != len(files):
+            raise UpgradeError(E_RENDER, "patch and file list disagree; refusing to apply")
+        _import_base_blobs(root, Path(built["old_tree"]), files)
+
+        switched = _run(["git", "switch", "--quiet", "-c", branch], root, GIT_TIMEOUT)
+        if switched.returncode != 0:
+            raise UpgradeError(
+                E_BRANCH_EXISTS, f"cannot create branch {branch}: {_tail(switched)}"
+            )
+
+        applied, conflicted, skipped = [], [], []
+        for entry, chunk in zip(files, chunks, strict=True):
+            path, status = entry["path"], entry["status"]
+            target = root / path
+            if status == "A" and target.exists():
+                new_file = Path(built["new_tree"]) / path
+                same = new_file.is_file() and target.read_bytes() == new_file.read_bytes()
+                skipped.append({
+                    "path": path,
+                    "reason": "already present with the new content" if same
+                    else "exists locally with different content; merge it by hand",
+                })
+                continue
+            result = _apply_chunk(root, chunk)
+            if result.returncode == 0:
+                applied.append(path)
+            elif _unmerged(root, path):
+                conflicted.append(path)
+            else:
+                skipped.append({"path": path, "reason": _tail(result)})
+
+    (_git_dir(root) / STATE_NAME).write_text(
+        json.dumps({
+            "branch": branch, "old": info["old"], "new": info["new"],
+            "new_template_version": new_stamp.get("template_version"),
+            "new_template_commit": new_stamp.get("template_commit"),
+            "files": [f["path"] for f in files],
+        }),
+        encoding="utf-8",
+    )
+    return {"ok": not conflicted, "command": "upgrade", "up_to_date": False, "branch": branch,
+            "applied": applied, "conflicted": conflicted, "skipped": skipped}
+
+
+def finish(root: Path) -> dict[str, Any]:
+    """Check the resolved upgrade, regenerate derived files and bump the stamp.
+
+    Refuses while any path is unmerged or still has conflict markers. Leaves the result
+    staged for the author to commit.
+    """
+    root = Path(root).resolve()
+    state_path = _git_dir(root) / STATE_NAME
+    if not state_path.is_file():
+        raise UpgradeError(E_NO_UPGRADE, "no upgrade in progress; run `upgrade --apply` first")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    current = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"], root, GIT_TIMEOUT).stdout.strip()
+    if current != state["branch"]:
+        raise UpgradeError(
+            E_WRONG_BRANCH, f"switch back to {state['branch']} to finish the upgrade"
+        )
+
+    unmerged = sorted({line.split("\t")[-1] for line in
+                       _run(["git", "ls-files", "-u"], root, GIT_TIMEOUT).stdout.splitlines()})
+    marked = []
+    for path in state["files"]:
+        file = root / path
+        if file.is_file():
+            text = file.read_text(encoding="utf-8", errors="replace")
+            if re.search(r"(?m)^(<{7}|>{7})( |$)", text):
+                marked.append(path)
+    if unmerged or marked:
+        raise UpgradeError(
+            E_CONFLICTS,
+            "unresolved conflicts in: " + ", ".join(sorted(set(unmerged) | set(marked))),
+        )
+
+    for target in ("metadata", "validate"):
+        result = _run(["make", target], root, RENDER_TIMEOUT)
+        if result.returncode != 0:
+            raise UpgradeError(E_CHECKS_FAILED, f"`make {target}` failed: {_tail(result)}")
+
+    stamp_path = root / STAMP_NAME
+    stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+    stamp["template_version"] = state["new_template_version"] or stamp.get("template_version")
+    stamp["template_commit"] = state["new_template_commit"] or state["new"]
+    stamp_path.write_text(
+        json.dumps(stamp, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    _run(["git", "add", "-A"], root, GIT_TIMEOUT)
+    state_path.unlink()
+    return {
+        "ok": True, "command": "upgrade", "finished": True,
+        "branch": state["branch"], "template_commit": stamp["template_commit"],
     }

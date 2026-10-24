@@ -8,53 +8,17 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import ROOT, commit_all, render, run
-
-REPO_PATH = "{{cookiecutter.repo_name}}"
-
-
-def _git(path: Path, *args: str) -> str:
-    env = {
-        "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@invalid",
-        "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@invalid",
-        "PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(path),
-    }
-    return subprocess.run(
-        ["git", *args], cwd=path, capture_output=True, text=True, check=True, env=env
-    ).stdout.strip()
-
-
-@pytest.fixture(scope="module")
-def template(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
-    """A throwaway clone of the template with two commits: A, then B (one edit, one new file)."""
-    tpl = tmp_path_factory.mktemp("tpl") / "template"
-    head = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True
-    )
-    if head.returncode != 0:
-        pytest.skip("the template is not a git checkout")
-    _git(ROOT, "clone", "--quiet", str(ROOT), str(tpl))
-    a = _git(tpl, "rev-parse", "HEAD")
-    status = tpl / REPO_PATH / "scripts" / "article" / "status.py"
-    status.write_text(
-        status.read_text(encoding="utf-8") + "\n# template change B\n", encoding="utf-8"
-    )
-    (tpl / REPO_PATH / "docs" / "NEW.md").write_text("added in B\n", encoding="utf-8")
-    _git(tpl, "add", "-A")
-    _git(tpl, "commit", "--quiet", "-m", "B")
-    return {"path": str(tpl), "a": a, "b": _git(tpl, "rev-parse", "HEAD")}
+from conftest import run
 
 
 @pytest.fixture()
-def project(tmp_path: Path, template: dict[str, str]) -> Path:
-    """A repo stamped as generated from template commit A."""
-    project = render(tmp_path=tmp_path)
-    stamp_path = project / "template.json"
-    stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
-    stamp.update(template=template["path"], template_commit=template["a"])
-    stamp_path.write_text(json.dumps(stamp), encoding="utf-8")
-    commit_all(project)
-    return project
+def project(upgrade_project: Path) -> Path:
+    return upgrade_project
+
+
+@pytest.fixture()
+def template(upgrade_template: dict[str, str]) -> dict[str, str]:
+    return upgrade_template
 
 
 def _build(project: Path, workdir: Path, new_ref: str, python: str | None = None) -> dict:

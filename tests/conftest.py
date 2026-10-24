@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -103,3 +104,47 @@ def special_project(tmp_path: Path) -> Path:
 @pytest.fixture()
 def doi_project(tmp_path: Path) -> Path:
     return render(tmp_path=tmp_path, doi="10.5281/zenodo.1234567")
+
+
+def _tpl_git(path: Path, *args: str) -> str:
+    env = {
+        "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@invalid",
+        "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@invalid",
+        "PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(path),
+    }
+    return subprocess.run(
+        ["git", *args], cwd=path, capture_output=True, text=True, check=True, env=env
+    ).stdout.strip()
+
+
+@pytest.fixture(scope="session")
+def upgrade_template(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
+    """A throwaway clone of the template with commit A, then B (one edit, one new file)."""
+    probe = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+    if probe.returncode != 0:
+        pytest.skip("the template is not a git checkout")
+    tpl = tmp_path_factory.mktemp("tpl") / "template"
+    _tpl_git(ROOT, "clone", "--quiet", str(ROOT), str(tpl))
+    a = _tpl_git(tpl, "rev-parse", "HEAD")
+    status = tpl / "{{cookiecutter.repo_name}}" / "scripts" / "article" / "status.py"
+    status.write_text(
+        status.read_text(encoding="utf-8") + "\n# template change B\n", encoding="utf-8"
+    )
+    (tpl / "{{cookiecutter.repo_name}}" / "docs" / "NEW.md").write_text(
+        "added in B\n", encoding="utf-8"
+    )
+    _tpl_git(tpl, "add", "-A")
+    _tpl_git(tpl, "commit", "--quiet", "-m", "B")
+    return {"path": str(tpl), "a": a, "b": _tpl_git(tpl, "rev-parse", "HEAD")}
+
+
+@pytest.fixture()
+def upgrade_project(tmp_path: Path, upgrade_template: dict[str, str]) -> Path:
+    """A committed repo stamped as generated from template commit A."""
+    project = render(tmp_path=tmp_path)
+    stamp_path = project / "template.json"
+    stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+    stamp.update(template=upgrade_template["path"], template_commit=upgrade_template["a"])
+    stamp_path.write_text(json.dumps(stamp), encoding="utf-8")
+    commit_all(project)
+    return project
