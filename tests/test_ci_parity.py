@@ -8,6 +8,7 @@ import yaml
 from conftest import render, run
 
 VALIDATOR_COMMAND = "python3 scripts/validate-paper.py"
+INSTALL_COMMAND = 'python3 -m pip install "pyyaml==6.0.2"'
 
 
 def _workflow(project: Path) -> dict:
@@ -55,7 +56,7 @@ def test_make_and_ci_use_the_same_entrypoint(tmp_path: Path) -> None:
     assert recipe[0] == VALIDATOR_COMMAND
 
     workflow = _workflow(project)
-    assert _run_steps(workflow) == [VALIDATOR_COMMAND]
+    assert _run_steps(workflow) == [INSTALL_COMMAND, VALIDATOR_COMMAND]
 
     result = run(project, "make", "validate")
     assert result.returncode == 0, result.stderr + result.stdout
@@ -83,3 +84,25 @@ def test_workflow_permissions_concurrency_and_paths(tmp_path: Path) -> None:
         assert "scripts/**" in paths
         assert "Makefile" in paths
         assert ".github/workflows/validate-latex.yml" in paths
+
+
+def test_validator_needs_only_what_the_workflow_installs(tmp_path: Path) -> None:
+    """The CI job installs PyYAML and nothing else; the validator must run with just that."""
+    import subprocess
+    import sys
+
+    project = render(tmp_path=tmp_path)
+    only_yaml = tmp_path / "only-yaml"
+    only_yaml.mkdir()
+    package = Path(yaml.__file__).parent
+    (only_yaml / "yaml").symlink_to(package, target_is_directory=True)
+
+    # -S drops site-packages, so nothing but the standard library and PyYAML is importable.
+    result = subprocess.run(
+        [sys.executable, "-S", "scripts/validate-paper.py"],
+        cwd=project,
+        env={"PYTHONPATH": str(only_yaml), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout

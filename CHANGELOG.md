@@ -5,6 +5,16 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.4] - 2026-10-24
+
+### Fixed
+
+- The generated `validate-latex.yml` installs PyYAML before running the validator.
+  It imported `yaml` without installing it, so the "Validate LaTeX" check failed with
+  `ModuleNotFoundError` in every generated repo the first time it ran (any push or PR
+  touching `paper/` or `scripts/`). A new test runs the validator with only PyYAML
+  importable.
+
 ## [1.1.3] - 2026-10-24
 
 ### Changed

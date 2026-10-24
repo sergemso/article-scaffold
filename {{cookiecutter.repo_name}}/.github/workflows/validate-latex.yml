@@ -41,5 +41,8 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install dependencies
+        run: python3 -m pip install "pyyaml==6.0.2"
+
       - name: Validate paper sources
         run: python3 scripts/validate-paper.py
