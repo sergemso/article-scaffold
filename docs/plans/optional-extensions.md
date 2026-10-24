@@ -35,13 +35,15 @@ Done-when: The devcontainer config is valid and documented; normal builds do not
 
 ## 2. MCP adapter
 
-### 2.1 Read-only MCP adapter — [ ]
+### 2.1 Read-only MCP adapter — [>]
+Moved to `docs/plans/scholar-mcp.md` (decision 0057): the MCP work now lives in the separate `scholar-mcp` repository.
 Class: implement · Effort: medium · Needs: none · Check: `python3 -m pytest tests/test_mcp_readonly.py -q`
 Context: Agents can consume the CLI contract without making MCP part of the build. See `docs/improvement-plan.md#adr-004--mcp-is-optional-separate-and-gated`. Needs network to install the MCP SDK. Scope: `mcp/**`, `docs/mcp.md`, `tests/test_mcp_readonly.py`.
 Do: Create a separate optional package under `mcp/` that imports the core or shells out to the CLI `--json`; never the inverse. Expose read-only tools/resources: validate, status, metadata plan, diagnostics, and repo-limited file reads. Add path allowlisting, output size limits and no secret/env leakage. Test parity between the MCP output and the CLI JSON for the same fixture.
 Done-when: MCP is installable as an extra, read-only by default, with byte-parity with CLI JSON.
 
-### 2.2 MCP mutating tools with confirmation — [ ]
+### 2.2 MCP mutating tools with confirmation — [>]
+Moved to `docs/plans/scholar-mcp.md` (decision 0057).
 Class: implement · Effort: medium · Needs: 2.1 · Check: `python3 -m pytest tests/test_mcp_mutations.py -q`
 Context: Write operations are useful but dangerous; they need an explicit plan/confirm protocol. The release plan/apply work (T33) is done. Per the archived decisions, `migrate` is not an MCP mutation. Scope: `mcp/**`, `tests/test_mcp_mutations.py`.
 Do: Add plan/confirm tokens for metadata writes and release apply; tokens expire and are single-use. Refuse writes outside the repo, enforce timeouts, and append an audit log. Never expose network or shell passthrough. Test refusal paths: stale token, path escape, missing confirmation.
