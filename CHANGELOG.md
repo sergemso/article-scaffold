@@ -5,6 +5,23 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.2] - 2026-10-24
+
+### Fixed
+
+- `upgrade` resolves `--to` by exact ref name (branch, then tag) and an annotated tag
+  to its commit, instead of the first ref ending in the name.
+- The scratch repository that diffs the two renders ignores the user's git config
+  (signing, hooks, global ignores) and fails loudly instead of reporting "no changes".
+- File names with non-ASCII characters or spaces are handled (`-z` parsing).
+- A relative template path in `template.json` works for `--apply`, not only `--plan`.
+- A failed `--apply` is rolled back to the starting branch; no half-applied branch.
+- Only the root `template.json` is excluded from the renders, not one at any depth.
+- A `template.json` whose `context` is not an object is refused (`U002`), not a crash.
+- `--apply` on an up-to-date repo says "already up to date".
+- The weekly workflow passes the planned commit to `--apply --to`, and uses the
+  optional `UPGRADE_TOKEN` secret so it can push changes to workflow files.
+
 ## [1.1.1] - 2026-10-24
 
 ### Fixed

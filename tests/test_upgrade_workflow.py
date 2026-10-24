@@ -205,7 +205,7 @@ def _pipeline(sandbox: dict) -> dict[str, str]:
     branch = plan["branch"]
     existing = _step(sandbox, "Stop if the upgrade branch already exists", BRANCH=branch)
     assert existing["exists"] == "false"
-    _step(sandbox, "Apply the upgrade on a branch")
+    _step(sandbox, "Apply the upgrade on a branch", NEW=plan["new"])
     _step(sandbox, "Push the branch and open the pull request",
           BRANCH=branch, BASE="master", GH_TOKEN="x")
     return plan

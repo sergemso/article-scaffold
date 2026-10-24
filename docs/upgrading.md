@@ -62,7 +62,7 @@ and `python3`):
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/sergemso/article-scaffold/master/scripts/bootstrap-upgrader.py
 python3 bootstrap-upgrader.py            # template from template.json
-python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.1
+python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.2
 rm bootstrap-upgrader.py
 python3 -m pip install cookiecutter PyYAML
 git add scripts schemas && git commit -m 'chore: add the article upgrade command'
@@ -93,6 +93,11 @@ It is opt-in by its requirements, and otherwise only prints a notice:
 - Settings > Actions > General > "Allow GitHub Actions to create and approve pull
   requests" is on. Pull requests opened with `GITHUB_TOKEN` do not start other
   workflows, so close and reopen the PR, or push to it, to run your checks.
+- To upgrade files under `.github/workflows/` (the template ships several), add a
+  repository secret `UPGRADE_TOKEN`: a fine-grained token with Contents, Pull
+  requests and Workflows read and write. GitHub refuses a `GITHUB_TOKEN` push that
+  changes workflow files, so without the secret those upgrades fail at the push.
+  With the secret, the PR it opens also starts your checks.
 
 The job has `contents: write` and `pull-requests: write`, nothing else. It
 installs `cookiecutter==2.7.1` on the runner and does not add it to your repo.

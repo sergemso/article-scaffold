@@ -26,8 +26,21 @@ from .metadata import _metadata_schema
 STAMP_NAME = "template.json"
 GIT_TIMEOUT = 30
 RENDER_TIMEOUT = 300
-# Left out of both renders: the stamp is rewritten by the upgrade itself, and the rest is noise.
-IGNORED = shutil.ignore_patterns(".git", "__pycache__", "*.pyc", "template.json")
+# Left out of both renders: the root stamp is rewritten by the upgrade, the rest is noise.
+_NOISE = shutil.ignore_patterns(".git", "__pycache__", "*.pyc")
+
+
+def _ignored(top: Path):
+    """Ignore function for copytree: noise everywhere, the stamp only at the root."""
+    top = Path(top)
+
+    def ignore(directory: str, names: list[str]) -> set[str]:
+        skipped = set(_NOISE(directory, names))
+        if Path(directory) == top and STAMP_NAME in names:
+            skipped.add(STAMP_NAME)
+        return skipped
+
+    return ignore
 
 E_NO_STAMP = "U001"
 E_BAD_STAMP = "U002"
@@ -87,13 +100,22 @@ def _read_stamp(root: Path) -> tuple[dict[str, Any] | None, Refusal | None]:
         stamp = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return None, Refusal(E_BAD_STAMP, f"{STAMP_NAME} is not valid JSON: {exc}")
-    context = stamp.get("context", {}).get("cookiecutter") if isinstance(stamp, dict) else None
+    outer = stamp.get("context") if isinstance(stamp, dict) else None
+    context = outer.get("cookiecutter") if isinstance(outer, dict) else None
     template = stamp.get("template") if isinstance(stamp, dict) else None
     if not isinstance(template, str) or not template or not isinstance(context, dict):
         return None, Refusal(
             E_BAD_STAMP, f"{STAMP_NAME} must hold `template` and `context.cookiecutter`"
         )
     return stamp, None
+
+
+def _location(root: Path, template: str) -> str:
+    """Make a relative local template path absolute, so it means the same in any cwd."""
+    if "://" in template or re.match(r"^[\w.-]+@[\w.-]+:", template):
+        return template
+    local = root / template
+    return str(local.resolve()) if local.exists() else template
 
 
 def _resolve_new(
@@ -104,7 +126,8 @@ def _resolve_new(
     if new_ref and _SHA.fullmatch(new_ref):
         return new_ref, None
     try:
-        result = _git(["ls-remote", "--", template, ref], root)
+        remote = _location(root, template)
+        result = _git(["ls-remote", "--", remote, "HEAD", "refs/heads/*", "refs/tags/*"], root)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, Refusal(E_TEMPLATE_UNREACHABLE, f"cannot reach template {template}: {exc}")
     if result.returncode != 0:
@@ -112,10 +135,18 @@ def _resolve_new(
         return None, Refusal(
             E_TEMPLATE_UNREACHABLE, f"cannot reach template {template}: {detail[0]}"
         )
+    refs: dict[str, str] = {}
     for line in result.stdout.splitlines():
         sha, _, name = line.partition("\t")
-        if _FULL_SHA.fullmatch(sha) and (name == ref or name.endswith(f"/{ref}")):
-            return sha, None
+        if _FULL_SHA.fullmatch(sha):
+            refs[name] = sha
+    # Exact names only; an annotated tag resolves to the commit it points at (`^{}`).
+    candidates = ["HEAD"] if ref == "HEAD" else [
+        f"refs/heads/{ref}", f"refs/tags/{ref}^{{}}", f"refs/tags/{ref}",
+    ]
+    for name in candidates:
+        if name in refs:
+            return refs[name], None
     return None, Refusal(E_REF_UNKNOWN, f"template {template} has no ref {ref!r}")
 
 
@@ -241,28 +272,42 @@ def _render(python: str, source: Path, config: Path, out: Path, workdir: Path) -
 
 def _diff_trees(old: Path, new: Path, scratch: Path) -> tuple[str, list[dict[str, str]]]:
     """Diff two directory trees with repo-relative paths, using a throwaway git repo."""
+    # Isolate from the user's git config: signing, hooks and global ignores must not
+    # change what the scratch repository records.
     git = [
         "git", "-c", "user.name=upgrade", "-c", "user.email=upgrade@invalid",
-        "-c", "core.autocrlf=false",
+        "-c", "core.autocrlf=false", "-c", "commit.gpgsign=false",
+        "-c", "core.excludesFile=/dev/null", "-c", "core.hooksPath=/dev/null",
     ]
+
+    def step(*args: str) -> str:
+        result = _run([*git, *args], scratch, GIT_TIMEOUT)
+        if result.returncode != 0:
+            raise UpgradeError(
+                E_RENDER, f"comparing the renders failed (git {args[0]}): {_tail(result)}"
+            )
+        return result.stdout
+
     scratch.mkdir(parents=True)
-    _run([*git, "init", "--quiet"], scratch, GIT_TIMEOUT)
-    shutil.copytree(old, scratch, ignore=IGNORED, symlinks=True, dirs_exist_ok=True)
-    _run([*git, "add", "-A"], scratch, GIT_TIMEOUT)
-    _run([*git, "commit", "--quiet", "--allow-empty", "-m", "old"], scratch, GIT_TIMEOUT)
+    step("init", "--quiet")
+    shutil.copytree(old, scratch, ignore=_ignored(old), symlinks=True, dirs_exist_ok=True)
+    step("add", "-A", "-f")
+    step("commit", "--quiet", "--allow-empty", "-m", "old")
     for entry in scratch.iterdir():
         if entry.name == ".git":
             continue
         shutil.rmtree(entry) if entry.is_dir() and not entry.is_symlink() else entry.unlink()
-    shutil.copytree(new, scratch, ignore=IGNORED, symlinks=True, dirs_exist_ok=True)
-    _run([*git, "add", "-A"], scratch, GIT_TIMEOUT)
+    shutil.copytree(new, scratch, ignore=_ignored(new), symlinks=True, dirs_exist_ok=True)
+    step("add", "-A", "-f")
     flags = ["diff", "--cached", "--no-renames", "--no-color"]
-    patch = _run([*git, *flags, "--binary", "--full-index", "HEAD"], scratch, GIT_TIMEOUT).stdout
-    names = _run([*git, *flags, "--name-status", "HEAD"], scratch, GIT_TIMEOUT).stdout
-    files = []
-    for line in names.splitlines():
-        status, _, path = line.partition("\t")
-        files.append({"path": path, "status": status})
+    patch = step(*flags, "--binary", "--full-index", "HEAD")
+    # NUL-separated, so unusual file names are not quoted by git.
+    tokens = step(*flags, "--name-status", "-z", "HEAD").split("\0")
+    files = [
+        {"path": tokens[i + 1], "status": tokens[i]}
+        for i in range(0, len(tokens) - 1, 2)
+        if tokens[i]
+    ]
     return patch, files
 
 
@@ -299,7 +344,8 @@ def build_patch(
     config.write_text(yaml.safe_dump({"default_context": context}), encoding="utf-8")
 
     clone = workdir / "template"
-    cloned = _run(["git", "clone", "--quiet", "--no-checkout", "--", info["template"], str(clone)],
+    cloned = _run(["git", "clone", "--quiet", "--no-checkout", "--",
+                   _location(root, info["template"]), str(clone)],
                   workdir, 300)
     if cloned.returncode != 0:
         raise UpgradeError(E_CHECKOUT, f"cannot clone {info['template']}: {_tail(cloned)}")
@@ -389,6 +435,35 @@ def apply(
             E_BRANCH_EXISTS, f"branch {branch} already exists; delete it or finish it"
         )
 
+    original = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"], root, GIT_TIMEOUT).stdout.strip()
+    if original == "HEAD":
+        original = _run(["git", "rev-parse", "HEAD"], root, GIT_TIMEOUT).stdout.strip()
+    try:
+        return _apply_changes(root, upgrade_plan, branch, python, commit)
+    except BaseException as exc:
+        _rollback(root, original, branch)
+        if isinstance(exc, (OSError, subprocess.TimeoutExpired)):
+            raise UpgradeError(E_RENDER, f"the upgrade failed and was rolled back: {exc}") from exc
+        raise
+
+
+def _rollback(root: Path, original: str, branch: str) -> None:
+    """Undo a failed apply: back to the starting branch, with the half-made branch removed."""
+    head = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"], root, GIT_TIMEOUT).stdout.strip()
+    if head != branch:
+        return  # the branch was never created or entered
+    _run(["git", "reset", "--hard", "--quiet"], root, GIT_TIMEOUT)
+    _run(["git", "switch", "--quiet", "--detach", original]
+         if re.fullmatch(r"[0-9a-f]{40}", original) else ["git", "switch", "--quiet", original],
+         root, GIT_TIMEOUT)
+    _run(["git", "branch", "-D", "--quiet", branch], root, GIT_TIMEOUT)
+    (_git_dir(root) / STATE_NAME).unlink(missing_ok=True)
+
+
+def _apply_changes(
+    root: Path, upgrade_plan: dict[str, Any], branch: str, python: str | None, commit: bool
+) -> dict[str, Any]:
+    info = upgrade_plan["plan"]
     with tempfile.TemporaryDirectory(prefix="article-upgrade-") as tmp:
         built = build_patch(root, upgrade_plan, Path(tmp) / "work", python=python)
         files = built["files"]

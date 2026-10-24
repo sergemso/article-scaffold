@@ -348,6 +348,8 @@ def _print_upgrade(payload: dict[str, Any]) -> None:
         print(f"from {info['old'] or '(unknown)'} to {info['new'] or '(unknown)'}")
         if info["up_to_date"]:
             print("already up to date")
+    elif payload.get("up_to_date"):
+        print("already up to date")
     if payload.get("finished"):
         print(f"upgrade finished on {payload['branch']}; review `git diff --cached` and commit")
     elif payload["mode"] == "apply" and payload.get("branch"):
