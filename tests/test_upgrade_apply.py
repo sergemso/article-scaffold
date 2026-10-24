@@ -217,3 +217,48 @@ def test_plain_apply_commits_nothing_and_leaves_no_tracked_state(
 
     assert out["committed"] is False
     assert not (project / ".upgrade-state.json").exists()
+
+
+def _hand_edit_readme(project: Path) -> str:
+    readme = project / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    edited = text.replace("**Version:**", "**Version (hand edit):**", 1)
+    assert edited != text
+    readme.write_text(edited, encoding="utf-8")
+    return edited
+
+
+def test_finish_refuses_to_overwrite_hand_edited_derived_files(
+    project: Path, upgrade_template: dict[str, str]
+) -> None:
+    _apply(project, upgrade_template["b"])
+    edited = _hand_edit_readme(project)
+
+    refused = _finish(project)
+
+    assert refused["error"] == "U019"
+    assert "README.md" in refused["message"] and "--regenerate" in refused["message"]
+    assert (project / "README.md").read_text(encoding="utf-8") == edited
+    assert _stamp(project)["template_commit"] == upgrade_template["a"]
+
+
+def test_finish_can_be_told_to_regenerate_over_the_drift(
+    project: Path, upgrade_template: dict[str, str]
+) -> None:
+    _apply(project, upgrade_template["b"])
+    edited = _hand_edit_readme(project)
+    assert _finish(project)["error"] == "U019"
+
+    done = _call(project, "upgrade.finish(Path('.'), regenerate=True)")
+
+    assert done.get("finished") is True, done
+    assert (project / "README.md").read_text(encoding="utf-8") != edited
+    assert _stamp(project)["template_commit"] == upgrade_template["b"]
+
+
+def test_regenerate_only_goes_with_finish(project: Path) -> None:
+    result = run(project, sys.executable, "-m", "scripts.article", "upgrade", "--plan",
+                 "--regenerate")
+
+    assert result.returncode == 2
+    assert "--regenerate only goes with --finish" in result.stderr

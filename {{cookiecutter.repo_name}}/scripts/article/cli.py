@@ -321,11 +321,14 @@ def _upgrade(args: argparse.Namespace) -> int:
     if args.commit and mode != "apply":
         print("usage error: --commit only goes with --apply", file=sys.stderr)
         return core.ExitCode.USAGE
+    if args.regenerate and mode != "finish":
+        print("usage error: --regenerate only goes with --finish", file=sys.stderr)
+        return core.ExitCode.USAGE
     try:
         if mode == "apply":
             payload = core.apply_upgrade(root, args.to, commit=args.commit)
         elif mode == "finish":
-            payload = core.finish_upgrade(root)
+            payload = core.finish_upgrade(root, regenerate=args.regenerate)
         else:
             payload = core.plan_upgrade(root, args.to)
     except core.UpgradeError as exc:
@@ -546,6 +549,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--commit",
         action="store_true",
         help="with --apply: also commit the result (for CI), conflict markers included",
+    )
+    upgrade.add_argument(
+        "--regenerate",
+        action="store_true",
+        help="with --finish: overwrite derived files that differ from metadata.yaml",
     )
     upgrade.add_argument(
         "--to", metavar="REF", help="template branch, tag or commit (default: its HEAD)"

@@ -5,6 +5,20 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.1.7] - 2026-10-24
+
+### Added
+
+- `upgrade --finish` refuses (`U019`) when a derived file (`CITATION.cff`, `README.md`,
+  `CHANGES.md`, `paper/article.tex`, ...) differs from what `metadata.yaml` generates,
+  and names the files. Regenerating would silently overwrite hand edits. Put the edits
+  into `metadata.yaml`, or pass the new `--regenerate` to overwrite on purpose.
+
+### Changed
+
+- `docs/cli.md` no longer says a repo without the command must upgrade by hand; it points
+  to `scripts/bootstrap-upgrader.py`.
+
 ## [1.1.6] - 2026-10-24
 
 ### Fixed

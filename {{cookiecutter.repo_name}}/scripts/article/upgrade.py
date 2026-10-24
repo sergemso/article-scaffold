@@ -62,6 +62,7 @@ E_WRONG_BRANCH = "U017"
 STATE_NAME = "upgrade-state.json"
 TRACKED_STATE = ".upgrade-state.json"
 E_COMMIT = "U018"
+E_DRIFT = "U019"
 
 _SHA = re.compile(r"[0-9a-f]{7,40}")
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
@@ -527,11 +528,25 @@ def _commit_upgrade(root: Path, state: str, info: dict[str, Any]) -> None:
         )
 
 
-def finish(root: Path) -> dict[str, Any]:
+def _metadata_drift(root: Path) -> list[str]:
+    """Derived files whose content differs from what metadata.yaml would generate."""
+    from .metadata import collect_expected, compare_outputs, load_metadata
+
+    try:
+        metadata = load_metadata(root / "metadata.yaml")
+        expected = collect_expected(root, metadata)
+    except (FileNotFoundError, ValueError):
+        return []  # `make metadata` reports this with its own message
+    return sorted(item.path for item in compare_outputs(root, expected))
+
+
+def finish(root: Path, *, regenerate: bool = False) -> dict[str, Any]:
     """Check the resolved upgrade, regenerate derived files and bump the stamp.
 
-    Refuses while any path is unmerged or still has conflict markers. Leaves the result
-    staged for the author to commit.
+    Refuses while any path is unmerged or still has conflict markers. Also refuses when a
+    derived file differs from what metadata.yaml generates, because regenerating would
+    silently overwrite the author's hand edits; ``regenerate=True`` accepts that. Leaves
+    the result staged for the author to commit.
     """
     root = Path(root).resolve()
     state_path = _git_dir(root) / STATE_NAME
@@ -559,6 +574,15 @@ def finish(root: Path) -> dict[str, Any]:
         raise UpgradeError(
             E_CONFLICTS,
             "unresolved conflicts in: " + ", ".join(sorted(set(unmerged) | set(marked))),
+        )
+
+    drifted = [] if regenerate else _metadata_drift(root)
+    if drifted:
+        raise UpgradeError(
+            E_DRIFT,
+            "these files differ from what metadata.yaml generates, so `make metadata` would "
+            "overwrite them: " + ", ".join(drifted) + ". Put the edits into metadata.yaml, "
+            "or run `upgrade --finish --regenerate` to overwrite them.",
         )
 
     for target in ("metadata", "validate"):

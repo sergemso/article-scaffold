@@ -38,9 +38,12 @@ git commit
   `template.json`, applies the difference with `git apply --3way` on a new branch
   `upgrade/<sha>`, and lists `applied`, `conflicted` and `skipped` files. It does
   not commit, and it leaves conflict markers for you.
-- `--finish` refuses while any file is unmerged or still has conflict markers. It
-  then runs `make metadata` and `make validate`, bumps `template_version` and
-  `template_commit`, and stages the result.
+- `--finish` refuses while any file is unmerged or still has conflict markers. It also
+  refuses (`U019`) when a derived file such as `CITATION.cff`, `README.md`, `CHANGES.md`
+  or `paper/article.tex` differs from what `metadata.yaml` generates, because
+  `make metadata` would overwrite those hand edits. Move them into `metadata.yaml`, or
+  pass `--regenerate` to overwrite. It then runs `make metadata` and `make validate`,
+  bumps `template_version` and `template_commit`, and stages the result.
 
 Needs `git` and, for the render, `cookiecutter` installed for the Python that runs
 the command (`python3 -m pip install cookiecutter`); a URL template also needs the
@@ -62,7 +65,7 @@ and `python3`):
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/sergemso/article-scaffold/master/scripts/bootstrap-upgrader.py
 python3 bootstrap-upgrader.py            # template from template.json
-python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.6
+python3 bootstrap-upgrader.py --template https://github.com/sergemso/article-scaffold --ref v1.1.7
 rm bootstrap-upgrader.py
 python3 -m pip install cookiecutter PyYAML
 git add scripts schemas && git commit -m 'chore: add the article upgrade command'

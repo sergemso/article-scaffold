@@ -113,7 +113,7 @@ cookiecutter`). It never merges silently.
 ```bash
 python3 -m scripts.article upgrade --plan  [--to REF] [--json]   # default; read-only
 python3 -m scripts.article upgrade --apply [--commit] [--to REF] [--json]   # new branch upgrade/<sha>
-python3 -m scripts.article upgrade --finish [--json]             # after resolving conflicts
+python3 -m scripts.article upgrade --finish [--regenerate] [--json]   # after resolving conflicts
 ```
 
 - `--plan` writes nothing. It refuses, with a code `U001` to `U008`, when the
@@ -127,14 +127,18 @@ python3 -m scripts.article upgrade --finish [--json]             # after resolvi
 - `--apply --commit` also commits the result, conflict markers included, with a
   tracked `.upgrade-state.json`, so a fresh checkout of the branch can run
   `--finish` (which removes that file). The scheduled workflow uses it.
-- `--finish` refuses while any path is unmerged or has conflict markers, runs
-  `make metadata` and `make validate`, then updates `template_version` and
-  `template_commit` and stages the result for you to review and commit.
+- `--finish` refuses while any path is unmerged or has conflict markers. It also
+  refuses (`U019`) when a derived file (`CITATION.cff`, `README.md`, `CHANGES.md`,
+  `paper/article.tex`, ...) differs from what `metadata.yaml` generates, because
+  `make metadata` would overwrite those edits. Move them into `metadata.yaml`, or pass
+  `--regenerate` to overwrite. It then runs `make metadata` and `make validate`,
+  updates `template_version` and `template_commit` and stages the result for you to
+  review and commit.
 
 `make upgrade` runs `--plan`. `.github/workflows/upgrade.yml` runs it weekly and
 opens a pull request; see the template's `docs/upgrading.md` ("Automatic upgrade
 pull requests"). A repository generated before this command existed
-cannot use it for its first upgrade; follow the manual procedure in the
+installs it once with the template's `scripts/bootstrap-upgrader.py`; see the
 template's `docs/upgrading.md`. The shape of the `--json` output is
 `schemas/upgrade.schema.json`. Exit code `1` also covers refusals and
 conflicts.

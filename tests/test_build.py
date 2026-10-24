@@ -187,7 +187,7 @@ def test_no_aux_files_in_paper_root_after_build() -> None:
             assert not aux_files, f"Found {ext} files in paper/ root: {aux_files}"
 
 def test_cli_build_pdf_publishes_the_release_artifact(tmp_path: Path) -> None:
-    """`build pdf` must leave paper/article.pdf, the file `release` looks for, as `make pdf` does."""
+    """`build pdf` must leave paper/article.pdf, which `release` looks for, as `make pdf` does."""
     import shutil
 
     import pytest
