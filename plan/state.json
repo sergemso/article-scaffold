@@ -1998,7 +1998,7 @@
       "attempts": 1,
       "lease": null,
       "last_checkpoint": "2026-10-24T10:14:13Z",
-      "commit": null,
+      "commit": "be059acf130600586f77cfdd069c65c2cb04788f",
       "seeded": false,
       "evidence": [
         {
