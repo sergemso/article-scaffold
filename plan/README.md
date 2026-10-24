@@ -13,7 +13,7 @@ plan/
 └── agentctl.py    stdlib-only CLI; the only supported writer
 ```
 
-`AGENTS.md` at the repo root is the cold-start entry point. This file explains
+`AGENTS.md` at the repo root is the cold-start entry point (full rules in `plan/PROTOCOL.md`). This file explains
 the mechanics for a human reviewing the plan.
 
 ## Why JSON and not YAML
