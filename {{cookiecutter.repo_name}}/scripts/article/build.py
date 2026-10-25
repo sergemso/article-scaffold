@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
+
+_DOCUMENTCLASS_RE = re.compile(r"^[^%\n]*\\documentclass\b", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -81,4 +84,59 @@ def docx_plan(
         command=tuple(command),
         cwd=".",
         output="manuscript.docx",
+    )
+
+
+def is_standalone_tex(path: Path) -> bool:
+    """True when *path* is a compilable document, not an ``\\input`` fragment."""
+    try:
+        return bool(_DOCUMENTCLASS_RE.search(path.read_text(encoding="utf-8")))
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def supplementary_plans(root: Path | None = None) -> list[BuildPlan]:
+    """Plan one PDF build per standalone supplementary document.
+
+    Discovers ``paper/supplementary.tex`` (legacy single-file layout) and every
+    top-level ``paper/supplementary/*.tex`` that has a ``\\documentclass``.
+    Fragments without one are skipped. Returns ``[]`` without a *root*.
+    """
+    if root is None:
+        return []
+    paper = root / "paper"
+    plans: list[BuildPlan] = []
+    legacy = paper / "supplementary.tex"
+    if legacy.is_file() and is_standalone_tex(legacy):
+        plans.append(_supp_plan("supplementary", "paper", "paper/build", "paper"))
+    supp_dir = paper / "supplementary"
+    if supp_dir.is_dir():
+        for tex in sorted(supp_dir.glob("*.tex")):
+            if is_standalone_tex(tex):
+                plans.append(
+                    _supp_plan(
+                        tex.stem,
+                        "paper/supplementary",
+                        "paper/supplementary/build",
+                        "paper/supplementary",
+                    )
+                )
+    return plans
+
+
+def _supp_plan(stem: str, cwd: str, build_dir: str, publish_dir: str) -> BuildPlan:
+    return BuildPlan(
+        name=f"supp:{stem}",
+        command=(
+            "latexmk",
+            "-pdf",
+            "-interaction=nonstopmode",
+            "-file-line-error",
+            "-halt-on-error",
+            "-outdir=build",
+            f"{stem}.tex",
+        ),
+        cwd=cwd,
+        output=f"{build_dir}/{stem}.pdf",
+        publish_to=f"{publish_dir}/{stem}.pdf",
     )

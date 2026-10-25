@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .build import is_standalone_tex
 from .diagnostics import Diagnostics
 from .latex import count_unescaped, strip_comments
 
@@ -227,9 +228,22 @@ def _check_references(root: Path, paper_dir: Path, diagnostics: Diagnostics) -> 
     if not article.is_file():
         diagnostics.error(_relative(root, article), 0, "E000", "main TeX file not found")
         return
+    # Standalone documents other than article.tex (supplementary PDFs) are
+    # compiled on their own, so their labels live in a separate namespace.
+    scopes: dict[Path, list[Path]] = {article: []}
+    for tex in _tex_files(paper_dir):
+        if tex != article and is_standalone_tex(tex):
+            scopes[tex] = [tex]
+        else:
+            scopes[article].append(tex)
+    for files in scopes.values():
+        _check_scope_references(root, files, diagnostics)
+
+
+def _check_scope_references(root: Path, files: list[Path], diagnostics: Diagnostics) -> None:
     labels: dict[str, list[tuple[Path, int]]] = {}
     refs: list[tuple[str, Path, int]] = []
-    for tex in _tex_files(paper_dir):
+    for tex in files:
         content = strip_comments(tex.read_text(encoding="utf-8"))
         for line_number, line in enumerate(content.split("\n"), start=1):
             for match in LABEL_RE.finditer(line):

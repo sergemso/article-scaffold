@@ -109,14 +109,11 @@ analysis-check:
 # Supplementary materials — PDF for extended data, code, etc.
 # ─────────────────────────────────────────────────────────────
 
+# Builds every standalone supplementary document: paper/supplementary.tex
+# and each paper/supplementary/*.tex that has a \documentclass. Each PDF is
+# written next to its source (paper/supplementary/NAME.pdf).
 supp-pdf:
-	@if [ -f $(PAPER_DIR)/supplementary.tex ]; then \
-		cd $(PAPER_DIR) && latexmk -pdf -interaction=nonstopmode -file-line-error -halt-on-error supplementary.tex; \
-		cp build/supplementary.pdf supplementary.pdf; \
-		echo "Supplementary PDF built: $(PAPER_DIR)/supplementary.pdf"; \
-	else \
-		echo "No supplementary.tex found, skipping supplementary PDF"; \
-	fi
+	python3 -m scripts.article build supp
 
 supp: supp-pdf
 
@@ -164,7 +161,8 @@ upgrade:
 clean:
 	cd $(PAPER_DIR) && latexmk -C
 	rm -rf $(PAPER_DIR)/build
-	rm -f $(PAPER_DIR)/article.pdf
+	rm -f $(PAPER_DIR)/article.pdf $(PAPER_DIR)/supplementary.pdf $(PAPER_DIR)/supplementary/*.pdf
+	rm -rf $(PAPER_DIR)/supplementary/build
 	rm -f manuscript.docx manuscript.html manuscript.pdf
 	@echo "Build artifacts cleaned"
 

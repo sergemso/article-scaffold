@@ -88,12 +88,13 @@ jobs:
           name: manuscript-pdf
           path: pages
 
+      # Absent when the repository has no standalone supplementary document.
       - name: Download supplementary artifacts
+        continue-on-error: true
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
           name: manuscript-supp
           path: pages/supp
-          if-no-files-found: ignore
 
       - name: Setup Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886db7e9c

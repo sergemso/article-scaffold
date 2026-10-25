@@ -162,7 +162,7 @@ articles.<topic>/
 │   │   └── 09_references.tex
 │   ├── figures/               # tracked; referenced via \includegraphics
 │   ├── tables/                # generated tables from make analysis
-│   └── supplementary/          # tracked; appendices, extended tables, code
+│   └── supplementary/          # tracked; standalone *.tex here build to their own PDFs (make supp-pdf)
 ├── data/
 │   ├── raw/observations.csv   # fixture data for empirical analysis
 │   └── checksums.sha256       # input checksums for reproducibility

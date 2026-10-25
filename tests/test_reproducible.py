@@ -212,3 +212,28 @@ def test_makefile_has_supp_targets():
     assert "supp:" in content
     assert "supplementary.tex" in content
     assert "supplementary.pdf" in content
+
+
+@pytest.mark.skipif(not latexmk_available, reason="latexmk not installed")
+def test_supplementary_directory_builds_every_standalone_document(tmp_path: Path) -> None:
+    """Each paper/supplementary/*.tex with a \\documentclass gets its own PDF."""
+    project = render(tmp_path=tmp_path)
+    supp = project / "paper" / "supplementary"
+    for name in ("Supporting-Materials", "Extra"):
+        (supp / f"{name}.tex").write_text(
+            "\\documentclass{article}\n\\begin{document}\n" + name + "\n\\end{document}\n"
+        )
+    (supp / "fragment.tex").write_text("Not a document.\n")
+
+    result = run(project, "make", "supp-pdf")
+    assert result.returncode == 0, result.stderr
+
+    for name in ("Supporting-Materials", "Extra"):
+        assert (supp / f"{name}.pdf").read_bytes().startswith(b"%PDF-")
+        assert (supp / "build" / f"{name}.pdf").exists()
+    assert not (supp / "fragment.pdf").exists()
+
+    clean = run(project, "make", "clean")
+    assert clean.returncode == 0, clean.stderr
+    assert not list(supp.glob("*.pdf"))
+    assert not (supp / "build").exists()
