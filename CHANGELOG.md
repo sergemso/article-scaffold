@@ -5,6 +5,29 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.5.1] - 2026-10-26
+
+### Fixed
+
+- Upgrading to 1.5.0 conflicted in `metadata.yaml` and the abstract of repos whose author had
+  edited them, because the template removed placeholder lines next to the author's values and a
+  text merge cannot tell the two apart.
+  - `upgrade` no longer text-merges `metadata.yaml`; it applies versioned, exact-line
+    migrations (`scripts/article/migrations.py`) that remove only what an earlier template
+    shipped and never touch a value.
+  - The blocks generated from `metadata.yaml` (title block, abstract, backmatter version,
+    README and CHANGES blocks) are left out of the template diff; `upgrade --finish` regenerates
+    them.
+  - `upgrade --apply` runs with the upgrade code of the template being upgraded to, so a fix to
+    the upgrade takes effect on the upgrade it ships in, not the one after.
+- New test upgrades the previous release to the working tree for a repo with an edited
+  `metadata.yaml` and abstract, and requires no conflicts.
+
+### Upgrading
+
+A repo still on 1.4.x or 1.5.0 carries the old upgrade code and conflicts once more. Install the
+new code first: see "Repos on 1.5.0 or older" in `docs/upgrading.md`.
+
 ## [1.5.0] - 2026-10-26
 
 ### Added
