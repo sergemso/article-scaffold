@@ -42,7 +42,7 @@ id,title,tags,status
 0039-telemetry-recording,"Steps are not recorded","practice-packs, observability, harness",active
 0040-telemetry-export,"Telemetry is not exported","practice-packs, observability, harness",active
 0041-verification-checks,"Implement and debug steps pass the project's detected check commands","practice-packs, verification, harness",active
-0042-verification-test-command,"The verification test command is ""make setup test""","practice-packs, verification, harness",active
+0042-verification-test-command,"The verification test command is ""sh .github/scripts/install-tex.sh && make setup test""","practice-packs, verification, harness",active
 0043-verification-lint-command,"The verification lint command is ""make lint""","practice-packs, verification, harness",active
 0044-verification-typecheck-command,"The verification typecheck command is """"","practice-packs, verification, harness",active
 0045-verification-format-command,"The verification format command is ""ruff format --check .""","practice-packs, verification, harness",active
