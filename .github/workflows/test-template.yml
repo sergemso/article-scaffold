@@ -53,11 +53,16 @@ jobs:
         with:
           python-version: "3.10"
 
+      # Tests that build real PDFs need latexmk and the packages the template loads.
+      - name: Install TeX Live
+        run: sh .github/scripts/install-tex.sh
+
       - name: Install dev tools
         run: make setup
 
+      # Generated repos run `python3 -m scripts.article`, which needs the venv's PyYAML.
       - name: Run pytest
-        run: make test
+        run: PATH="$PWD/.venv/bin:$PATH" make test
 
   render:
     name: Render and validate

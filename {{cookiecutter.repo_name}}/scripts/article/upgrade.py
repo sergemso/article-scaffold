@@ -299,6 +299,9 @@ def _diff_trees(old: Path, new: Path, scratch: Path) -> tuple[str, list[dict[str
             continue
         shutil.rmtree(entry) if entry.is_dir() and not entry.is_symlink() else entry.unlink()
     shutil.copytree(new, scratch, ignore=_ignored(new), symlinks=True, dirs_exist_ok=True)
+    # Drop the stat cache: a file rewritten with the same size inside the old commit's
+    # timestamp granularity would otherwise look unchanged and vanish from the diff.
+    (scratch / ".git" / "index").unlink()
     step("add", "-A", "-f")
     flags = ["diff", "--cached", "--no-renames", "--no-color"]
     patch = step(*flags, "--binary", "--full-index", "HEAD")

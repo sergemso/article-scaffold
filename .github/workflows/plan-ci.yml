@@ -1,8 +1,5 @@
-# Bootstrap CI for the agent-executable plan.
-#
-# This is intentionally small: it validates the plan/state harness and does a
-# default Cookiecutter render. T04 replaces/expands it with the full template
-# matrix (lint, unit tests, special-character fixtures, validate/metadata drift).
+# Smoke test: a default Cookiecutter render. The plan/state harness this once
+# also validated is archived (docs/plans/archive/t-queue/).
 name: Plan CI
 
 "on":
@@ -19,60 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  plan:
-    name: Plan and state
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          # audit verifies that every recorded task commit is reachable
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with:
-          python-version: "3.10"
-
-      - name: Compile the harness
-        run: python3 -m py_compile plan/agentctl.py
-
-      - name: Validate plan and state
-        run: |
-          python3 plan/agentctl.py doctor
-          python3 plan/agentctl.py audit
-
-      - name: Check the machine-readable contract
-        run: |
-          python3 plan/agentctl.py status --json > /tmp/status.json
-          python3 plan/agentctl.py next --json > /tmp/next.json
-          python3 -m json.tool /tmp/status.json > /dev/null
-          python3 -m json.tool /tmp/next.json > /dev/null
-          python3 - <<'PY'
-          import json
-
-          status = json.load(open("/tmp/status.json"))
-          tasks = json.load(open("plan/tasks.json"))["tasks"]
-          assert len(tasks) == len({t["id"] for t in tasks}), "duplicate task id"
-          assert len(tasks) == len({t["order"] for t in tasks}), "duplicate order"
-          assert status["counts"].get("done", 0) >= 1, status["counts"]
-          assert status["phases"]["P0"]["total"] == 4, status["phases"]["P0"]
-
-          nxt = json.load(open("/tmp/next.json"))
-          if nxt.get("task"):
-              assert nxt["task"]["id"] in status["tasks"]
-              assert status["tasks"][nxt["task"]["id"]]["status"] in {"todo", "in_progress"}
-          print("plan contract OK")
-          PY
-
-      - name: Render a human status report
-        run: |
-          python3 plan/agentctl.py render --write /tmp/STATUS.md
-          test -s /tmp/STATUS.md
-          head -20 /tmp/STATUS.md
-
   render-smoke:
     name: Default render
     runs-on: ubuntu-latest
