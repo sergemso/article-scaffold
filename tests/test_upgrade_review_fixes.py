@@ -75,7 +75,8 @@ def test_a_failed_apply_is_rolled_back(
 ) -> None:
     before = run(upgrade_project, "git", "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
     code = (
-        "import json\nfrom pathlib import Path\nfrom scripts.article import upgrade\n"
+        "import json, os\nfrom pathlib import Path\nfrom scripts.article import upgrade\n"
+        "os.environ['ARTICLE_UPGRADE_ENGINE'] = 'in-process'\n"  # the patch below must stay in use
         "def boom(root, chunk):\n    raise OSError('disk gone')\n"
         "upgrade._apply_chunk = boom\n"
         "try:\n"

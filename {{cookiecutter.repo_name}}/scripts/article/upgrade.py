@@ -9,6 +9,7 @@ template commits and reports why an upgrade cannot proceed. It never imports
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -21,7 +22,8 @@ from typing import Any
 import yaml
 
 from .diagnostics import Diagnostics
-from .metadata import _metadata_schema
+from .metadata import _metadata_schema, blank_generated_blocks
+from .migrations import migrate_metadata
 
 STAMP_NAME = "template.json"
 GIT_TIMEOUT = 30
@@ -361,6 +363,7 @@ def build_patch(
         _render(python, source, config, workdir / f"render-{label}", workdir)
         trees[label] = workdir / f"render-{label}" / repo_name
 
+    _scope_trees(trees["old"], trees["new"])
     patch, files = _diff_trees(trees["old"], trees["new"], workdir / "compare")
     patch_path = workdir / "upgrade.patch"
     patch_path.write_text(patch, encoding="utf-8")
@@ -370,6 +373,63 @@ def build_patch(
         "old_tree": str(trees["old"]),
         "new_tree": str(trees["new"]),
     }
+
+
+# Files the author owns as data. They are left out of the template diff and migrated.
+_DATA_FILES = ("metadata.yaml",)
+
+
+def _scope_trees(*trees: Path) -> None:
+    """Drop what an upgrade must not text-merge from the rendered trees.
+
+    ``metadata.yaml`` is migrated by key instead (see ``migrations.py``), and the blocks
+    generated from it are emptied, because ``upgrade --finish`` regenerates them.
+    """
+    for tree in trees:
+        for name in _DATA_FILES:
+            (tree / name).unlink(missing_ok=True)
+        for path in tree.rglob("*"):
+            if not path.is_file() or path.is_symlink() or ".git" in path.parts:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            blanked = blank_generated_blocks(text)
+            if blanked != text:
+                path.write_text(blanked, encoding="utf-8")
+
+
+def _migrated_metadata(root: Path, old_version: object, new_version: object) -> str | None:
+    """The migrated text of metadata.yaml, or None when nothing changes."""
+    path = root / "metadata.yaml"
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8")
+    migrated = migrate_metadata(text, old_version, new_version)
+    return migrated if migrated != text else None
+
+
+def _refresh_untouched_derived(root: Path, before: str, after: str) -> None:
+    """Regenerate derived files that matched the old metadata, once it was migrated.
+
+    A file the author edited by hand no longer equals what the old metadata generated and
+    is left for ``finish`` to report; one that equalled it just follows the migration.
+    """
+    from .metadata import collect_expected, load_metadata, write_expected
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_path = Path(tmp) / "metadata.yaml"
+            old_path.write_text(before, encoding="utf-8")
+            old_expected = collect_expected(root, load_metadata(old_path))
+        new_expected = collect_expected(root, load_metadata(root / "metadata.yaml"))
+    except (OSError, ValueError, yaml.YAMLError):
+        return  # `finish` reports an unreadable metadata.yaml with its own message
+    write_expected({
+        path: text for path, text in new_expected.items()
+        if path.is_file() and path.read_text(encoding="utf-8") == old_expected.get(path)
+    })
 
 
 def _git_dir(root: Path) -> Path:
@@ -464,21 +524,83 @@ def _rollback(root: Path, original: str, branch: str) -> None:
     (_git_dir(root) / STATE_NAME).unlink(missing_ok=True)
 
 
+_ENGINE_ENV = "ARTICLE_UPGRADE_ENGINE"
+_ENGINE_CALL = """
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+from scripts.article import upgrade
+try:
+    out = upgrade.apply(
+        Path(sys.argv[2]), sys.argv[3], python=sys.argv[4], commit=sys.argv[5] == "1"
+    )
+except upgrade.UpgradeError as exc:
+    out = {"__error__": [exc.code, exc.message]}
+print(json.dumps(out))
+"""
+
+
+def _hand_over_to_target_engine(
+    root: Path, new_tree: Path, new_commit: str, python: str | None, commit: bool
+) -> dict[str, Any] | None:
+    """Run the apply again with the upgrade code of the template being upgraded to.
+
+    A repo carries the upgrade code of the template it was generated from, so a fix
+    to the upgrade itself would only help the upgrade after the next one. The target
+    template's own code is used instead; it is run once, never recursively.
+    Returns None when this already is that code, or the template ships none.
+    """
+    mine, theirs = Path(__file__).resolve().parent, new_tree / "scripts" / "article"
+    if os.environ.get(_ENGINE_ENV) or not theirs.is_dir():
+        return None
+    names = {p.name for p in theirs.glob("*.py")} | {p.name for p in mine.glob("*.py")}
+    if all(
+        (mine / n).is_file() and (theirs / n).is_file()
+        and (mine / n).read_bytes() == (theirs / n).read_bytes()
+        for n in names
+    ):
+        return None
+    result = subprocess.run(
+        [python or sys.executable, "-c", _ENGINE_CALL, str(new_tree), str(root), new_commit,
+         python or sys.executable, "1" if commit else "0"],
+        cwd=root, capture_output=True, text=True, timeout=RENDER_TIMEOUT * 3,
+        env={**os.environ, _ENGINE_ENV: "target"},
+    )
+    try:
+        out = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, ValueError):
+        raise UpgradeError(E_RENDER, f"the target upgrade code failed: {_tail(result)}") from None
+    if "__error__" in out:
+        raise UpgradeError(*out["__error__"])
+    return out
+
+
 def _apply_changes(
     root: Path, upgrade_plan: dict[str, Any], branch: str, python: str | None, commit: bool
 ) -> dict[str, Any]:
     info = upgrade_plan["plan"]
     with tempfile.TemporaryDirectory(prefix="article-upgrade-") as tmp:
         built = build_patch(root, upgrade_plan, Path(tmp) / "work", python=python)
+        handed = _hand_over_to_target_engine(
+            root, Path(built["new_tree"]), info["new"], python, commit
+        )
+        if handed is not None:
+            return handed
         files = built["files"]
-        if not files:
+        new_stamp = json.loads((Path(built["new_tree"]) / STAMP_NAME).read_text(encoding="utf-8"))
+        old_stamp, _ = _read_stamp(root)
+        migrated = _migrated_metadata(
+            root,
+            (old_stamp or {}).get("template_version"),
+            new_stamp.get("template_version"),
+        )
+        if not files and migrated is None:
             # The template moved on, but not in anything this repository is generated
             # from: no branch, no stamp change. The stamp stays so the next real change
             # is still diffed from the commit the files actually match.
             return {"ok": True, "command": "upgrade", "up_to_date": False, "no_changes": True,
                     "branch": None, "applied": [], "conflicted": [], "skipped": []}
         patch = Path(built["patch"]).read_text(encoding="utf-8") if built["patch"] else ""
-        new_stamp = json.loads((Path(built["new_tree"]) / STAMP_NAME).read_text(encoding="utf-8"))
         chunks = _split_patch(patch)
         if len(chunks) != len(files):
             raise UpgradeError(E_RENDER, "patch and file list disagree; refusing to apply")
@@ -511,11 +633,16 @@ def _apply_changes(
             else:
                 skipped.append({"path": path, "reason": _tail(result)})
 
+    if migrated is not None:
+        before = (root / "metadata.yaml").read_text(encoding="utf-8")
+        (root / "metadata.yaml").write_text(migrated, encoding="utf-8")
+        _refresh_untouched_derived(root, before, migrated)
+        applied.append("metadata.yaml")
     state = json.dumps({
         "branch": branch, "old": info["old"], "new": info["new"],
         "new_template_version": new_stamp.get("template_version"),
         "new_template_commit": new_stamp.get("template_commit"),
-        "files": [f["path"] for f in files],
+        "files": [f["path"] for f in files] + (["metadata.yaml"] if migrated is not None else []),
     })
     (_git_dir(root) / STATE_NAME).write_text(state, encoding="utf-8")
     if commit:
@@ -525,10 +652,23 @@ def _apply_changes(
             "committed": commit}
 
 
+def _stage(root: Path, state: dict[str, Any] | str) -> None:
+    """Stage tracked changes and the files the upgrade added; never unrelated untracked files.
+
+    ``git add -A`` would also stage whatever else sits untracked in the repo, such as a
+    build directory the author keeps outside .gitignore.
+    """
+    files = json.loads(state)["files"] if isinstance(state, str) else state["files"]
+    _run(["git", "add", "-u"], root, GIT_TIMEOUT)
+    for path in [*files, STAMP_NAME, TRACKED_STATE]:
+        if (root / path).exists():
+            _run(["git", "add", "--", path], root, GIT_TIMEOUT)
+
+
 def _commit_upgrade(root: Path, state: str, info: dict[str, Any]) -> None:
     (root / TRACKED_STATE).write_text(state + "\n", encoding="utf-8")
     # Conflict markers are committed on purpose: the PR is where they get resolved.
-    _run(["git", "add", "-A"], root, GIT_TIMEOUT)
+    _stage(root, state)
     message = f"chore: upgrade from template {info['old'][:8]} to {info['new'][:8]}"
     result = _run(["git", "commit", "--quiet", "-m", message], root, GIT_TIMEOUT)
     if result.returncode != 0:
@@ -608,7 +748,7 @@ def finish(root: Path, *, regenerate: bool = False) -> dict[str, Any]:
     )
     state_path.unlink(missing_ok=True)
     tracked.unlink(missing_ok=True)
-    _run(["git", "add", "-A"], root, GIT_TIMEOUT)
+    _stage(root, state)
     return {
         "ok": True, "command": "upgrade", "finished": True,
         "branch": state["branch"], "template_commit": stamp["template_commit"],

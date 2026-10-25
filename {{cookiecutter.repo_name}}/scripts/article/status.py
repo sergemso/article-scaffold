@@ -14,7 +14,7 @@ import yaml
 from . import core
 
 STATUS_SCHEMA_VERSION = "1.0"
-TEMPLATE_VERSION = "1.5.0"
+TEMPLATE_VERSION = "1.5.1"
 
 _VERSION_RE = re.compile(r"\b(\d+\.\d+(?:\.\d+)*)\b")
 

@@ -1013,6 +1013,33 @@ def gen_changes_current_block(metadata: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+_GENERATED_BLOCKS = (
+    (TITLE_BLOCK_START, TITLE_BLOCK_END),
+    (README_CITATION_START, README_CITATION_END),
+    (README_META_START, README_META_END),
+    (ABSTRACT_START, ABSTRACT_END),
+    (BACKMATTER_VERSION_START, BACKMATTER_VERSION_END),
+    (CHANGES_CURRENT_START, CHANGES_CURRENT_END),
+)
+
+
+def blank_generated_blocks(text: str) -> str:
+    """Empty every metadata-generated block, so a template diff ignores them.
+
+    ``make metadata`` rewrites these blocks from ``metadata.yaml``, so text-merging
+    them in an upgrade can only produce conflicts over content nobody edits by hand.
+    """
+    for start, end in _GENERATED_BLOCKS:
+        # Anchored to whole lines, so source code that merely names a marker is left alone.
+        text = re.sub(
+            rf"(?m)^{re.escape(start)}$.*?^{re.escape(end)}$",
+            lambda _, s=start, e=end: f"{s}\n{e}",
+            text,
+            flags=re.DOTALL,
+        )
+    return text
+
+
 def _read_required(root: Path, path: Path) -> str:
     if not path.is_file():
         raise FileNotFoundError(f"required file is missing: {path.relative_to(root)}")

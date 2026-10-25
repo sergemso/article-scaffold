@@ -193,20 +193,28 @@ you need (usually `scripts/`, `.github/workflows/` and `Makefile`). Run
 For the v1 to v2 metadata change, follow `docs/migrating-to-v2.md` in the
 generated repo instead; it has a field-by-field mapping.
 
-## Upgrading to 1.5.0 (regenerate before build)
+## Repos on 1.5.0 or older
 
-1.5.0 makes artifact builds refresh the files derived from `metadata.yaml`, adds
-`metadata-sync.yml` and drops the placeholder lines from a new repo's `metadata.yaml`.
+Until 1.5.1 an upgrade text-merged `metadata.yaml` and the generated blocks, and conflicted
+whenever the template removed lines beside values you had edited. 1.5.1 migrates
+`metadata.yaml` by exact line (your values are never touched), leaves the generated blocks out
+of the diff, and runs the upgrade with the code of the template it upgrades to.
 
-1. `upgrade --plan`, `--apply`, `--finish` as above. The files that change are
-   `scripts/article/{cli,metadata,status}.py`, `Makefile`,
-   `.github/workflows/reusable-build.yml`, the new `.github/workflows/metadata-sync.yml`
-   and `docs/`.
-2. Delete the leftovers the merge leaves in `metadata.yaml`: the commented
-   `# - "Perez…"` / `# - "Anthropic…"` lines, an unedited `abstract_note` placeholder, and a
-   `description` that only repeats `abstract`. Then `make metadata-check`.
-3. A repo whose `template.json` has `template_commit: null` cannot be planned (`U003`). Set it
-   to the template commit the repo was generated from (check with a diff of `scripts/article/`
-   against that commit), or copy the files in step 1 from the 1.5.0 tag by hand.
-4. In the repo's settings enable "Allow GitHub Actions to create and approve pull requests"
-   for `metadata-sync.yml`.
+A repo that still carries the older upgrade code needs it once, before the upgrade:
+
+```bash
+python3 bootstrap-upgrader.py --force --ref v1.5.1    # see "Installing the command"
+git add scripts schemas && git commit -m 'chore: update the article upgrade command'
+python3 -m scripts.article upgrade --plan && python3 -m scripts.article upgrade --apply
+python3 -m scripts.article upgrade --finish
+```
+
+`upgrade --finish` stages whatever is untracked in the repo (for example a build `target/`
+directory): check `git status` and unstage anything that is not part of the upgrade.
+
+For 1.5.0 itself: `abstract_note` placeholder text, the commented example references and the
+duplicate `description` are removed by the migration when they match what the template
+shipped; anything you changed stays. A repo whose `template.json` has `template_commit: null`
+cannot be planned (`U003`): set it to the template commit the repo was generated from, or copy
+`scripts/article/`, the Makefile and the workflows from the tag by hand. Enable "Allow GitHub
+Actions to create and approve pull requests" for `metadata-sync.yml`.
