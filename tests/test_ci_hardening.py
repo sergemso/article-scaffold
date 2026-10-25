@@ -1,8 +1,9 @@
-"""CI hardening tests: all workflows use pinned actions and least-privilege permissions."""
+"""CI hardening tests: workflows use versioned actions and least-privilege permissions."""
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,33 +16,23 @@ SCAFFOLD_WORKFLOWS = ROOT / ".github" / "workflows"
 TEMPLATE_WORKFLOWS = ROOT / "{{cookiecutter.repo_name}}" / ".github" / "workflows"
 ALL_WORKFLOWS = list(SCAFFOLD_WORKFLOWS.glob("*.yml")) + list(TEMPLATE_WORKFLOWS.glob("*.yml"))
 
-# Known pinned action SHAs (subset; add more as needed)
-PINNED_ACTIONS = {
-    "actions/checkout": "11bd71901bbe5b1630ceea73d27597364c9af683",  # v4.2.2
-    "actions/setup-python": "a26af69be951a213d495a4c3e4e4022e16d87065",  # v5.3.0
-    "actions/upload-artifact": "b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882",  # v4.6.1
-    "actions/download-artifact": "95815c38cf2ff2164869cbab79da8d1f422bc89e",  # v4.2.1
-    "xu-cheng/texlive-action": "f886de8159e5952a131848a5fa9c3196a2132b5d",  # v2
-    "softprops/action-gh-release": "c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda",  # v2.2.1
-}
-
-# Actions that are allowed to be unpinned (e.g., local reusable workflows)
-UNPINNED_ALLOWLIST = {
-    "./.github/workflows/reusable-build.yml",
-    "actions/checkout",  # checked via PINNED_ACTIONS
-    "actions/setup-python",
-    "actions/upload-artifact",
-    "actions/download-artifact",
-    "actions/configure-pages",
-    "actions/upload-pages-artifact",
-    "xu-cheng/texlive-action",
-    "softprops/action-gh-release",
+# Actions are referenced by major version tag (e.g. actions/checkout@v7); dependabot
+# moves the tag when a new major is released.
+MAJOR_TAGS = {
+    "actions/checkout": "v7",
+    "actions/setup-python": "v7",
+    "actions/upload-artifact": "v7",
+    "actions/download-artifact": "v8",
+    "actions/configure-pages": "v6",
+    "actions/upload-pages-artifact": "v5",
+    "xu-cheng/texlive-action": "v3",
+    "softprops/action-gh-release": "v3",
 }
 
 
 # Workflows written by `go-getter apply` ("do not edit"). Permissions and concurrency are
 # configured by decision 0058, so they are tested like any other workflow; only the action
-# pins are go-getter's own and must merely be SHA-pinned.
+# pins are go-getter's own and must stay SHA-pinned.
 GENERATED_WORKFLOWS = {"go-getter-checks.yml"}
 
 
@@ -89,51 +80,31 @@ def test_workflow_has_concurrency(workflow_path: Path) -> None:
     assert "concurrency" in doc, f"{workflow_path.name}: missing concurrency group"
 
 
+def _action_refs(workflow_path: Path) -> list[tuple[str, str, str]]:
+    """(action, ref, location) for every remote action a workflow uses."""
+    refs = []
+    for uses_value, path in _find_uses(_load_workflow(workflow_path)):
+        if uses_value.startswith("./") or "://" in uses_value:
+            continue
+        action, sep, rest = uses_value.partition("@")
+        assert sep and rest.split(), f"{workflow_path.name}: {uses_value!r} at {path} has no ref"
+        refs.append((action, rest.split()[0], path))
+    return refs
+
+
 @pytest.mark.parametrize("workflow_path", ALL_WORKFLOWS)
-def test_workflow_uses_pinned_actions(workflow_path: Path) -> None:
-    """All 'uses:' actions must be pinned to a commit SHA (except local reusable)."""
-    doc = _load_workflow(workflow_path)
-    uses_list = _find_uses(doc)
-
-    for uses_value, path in uses_list:
-        # Skip local reusable workflows
-        if uses_value.startswith("./"):
-            continue
-        # Skip docker:// and other non-action uses
-        if "://" in uses_value:
-            continue
-
-        # Generated workflows keep their own pins; they must still be SHA-pinned.
+def test_workflow_uses_major_version_tags(workflow_path: Path) -> None:
+    """Remote actions use a major version tag; go-getter's generated file keeps SHAs."""
+    for action, ref, path in _action_refs(workflow_path):
         if workflow_path.name in GENERATED_WORKFLOWS:
-            ref = uses_value.partition("@")[2].split()[0]
-            assert _is_sha(ref), f"{workflow_path.name}: {uses_value!r} at {path} is not SHA-pinned"
+            assert _is_sha(ref), f"{workflow_path.name}: {action}@{ref} at {path} is not SHA-pinned"
             continue
-
-        # Extract action name (before @)
-        action_name = uses_value.split("@")[0]
-
-        # Check if it's in our allowlist
-        if action_name not in UNPINNED_ALLOWLIST:
-            pytest.fail(
-                f"{workflow_path.name}: unknown action {uses_value!r} at {path} "
-                f"(not in UNPINNED_ALLOWLIST)"
-            )
-
-        # Check if it's pinned to a SHA
-        if "@" not in uses_value:
-            pytest.fail(
-                f"{workflow_path.name}: action {uses_value!r} at {path} is not pinned "
-                f"(missing @sha)"
-            )
-
-        # Verify the SHA matches our known pinned version
-        _, sha = uses_value.split("@", 1)
-        expected_sha = PINNED_ACTIONS.get(action_name)
-        if expected_sha and sha != expected_sha:
-            pytest.fail(
-                f"{workflow_path.name}: action {action_name} pinned to {sha!r} "
-                f"but expected {expected_sha!r}"
-            )
+        assert re.fullmatch(r"v\d+", ref), (
+            f"{workflow_path.name}: {action}@{ref} at {path} is not a major version tag"
+        )
+        expected = MAJOR_TAGS.get(action)
+        assert expected, f"{workflow_path.name}: unknown action {action!r} at {path}"
+        assert ref == expected, f"{workflow_path.name}: {action} is @{ref}, expected @{expected}"
 
 
 def test_reusable_build_workflow_exists() -> None:
@@ -175,69 +146,27 @@ def test_dependabot_config_exists() -> None:
     assert "pip" in ecosystems, "dependabot must monitor pip"
 
 
-def test_no_floating_action_versions() -> None:
-    """No workflow should use unpinned action versions (e.g., v4, v5)."""
-    for workflow_path in ALL_WORKFLOWS:
-        doc = _load_workflow(workflow_path)
-        uses_list = _find_uses(doc)
-
-        for uses_value, path in uses_list:
-            if uses_value.startswith("./"):
-                continue
-            if "://" in uses_value:
-                continue
-
-            if "@" in uses_value:
-                _, version = uses_value.split("@", 1)
-                # SHA should be 40 hex chars (git commit)
-                if len(version) != 40 or not all(c in "0123456789abcdef" for c in version.lower()):
-                    pytest.fail(
-                        f"{workflow_path.name}: action {uses_value!r} at {path} "
-                        f"pinned to non-SHA version {version!r}"
-                    )
-            else:
-                # Unpinned action (e.g., "actions/checkout@v4")
-                pytest.fail(
-                    f"{workflow_path.name}: action {uses_value!r} at {path} is unpinned"
-                )
-
-
-def test_jobs_have_permissions() -> None:
-    """Every job in every workflow should have explicit permissions."""
-    for workflow_path in ALL_WORKFLOWS:
-        doc = _load_workflow(workflow_path)
-        jobs = doc.get("jobs", {})
-        for job_name, job in jobs.items():
-            if not isinstance(job, dict):
-                continue
-            if "permissions" not in job:
-                # Allow jobs that only use local reusable workflows (they inherit perms)
-                uses = job.get("uses", "")
-                if not uses.startswith("./"):
-                    pytest.fail(
-                        f"{workflow_path.name}: job {job_name} missing permissions"
-                    )
-
 @pytest.mark.skipif(
     os.environ.get("RUN_NETWORK") != "1" or shutil.which("gh") is None,
-    reason="set RUN_NETWORK=1 and install gh to resolve pinned action SHAs",
+    reason="set RUN_NETWORK=1 and install gh to resolve action refs",
 )
-def test_pinned_action_shas_resolve_upstream() -> None:
-    """A SHA that was never published fails the workflow at action resolution."""
-    pins = {
-        (uses.split("@")[0], uses.split("@")[1].split()[0])
+def test_action_refs_resolve_upstream() -> None:
+    """A tag or SHA that was never published fails the workflow at action resolution."""
+    refs = {
+        (action, ref)
         for path in ALL_WORKFLOWS
-        for uses, _ in _find_uses(_load_workflow(path))
-        if "@" in uses and not uses.startswith("./") and _is_sha(uses.split("@")[1].split()[0])
+        for action, ref, _ in _action_refs(path)
     }
-    assert pins, "no SHA-pinned actions found"
+    assert refs, "no remote actions found"
     missing = []
-    for action, sha in sorted(pins):
+    for action, ref in sorted(refs):
         repo = "/".join(action.split("/")[:2])
-        result = subprocess.run(
-            ["gh", "api", f"repos/{repo}/commits/{sha}", "--jq", ".sha"],
-            capture_output=True, text=True,
+        endpoint = (
+            f"repos/{repo}/commits/{ref}" if _is_sha(ref) else f"repos/{repo}/git/ref/tags/{ref}"
         )
-        if result.returncode != 0 or result.stdout.strip() != sha:
-            missing.append(f"{action}@{sha}")
-    assert not missing, f"pinned SHAs not found upstream: {missing}"
+        result = subprocess.run(
+            ["gh", "api", endpoint, "--jq", ".sha // .object.sha"], capture_output=True, text=True
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            missing.append(f"{action}@{ref}")
+    assert not missing, f"action refs not found upstream: {missing}"

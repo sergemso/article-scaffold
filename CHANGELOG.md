@@ -5,6 +5,19 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.4.0] - 2026-10-25
+
+### Changed
+
+- Workflows reference actions by major version tag instead of a commit SHA, and move to
+  the current majors: `actions/checkout@v7`, `setup-python@v7`, `upload-artifact@v7`,
+  `download-artifact@v8`, `configure-pages@v6`, `upload-pages-artifact@v5`,
+  `softprops/action-gh-release@v3` and `xu-cheng/texlive-action@v3`. Dependabot keeps
+  moving the tag. `go-getter-checks.yml` is generated and keeps its SHA pins.
+- The CI hardening tests now require a major tag (`@vN`) on every remote action and
+  check each ref against the table of expected majors. The `RUN_NETWORK=1` test resolves
+  tags and SHAs upstream.
+
 ## [1.3.1] - 2026-10-25
 
 ### Fixed
