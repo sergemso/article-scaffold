@@ -150,7 +150,7 @@ def test_build_dry_run_uses_core_plans(tmp_path: Path) -> None:
     assert docx.returncode == 0
     docx_payload = _payload(docx)
     assert docx_payload["kind"] == "docx"
-    assert "--resource-path=paper:paper/figures:." in docx_payload["plan"]["command"]
+    assert "--resource-path=.:figures:.." in docx_payload["plan"]["command"]
 
 
 def test_root_option_is_explicit(tmp_path: Path) -> None:

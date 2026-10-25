@@ -70,22 +70,24 @@ jobs:
       - name: Build DOCX with Pandoc
         run: |
           set -e
+          # Pandoc resolves \input{sections/...} against its working directory, so it
+          # runs in paper/ (mirrors `make docx`).
           REFERENCE_ARGS=""
           if [ -f reference.docx ]; then
             REFERENCE_ARGS="--reference-doc=/workspace/reference.docx"
           fi
           docker run --rm \
             -v "$PWD:/workspace" \
-            -w /workspace \
+            -w /workspace/paper \
             ${{ inputs.pandoc-image }} \
             --output=/workspace/manuscript.docx \
             --from=latex \
             --to=docx \
             --citeproc \
-            --bibliography=paper/refs.bib \
-            --resource-path=/workspace/paper:/workspace/paper/figures:/workspace \
+            --bibliography=refs.bib \
+            --resource-path=.:figures:.. \
             $REFERENCE_ARGS \
-            paper/article.tex
+            article.tex
 
       - name: Verify DOCX output
         run: |

@@ -61,19 +61,35 @@ def test_docx_uses_shared_resource_path_and_reference_doc(tmp_path: Path) -> Non
     (project / ".github" / "workflows" / "build-artifacts.yml").read_text()
     reusable = (project / ".github" / "workflows" / "reusable-build.yml").read_text()
 
-    assert "DOCX_RESOURCE_PATH = paper:paper/figures:." in makefile
+    assert "DOCX_RESOURCE_PATH = .:figures:.." in makefile
     assert "--resource-path=$(DOCX_RESOURCE_PATH)" in makefile
-    assert "--resource-path=/workspace/paper:/workspace/paper/figures:/workspace" in reusable
+    assert "-w /workspace/paper" in reusable
+    assert "--resource-path=.:figures:.." in reusable
     assert "REFERENCE_DOCX ?= reference.docx" in makefile
-    assert "--reference-doc=$(REFERENCE_DOCX)" in makefile
+    assert "--reference-doc=../$(REFERENCE_DOCX)" in makefile
     assert "reference.docx" in reusable
     assert "pandoc/core:3.1" in reusable
 
     for shared in (
         "--from=latex",
         "--to=docx",
-        "--bibliography=paper/refs.bib",
-        "paper/article.tex",
+        "--bibliography=refs.bib",
+        "article.tex",
     ):
         assert shared in makefile
         assert shared in reusable
+
+
+def test_docx_contains_input_sections(tmp_path: Path) -> None:
+    """\\input{sections/...} resolves against pandoc's cwd, so a wrong cwd gives an empty DOCX."""
+    project = render(tmp_path=tmp_path)
+    marker = "DocxSectionMarkerZq7"
+    intro = project / "paper" / "sections" / "01_introduction.tex"
+    intro.write_text(intro.read_text() + f"\n\n{marker} body text.\n")
+
+    result = run(project, "make", "docx")
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "Could not load include file" not in result.stderr + result.stdout
+
+    with zipfile.ZipFile(project / "manuscript.docx") as archive:
+        assert marker in archive.read("word/document.xml").decode()

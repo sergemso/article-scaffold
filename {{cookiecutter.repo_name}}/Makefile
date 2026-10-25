@@ -15,12 +15,13 @@ CITATION_STYLE ?= $(shell python3 -c 'import yaml; print((yaml.safe_load(open("m
 REFERENCE_DOCX ?= reference.docx
 
 # Pandoc does not read LaTeX \graphicspath, so point it at every place a
-# figure may live. Paths are relative to the repository root, where `make`
-# runs; the PDF build still uses paper/article.tex's \graphicspath unchanged.
-DOCX_RESOURCE_PATH = paper:paper/figures:.
+# figure may live. It also resolves \input{sections/...} against its working
+# directory (not --resource-path), so pandoc runs inside paper/ and these paths
+# are relative to it; the PDF build still uses paper/article.tex unchanged.
+DOCX_RESOURCE_PATH = .:figures:..
 # Empirical projects may also include generated tables in paper/tables/.
 ifneq ($(wildcard paper/tables),)
-DOCX_RESOURCE_PATH := $(DOCX_RESOURCE_PATH):paper/tables
+DOCX_RESOURCE_PATH := $(DOCX_RESOURCE_PATH):tables
 endif
 
 all: pdf
@@ -46,21 +47,21 @@ docx:
 		fi; \
 		REFERENCE=""; \
 		if [ -f "$(REFERENCE_DOCX)" ]; then \
-			REFERENCE="--reference-doc=$(REFERENCE_DOCX)"; \
+			REFERENCE="--reference-doc=../$(REFERENCE_DOCX)"; \
 		fi; \
 		BIBLIOGRAPHY=""; \
 		if [ -n "$$CITEPROC" ]; then \
-			BIBLIOGRAPHY="--bibliography=paper/refs.bib"; \
+			BIBLIOGRAPHY="--bibliography=refs.bib"; \
 		fi; \
-		$(PANDOC) \
-			--output=manuscript.docx \
+		cd $(PAPER_DIR) && $(PANDOC) \
+			--output=../manuscript.docx \
 			--from=latex \
 			--to=docx \
 			$$CITEPROC \
 			$$BIBLIOGRAPHY \
 			--resource-path=$(DOCX_RESOURCE_PATH) \
 			$$REFERENCE \
-			paper/article.tex; \
+			article.tex; \
 	fi
 	@echo "DOCX built: manuscript.docx"
 	@echo "Figures are read in place through --resource-path; PDF sources are not modified."
@@ -74,16 +75,16 @@ html:
 	fi; \
 	BIBLIOGRAPHY=""; \
 	if [ -n "$$CITEPROC" ]; then \
-		BIBLIOGRAPHY="--bibliography=paper/refs.bib"; \
+		BIBLIOGRAPHY="--bibliography=refs.bib"; \
 	fi; \
-	$(PANDOC) \
-		--output=manuscript.html \
+	cd $(PAPER_DIR) && $(PANDOC) \
+		--output=../manuscript.html \
 		--from=latex \
 		--to=html5 \
 		$$CITEPROC \
 		$$BIBLIOGRAPHY \
 		--resource-path=$(DOCX_RESOURCE_PATH) \
-		paper/article.tex
+		article.tex
 	@echo "HTML built: manuscript.html"
 
 quick:
