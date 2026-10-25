@@ -57,7 +57,7 @@ jobs:
           done
 
       - name: Create Release with assets
-        uses: softprops/action-gh-release@c95fe1489396fe8a4ebc57f6e0cba1051188c12b
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda
         with:
           # Tag name is the trigger tag (e.g., "v3"). Use tag_name explicitly
           # so the release is associated with the tag, not with the workflow run.
@@ -97,9 +97,9 @@ jobs:
           path: pages/supp
 
       - name: Setup Pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886db7e9c
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b729c2
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
         with:
           path: pages

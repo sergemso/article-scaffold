@@ -58,7 +58,6 @@ docx:
 			--to=docx \
 			$$CITEPROC \
 			$$BIBLIOGRAPHY \
-			--metadata=citation-style=$(CITATION_STYLE) \
 			--resource-path=$(DOCX_RESOURCE_PATH) \
 			$$REFERENCE \
 			paper/article.tex; \
@@ -83,7 +82,6 @@ html:
 		--to=html5 \
 		$$CITEPROC \
 		$$BIBLIOGRAPHY \
-		--metadata=citation-style=$(CITATION_STYLE) \
 		--resource-path=$(DOCX_RESOURCE_PATH) \
 		paper/article.tex
 	@echo "HTML built: manuscript.html"

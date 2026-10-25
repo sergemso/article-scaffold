@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -18,8 +21,8 @@ PINNED_ACTIONS = {
     "actions/setup-python": "a26af69be951a213d495a4c3e4e4022e16d87065",  # v5.3.0
     "actions/upload-artifact": "b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882",  # v4.6.1
     "actions/download-artifact": "95815c38cf2ff2164869cbab79da8d1f422bc89e",  # v4.2.1
-    "xu-cheng/texlive-action": "db739573b2c9b0f5c60c69f1f1b0b6d1c5f8c8c0",  # v2.0.2
-    "softprops/action-gh-release": "c95fe1489396fe8a4ebc57f6e0cba1051188c12b",  # v2.2.1
+    "xu-cheng/texlive-action": "f886de8159e5952a131848a5fa9c3196a2132b5d",  # v2
+    "softprops/action-gh-release": "c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda",  # v2.2.1
 }
 
 # Actions that are allowed to be unpinned (e.g., local reusable workflows)
@@ -214,3 +217,27 @@ def test_jobs_have_permissions() -> None:
                     pytest.fail(
                         f"{workflow_path.name}: job {job_name} missing permissions"
                     )
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_NETWORK") != "1" or shutil.which("gh") is None,
+    reason="set RUN_NETWORK=1 and install gh to resolve pinned action SHAs",
+)
+def test_pinned_action_shas_resolve_upstream() -> None:
+    """A SHA that was never published fails the workflow at action resolution."""
+    pins = {
+        (uses.split("@")[0], uses.split("@")[1].split()[0])
+        for path in ALL_WORKFLOWS
+        for uses, _ in _find_uses(_load_workflow(path))
+        if "@" in uses and not uses.startswith("./") and _is_sha(uses.split("@")[1].split()[0])
+    }
+    assert pins, "no SHA-pinned actions found"
+    missing = []
+    for action, sha in sorted(pins):
+        repo = "/".join(action.split("/")[:2])
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repo}/commits/{sha}", "--jq", ".sha"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0 or result.stdout.strip() != sha:
+            missing.append(f"{action}@{sha}")
+    assert not missing, f"pinned SHAs not found upstream: {missing}"

@@ -120,9 +120,9 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Compile LaTeX with TeX Live
-        uses: xu-cheng/texlive-action@db739573b2c9b0f5c60c69f1f1b0b6d1c5f8c8c0 # v2.0.2
+        uses: xu-cheng/texlive-action@f886de8159e5952a131848a5fa9c3196a2132b5d # v2
         with:
-          texlive-version: ${{ inputs.texlive-version }}
+          texlive_version: ${{ inputs.texlive-version }}
           run: |
             cd paper
             latexmk -pdf -interaction=nonstopmode -file-line-error -halt-on-error article.tex
@@ -172,9 +172,9 @@ jobs:
       # paper/supplementary/*.tex that has a \documentclass. Nothing to build
       # is not an error; the upload step then finds no files and is skipped.
       - name: Compile supplementary documents with TeX Live
-        uses: xu-cheng/texlive-action@db739573b2c9b0f5c60c69f1f1b0b6d1c5f8c8c0 # v2.0.2
+        uses: xu-cheng/texlive-action@f886de8159e5952a131848a5fa9c3196a2132b5d # v2
         with:
-          texlive-version: ${{ inputs.texlive-version }}
+          texlive_version: ${{ inputs.texlive-version }}
           run: |
             mkdir -p supp
             build() {
