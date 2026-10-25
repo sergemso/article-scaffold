@@ -213,6 +213,7 @@ def test_makefile_has_supp_targets():
     assert "supplementary.tex" in content
     assert "supplementary.pdf" in content
 
+
 @pytest.mark.skipif(not latexmk_available, reason="latexmk not installed")
 def test_supplementary_directory_builds_every_standalone_document(tmp_path: Path) -> None:
     """Each paper/supplementary/*.tex with a \\documentclass gets its own PDF."""
