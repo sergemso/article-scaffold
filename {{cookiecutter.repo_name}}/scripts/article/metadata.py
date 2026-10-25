@@ -973,9 +973,10 @@ def gen_abstract_block(metadata: dict) -> str:
         abstract,
         r"\end{abstract}",
         "",
-        r"\bigskip",
-        r"\noindent\textbf{A note on evidence.} " + note,
-        "",
+    ]
+    if note.strip():
+        lines += [r"\bigskip", r"\noindent\textbf{A note on evidence.} " + note, ""]
+    lines += [
         r"\medskip",
         r"\noindent\textbf{Keywords:} " + keywords + ".",
         ABSTRACT_END,

@@ -1,0 +1,81 @@
+name: Metadata sync
+
+# Keeps the files derived from metadata.yaml (CITATION.cff, .zenodo.json, the
+# README, abstract, backmatter and CHANGES blocks, the title block in
+# paper/article.tex) in step with it. When the default branch has drifted, the
+# regenerated files go to the branch `metadata/sync` and a pull request is
+# opened, unless one is already open; an open one is updated in place.
+#
+# Needs Settings > Actions > General > "Allow GitHub Actions to create and
+# approve pull requests". With the optional UPGRADE_TOKEN secret (see
+# upgrade.yml) the checks of the pull request start by themselves; with the
+# default token they wait for approval.
+
+"on":
+  push:
+    branches:
+      - __DEFAULT_BRANCH__
+    paths:
+      - 'metadata.yaml'
+      - 'paper/**'
+      - 'CITATION.cff'
+      - '.zenodo.json'
+      - 'README.md'
+      - 'CHANGES.md'
+  workflow_dispatch: {}
+
+concurrency:
+  group: metadata-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Open a pull request on metadata drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.UPGRADE_TOKEN || github.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate files derived from metadata.yaml
+        run: |
+          python3 -m pip install pyyaml
+          python3 -m scripts.article metadata
+
+      - name: Open or update the pull request on drift
+        env:
+          GH_TOKEN: ${{ secrets.UPGRADE_TOKEN || github.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+          BRANCH: metadata/sync
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Generated files match metadata.yaml; nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -u
+          git commit -m "chore(metadata): regenerate files derived from metadata.yaml"
+          git push --force origin "$BRANCH"
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            echo "A pull request for $BRANCH is already open; it now carries the new commit."
+            exit 0
+          fi
+          gh pr create --base "$BASE" --head "$BRANCH" \
+            --title "chore(metadata): regenerate files derived from metadata.yaml" \
+            --body "The committed copies of CITATION.cff, .zenodo.json, README.md, CHANGES.md and the generated blocks in paper/ differ from what metadata.yaml generates. This pull request brings them in line. Edit metadata.yaml, not the generated files, for anything that should change."

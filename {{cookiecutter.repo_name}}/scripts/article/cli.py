@@ -179,8 +179,37 @@ def _status(args: argparse.Namespace) -> int:
     return core.ExitCode.OK
 
 
+def _regenerate_metadata(root: Path, args: argparse.Namespace) -> int | None:
+    """Refresh the files derived from metadata.yaml before an artifact build.
+
+    Returns an exit code when the build must stop, otherwise None. A dry run only
+    reports; it never writes.
+    """
+    if args.no_regenerate:
+        return None
+    try:
+        metadata = core.load_metadata(root / "metadata.yaml")
+        expected = core.collect_expected(root, metadata)
+    except (FileNotFoundError, ValueError) as exc:
+        if args.json:
+            _emit_json({"ok": False, "command": "build", "error": str(exc)})
+        else:
+            print(f"ERROR: {exc}", file=sys.stderr)
+        return core.ExitCode.DIAGNOSTICS
+    if args.dry_run:
+        return None
+    changed = core.write_expected(expected)
+    if changed and not args.json:
+        for path in changed:
+            print(f"regenerated {path.relative_to(root)} from metadata.yaml", file=sys.stderr)
+    return None
+
+
 def _build(args: argparse.Namespace) -> int:
     root = _root(args)
+    stop = _regenerate_metadata(root, args)
+    if stop is not None:
+        return stop
     if args.kind == "supp":
         return _build_supplementary(root, args)
     if args.kind == "pdf":
@@ -533,6 +562,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["numeric", "author-year"],
         default=None,
         help="override the metadata citation style for DOCX",
+    )
+    build.add_argument(
+        "--no-regenerate",
+        action="store_true",
+        help="do not refresh the files derived from metadata.yaml before building",
     )
     build.set_defaults(func=_build)
 

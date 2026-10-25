@@ -2,12 +2,16 @@
 # Single source of truth for manuscript metadata.
 #
 # Edit this file, then run:
-#   python scripts/generate-metadata.py
+#   make metadata
 # to regenerate CITATION.cff, .zenodo.json, the README.md citation
 # block, and the title/author/date block in paper/article.tex.
 #
-# Re-running generate-metadata.py is idempotent: it only overwrites
-# the metadata-derived fields, leaving your prose untouched.
+# `make pdf`, `make docx` and the CI build regenerate these files first, so
+# they never lag behind this file. Optional keys are documented in
+# docs/metadata.md and schemas/metadata.schema.json.
+#
+# Regeneration is idempotent: it only overwrites the metadata-derived
+# fields, leaving your prose untouched.
 # ─────────────────────────────────────────────────────────────
 
 metadata_schema: 2
@@ -15,17 +19,14 @@ metadata_schema: 2
 title: {{ cookiecutter.title | tojson }}
 {% if cookiecutter.subtitle %}
 subtitle: {{ cookiecutter.subtitle | tojson }}
-{% else %}
-# subtitle: ""  # optional; uncomment and fill if needed
 {% endif %}
 manuscript_type: {{ cookiecutter.manuscript_type | tojson }}
 manuscript_kind: {{ cookiecutter.manuscript_kind | tojson }}
 citation_style: {{ cookiecutter.citation_style | tojson }}
 
 # The abstract is the single source for the LaTeX abstract block, the README
-# masthead, and the Zenodo description. Edit it here, then run `make metadata`.
+# masthead, and the Zenodo description.
 abstract: {{ cookiecutter.abstract | tojson }}
-abstract_note: "Replace this paragraph with a transparency note about the evidence base used in the manuscript. If the paper draws on industry data, single-source datasets, or non-peer-reviewed sources, state that here and note the limitations. If the paper uses only peer-reviewed sources and primary documents, you can delete this paragraph entirely."
 
 {% if cookiecutter.author_affiliation %}
 affiliations:
@@ -46,12 +47,6 @@ authors:
 version: {{ cookiecutter.version | tojson }}
 version_label: {{ cookiecutter.version_label | tojson }}
 date: {{ cookiecutter.date | tojson }}
-# Optional: Markdown printed under the current version heading in CHANGES.md.
-# release_notes: |
-#   First public version.
-#
-#   ### Contents
-#   - What this version contains
 
 license: {{ cookiecutter.license | tojson }}
 # The scaffold code is always MIT; the paper may be CC-BY-4.0 or MIT.
@@ -67,19 +62,6 @@ repo_url: {{ ("https://github.com/" ~ cookiecutter.github_user ~ "/" ~ cookiecut
 # Comma-separated; the generator also accepts a YAML list.
 keywords: {{ cookiecutter.keywords | tojson }}
 
-# Legacy alias kept for older generated repos; the generator prefers `abstract`.
-description: {{ cookiecutter.abstract | tojson }}
-
-# Zenodo uses the abstract as its description. Keep a separate `description`
-# only if you need a longer, deposit-specific text; the generator prefers
-# `abstract` when both are present.
-
-# Used by .zenodo.json `references`. Each entry should be a short,
-# human-readable citation. Optional — leave empty list for a fresh repo.
 references: []
-#  - "Perez, C. (2002). Technological Revolutions and Financial Capital."
-#  - "Anthropic (2026). An update on independent evaluators."
 
-# Zenodo communities — optional. Add only verified community identifiers;
-# the generator never invents one.
 communities: []

@@ -20,10 +20,11 @@ Run `python3 -m scripts.article --help` or
 | `metadata --check` | Compare derived files with disk; write nothing. |
 | `metadata --dry-run` | List files that would change; write nothing. |
 | `status` | Report template, repository, metadata, diagnostics, and tool state. |
-| `build pdf` | Build `paper/article.pdf`. |
-| `build docx` | Build `manuscript.docx`. |
+| `build pdf` | Regenerate the files derived from `metadata.yaml`, then build `paper/article.pdf`. |
+| `build docx` | Regenerate the derived files, then build `manuscript.docx`. |
 | `build supp` | Build every standalone supplementary document (`paper/supplementary.tex`, `paper/supplementary/*.tex` with a `\documentclass`) to `paper/supplementary/NAME.pdf`. |
-| `build <kind> --dry-run` | Print the build plan without running it. |
+| `build <kind> --dry-run` | Print the build plan without running it or writing any file. |
+| `build <kind> --no-regenerate` | Build without refreshing the derived files first. |
 | `release` | Reserved for release planning; currently a stub. |
 | `upgrade` | Plan, apply or finish an upgrade to a newer template commit. |
 
