@@ -119,8 +119,10 @@ def test_build_plans_are_data_only(tmp_path: Path) -> None:
     assert pdf.to_dict()["name"] == "pdf"
 
     docx = core.docx_plan(project, reference_docx="reference.docx")
-    assert "--resource-path=paper:paper/figures:." in docx.command
-    assert "--reference-doc=reference.docx" in docx.command
+    assert "--resource-path=.:figures:.." in docx.command
+    assert "--reference-doc=../reference.docx" in docx.command
+    assert docx.cwd == "paper"
+    assert docx.command[-1] == "article.tex"
     assert "--citeproc" in docx.command
     assert docx.output == "manuscript.docx"
 
@@ -130,7 +132,7 @@ def test_status_schema_accepts_the_documented_shape(tmp_path: Path) -> None:
     schema = json.loads((project / "schemas" / "status.schema.json").read_text())
     payload = {
         "schema_version": "1.0",
-        "template_version": "1.4.0",
+        "template_version": "1.4.1",
         "repo": {"root": str(project), "branch": "master", "dirty": False},
         "metadata": {"valid": True, "drift": False},
         "diagnostics": {"errors": 0, "warnings": 7},

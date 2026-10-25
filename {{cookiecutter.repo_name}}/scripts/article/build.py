@@ -60,32 +60,37 @@ def docx_plan(
     citeproc: bool = True,
     citation_style: str | None = None,
 ) -> BuildPlan:
-    """Plan a DOCX build with the same resource path as ``make docx``."""
+    """Plan a DOCX build with the same resource path as ``make docx``.
+
+    Pandoc resolves ``\\input{sections/...}`` against its working directory, not
+    ``--resource-path``, so it runs in ``paper/``; ``reference_docx`` is relative to the
+    repository root.
+    """
     del root
     command = [
         pandoc,
-        "--output=manuscript.docx",
+        "--output=../manuscript.docx",
         "--from=latex",
         "--to=docx",
     ]
     if citeproc:
-        command.extend(["--citeproc", "--bibliography=paper/refs.bib"])
+        command.extend(["--citeproc", "--bibliography=refs.bib"])
     # "numeric" and "author-year" pick the LaTeX bibliography style; they are not CSL
     # files, and pandoc 3 reads citation-style as one ("numeric.csl not found").
     if citation_style and citation_style not in _LATEX_CITATION_STYLES:
         command.append(f"--metadata=citation-style={citation_style}")
     command.extend(
         [
-            "--resource-path=paper:paper/figures:.",
+            "--resource-path=.:figures:..",
         ]
     )
     if reference_docx:
-        command.append(f"--reference-doc={reference_docx}")
-    command.append("paper/article.tex")
+        command.append(f"--reference-doc=../{reference_docx}")
+    command.append("article.tex")
     return BuildPlan(
         name="docx",
         command=tuple(command),
-        cwd=".",
+        cwd="paper",
         output="manuscript.docx",
     )
 

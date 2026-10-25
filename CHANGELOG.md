@@ -5,6 +5,20 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.4.1] - 2026-10-25
+
+### Fixed
+
+- The DOCX build produced a near-empty document (one page) because pandoc resolves
+  `\input{sections/...}` against its working directory, not `--resource-path`, so none of
+  the sections were loaded. `make docx`, `make html`, `scripts.article build docx` and the
+  `reusable-build.yml` DOCX job now run pandoc inside `paper/`, with paths relative to it.
+- New test builds a DOCX and asserts text from an `\input` section is in it.
+
+### Upgrading
+
+Generated repos pick this up with `make upgrade` (to template 1.4.1); then re-run the build.
+
 ## [1.4.0] - 2026-10-25
 
 ### Changed

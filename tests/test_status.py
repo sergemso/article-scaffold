@@ -34,7 +34,7 @@ def test_fresh_repository_status_is_schema_valid(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     jsonschema.validate(payload, _schema(project))
     assert payload["schema_version"] == "1.0"
-    assert payload["template_version"] == "1.4.0"
+    assert payload["template_version"] == "1.4.1"
     assert payload["repo"]["root"] == str(project.resolve())
     assert payload["repo"]["branch"] in {"master", "main"}
     assert payload["repo"]["dirty"] is True
