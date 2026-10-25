@@ -204,3 +204,38 @@ def test_cli_build_pdf_publishes_the_release_artifact(tmp_path: Path) -> None:
     assert published.read_bytes() == built.read_bytes()
     release = run(project, "python3", "-m", "scripts.article", "release", "--dry-run", "--json")
     assert json.loads(release.stdout)["plan"]["checks"]["has_artifacts"] is True
+
+
+def _scripts_on_path(project: Path) -> None:
+    import sys
+
+    if str(project) not in sys.path:
+        sys.path.insert(0, str(project))
+
+
+def test_supplementary_plans_discover_standalone_documents(tmp_path: Path) -> None:
+    from tests.conftest import render
+
+    project = render(tmp_path=tmp_path)
+    _scripts_on_path(project)
+    from scripts.article.build import supplementary_plans
+
+    assert supplementary_plans(project) == []
+    assert supplementary_plans(None) == []
+
+    supp = project / "paper" / "supplementary"
+    (supp / "Supporting-Materials.tex").write_text("\\documentclass{article}\n")
+    (supp / "commented.tex").write_text("% \\documentclass{article}\n")
+    (supp / "fragment.tex").write_text("text\n")
+    (project / "paper" / "supplementary.tex").write_text("\\documentclass{article}\n")
+
+    plans = {p.name: p for p in supplementary_plans(project)}
+    assert set(plans) == {"supp:supplementary", "supp:Supporting-Materials"}
+    plan = plans["supp:Supporting-Materials"]
+    assert plan.cwd == "paper/supplementary"
+    assert plan.command[-2:] == ("-outdir=build", "Supporting-Materials.tex")
+    assert plan.output == "paper/supplementary/build/Supporting-Materials.pdf"
+    assert plan.publish_to == "paper/supplementary/Supporting-Materials.pdf"
+    legacy = plans["supp:supplementary"]
+    assert (legacy.cwd, legacy.output) == ("paper", "paper/build/supplementary.pdf")
+    assert legacy.publish_to == "paper/supplementary.pdf"

@@ -181,6 +181,8 @@ def _status(args: argparse.Namespace) -> int:
 
 def _build(args: argparse.Namespace) -> int:
     root = _root(args)
+    if args.kind == "supp":
+        return _build_supplementary(root, args)
     if args.kind == "pdf":
         plan = core.pdf_plan(root)
     else:
@@ -190,10 +192,16 @@ def _build(args: argparse.Namespace) -> int:
             reference_docx="reference.docx" if reference.is_file() else None,
             citation_style=args.citation_style,
         )
+    return _run_plan(root, args, plan, kind=args.kind)
+
+
+def _run_plan(
+    root: Path, args: argparse.Namespace, plan: core.BuildPlan, *, kind: str
+) -> int:
     payload: dict[str, Any] = {
         "ok": True,
         "command": "build",
-        "kind": args.kind,
+        "kind": kind,
         "plan": plan.to_dict(),
         "dry_run": args.dry_run,
     }
@@ -248,6 +256,22 @@ def _build(args: argparse.Namespace) -> int:
         if payload.get("error"):
             print(f"ERROR: {payload['error']}", file=sys.stderr)
     return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+
+
+def _build_supplementary(root: Path, args: argparse.Namespace) -> int:
+    plans = core.supplementary_plans(root)
+    if not plans:
+        if args.json:
+            _emit_json({"ok": True, "command": "build", "kind": "supp", "plans": []})
+        else:
+            print("No standalone supplementary .tex found, skipping supplementary PDFs")
+        return core.ExitCode.OK
+    code = core.ExitCode.OK
+    for plan in plans:
+        result = _run_plan(root, args, plan, kind="supp")
+        if result != core.ExitCode.OK:
+            code = result
+    return code
 
 
 def _release(args: argparse.Namespace) -> int:
@@ -496,9 +520,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(status)
     status.set_defaults(func=_status)
 
-    build = subparsers.add_parser("build", help="build PDF or DOCX")
+    build = subparsers.add_parser("build", help="build PDF, DOCX or supplementary PDFs")
     _add_common(build)
-    build.add_argument("kind", choices=["pdf", "docx"])
+    build.add_argument("kind", choices=["pdf", "docx", "supp"])
     build.add_argument(
         "--dry-run",
         action="store_true",

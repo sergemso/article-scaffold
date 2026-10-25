@@ -5,6 +5,23 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.3.0] - 2026-10-25
+
+### Added
+
+- Several PDFs per repository. `make supp-pdf` and `article build supp` now build every
+  standalone supplementary document: `paper/supplementary.tex` (as before) and each
+  `paper/supplementary/*.tex` that has a `\documentclass`. Each PDF is published next to
+  its source and `paper/supplementary/*.pdf` is gitignored. `make clean` removes them.
+- `reusable-build.yml` gains an `upload-supp` input (default `true`) and a `build-supp`
+  job that uploads the `manuscript-supp` artifact the release workflow already expected.
+
+### Fixed
+
+- `validate` treats a standalone document other than `article.tex` as its own label
+  namespace, so a supplementary file may reuse a label (`tab:tests`) from the main paper.
+- `release.yml` no longer fails when there is no `manuscript-supp` artifact.
+
 ## [1.2.0] - 2026-10-24
 
 ### Added

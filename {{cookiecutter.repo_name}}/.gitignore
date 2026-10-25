@@ -43,6 +43,7 @@ venv/
 # Generated figures and supplementary builds
 paper/figures/generated/
 paper/supplementary/build/
+paper/supplementary/*.pdf
 
 # Biblatex/biber intermediates
 paper/*.bcf

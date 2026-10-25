@@ -151,3 +151,17 @@ def test_include_depth_limit_is_enforced(tmp_path: Path) -> None:
     result = _validate(project)
     assert result.returncode == 1
     assert "E012" in result.stderr
+
+
+def test_standalone_supplementary_has_its_own_label_scope(tmp_path: Path) -> None:
+    project = render(tmp_path=tmp_path)
+    (project / "paper" / "sections" / "extra.tex").write_text(
+        "\\section{Extra}\\label{sec:shared}\nSee \\ref{sec:shared}.\n"
+    )
+    (project / "paper" / "supplementary" / "Supp.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\section{S}\\label{sec:shared}\nSee \\ref{sec:shared}.\n\\end{document}\n"
+    )
+    result = _validate(project)
+    assert "E008" not in result.stderr, result.stderr
+    assert "E009" not in result.stderr, result.stderr

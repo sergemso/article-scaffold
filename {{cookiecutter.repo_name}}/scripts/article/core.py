@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 
-from .build import BuildPlan, docx_plan, pdf_plan
+from .build import BuildPlan, docx_plan, is_standalone_tex, pdf_plan, supplementary_plans
 from .diagnostics import Diagnostic, Diagnostics
 from .latex import count_unescaped, latex_escape, replace_block, strip_comments
 from .metadata import (
@@ -113,7 +113,9 @@ __all__ = [
     "latex_escape",
     "load_metadata",
     "normalize_metadata",
+    "is_standalone_tex",
     "pdf_plan",
+    "supplementary_plans",
     "finish_upgrade",
     "plan_release",
     "plan_upgrade",

@@ -22,6 +22,7 @@ Run `python3 -m scripts.article --help` or
 | `status` | Report template, repository, metadata, diagnostics, and tool state. |
 | `build pdf` | Build `paper/article.pdf`. |
 | `build docx` | Build `manuscript.docx`. |
+| `build supp` | Build every standalone supplementary document (`paper/supplementary.tex`, `paper/supplementary/*.tex` with a `\documentclass`) to `paper/supplementary/NAME.pdf`. |
 | `build <kind> --dry-run` | Print the build plan without running it. |
 | `release` | Reserved for release planning; currently a stub. |
 | `upgrade` | Plan, apply or finish an upgrade to a newer template commit. |
