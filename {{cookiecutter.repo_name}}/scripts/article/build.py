@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+_LATEX_CITATION_STYLES = frozenset({"numeric", "author-year"})
 _DOCUMENTCLASS_RE = re.compile(r"^[^%\n]*\\documentclass\b", re.MULTILINE)
 
 
@@ -69,7 +70,9 @@ def docx_plan(
     ]
     if citeproc:
         command.extend(["--citeproc", "--bibliography=paper/refs.bib"])
-    if citation_style:
+    # "numeric" and "author-year" pick the LaTeX bibliography style; they are not CSL
+    # files, and pandoc 3 reads citation-style as one ("numeric.csl not found").
+    if citation_style and citation_style not in _LATEX_CITATION_STYLES:
         command.append(f"--metadata=citation-style={citation_style}")
     command.extend(
         [
