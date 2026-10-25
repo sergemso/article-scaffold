@@ -60,8 +60,9 @@ jobs:
       - name: Install dev tools
         run: make setup
 
+      # Generated repos run `python3 -m scripts.article`, which needs the venv's PyYAML.
       - name: Run pytest
-        run: make test
+        run: PATH="$PWD/.venv/bin:$PATH" make test
 
   render:
     name: Render and validate

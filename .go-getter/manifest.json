@@ -23,7 +23,7 @@
       "mode": "755"
     },
     ".github/workflows/go-getter-checks.yml": {
-      "hash": "sha256:627d0b67090c99a55c2df7f56c9645f345373100388a152322575f3e9ba86b19"
+      "hash": "sha256:6ee2e2d1eac3a658434d19c3f810eb75e9f990c481132be03d090c6d9c33f3af"
     },
     ".go-getter/bin/go-getter": {
       "hash": "sha256:e0ccad23c4952a6b5f95f832350250c344c6f3c7aae1f4011d83720c9e13865c",
