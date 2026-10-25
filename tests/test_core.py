@@ -130,7 +130,7 @@ def test_status_schema_accepts_the_documented_shape(tmp_path: Path) -> None:
     schema = json.loads((project / "schemas" / "status.schema.json").read_text())
     payload = {
         "schema_version": "1.0",
-        "template_version": "1.3.1",
+        "template_version": "1.4.0",
         "repo": {"root": str(project), "branch": "master", "dirty": False},
         "metadata": {"valid": True, "drift": False},
         "diagnostics": {"errors": 0, "warnings": 7},
