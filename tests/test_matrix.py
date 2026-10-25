@@ -84,7 +84,8 @@ def test_kind_style_matrix(tmp_path: Path, kind: str, style: str) -> None:
     makefile = (project / "Makefile").read_text()
     assert "CITATION_STYLE" in makefile
     assert "--citation-style=$(CITATION_STYLE)" in makefile
-    assert "--metadata=citation-style=$(CITATION_STYLE)" in makefile
+    # pandoc 3 reads citation-style as a CSL file name, which "numeric" is not
+    assert "--metadata=citation-style" not in makefile
     assert "paper/tables" in makefile
     assert (project / "paper" / "tables" / "README.md").is_file()
 

@@ -5,6 +5,23 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.3.1] - 2026-10-25
+
+### Fixed
+
+- `reusable-build.yml` pinned `xu-cheng/texlive-action` to a commit that does not exist
+  upstream, so the PDF and supplementary jobs failed at action resolution. Both uses now
+  point at the real v2 commit and pass `texlive_version` (the action's input name).
+- `release.yml` pinned `actions/configure-pages`, `actions/upload-pages-artifact` and
+  `softprops/action-gh-release` to SHAs that do not exist upstream; they now point at v5,
+  v3 and v2.2.1.
+- `make html` and the pre-2.11 `make docx` fallback no longer pass
+  `--metadata=citation-style=numeric`; pandoc 3 reads that as a CSL file name.
+
+### Added
+
+- A network-gated test (`RUN_NETWORK=1`) that every SHA-pinned `uses:` resolves upstream.
+
 ## [1.3.0] - 2026-10-25
 
 ### Added
