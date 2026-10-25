@@ -67,6 +67,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # The files derived from metadata.yaml are rebuilt in the runner so the
+      # artifact always matches it. Nothing is committed here; metadata-sync.yml
+      # opens a pull request when the committed copies have drifted.
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate files derived from metadata.yaml
+        run: |
+          python3 -m pip install pyyaml
+          python3 -m scripts.article metadata
+
       - name: Build DOCX with Pandoc
         run: |
           set -e
@@ -121,6 +134,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # The files derived from metadata.yaml are rebuilt in the runner so the
+      # artifact always matches it. Nothing is committed here; metadata-sync.yml
+      # opens a pull request when the committed copies have drifted.
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate files derived from metadata.yaml
+        run: |
+          python3 -m pip install pyyaml
+          python3 -m scripts.article metadata
+
       - name: Compile LaTeX with TeX Live
         uses: xu-cheng/texlive-action@v3
         with:
@@ -169,6 +195,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      # The files derived from metadata.yaml are rebuilt in the runner so the
+      # artifact always matches it. Nothing is committed here; metadata-sync.yml
+      # opens a pull request when the committed copies have drifted.
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate files derived from metadata.yaml
+        run: |
+          python3 -m pip install pyyaml
+          python3 -m scripts.article metadata
 
       # Mirrors `make supp-pdf`: paper/supplementary.tex plus every
       # paper/supplementary/*.tex that has a \documentclass. Nothing to build

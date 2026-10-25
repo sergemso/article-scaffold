@@ -192,3 +192,21 @@ you need (usually `scripts/`, `.github/workflows/` and `Makefile`). Run
 
 For the v1 to v2 metadata change, follow `docs/migrating-to-v2.md` in the
 generated repo instead; it has a field-by-field mapping.
+
+## Upgrading to 1.5.0 (regenerate before build)
+
+1.5.0 makes artifact builds refresh the files derived from `metadata.yaml`, adds
+`metadata-sync.yml` and drops the placeholder lines from a new repo's `metadata.yaml`.
+
+1. `upgrade --plan`, `--apply`, `--finish` as above. The files that change are
+   `scripts/article/{cli,metadata,status}.py`, `Makefile`,
+   `.github/workflows/reusable-build.yml`, the new `.github/workflows/metadata-sync.yml`
+   and `docs/`.
+2. Delete the leftovers the merge leaves in `metadata.yaml`: the commented
+   `# - "Perez…"` / `# - "Anthropic…"` lines, an unedited `abstract_note` placeholder, and a
+   `description` that only repeats `abstract`. Then `make metadata-check`.
+3. A repo whose `template.json` has `template_commit: null` cannot be planned (`U003`). Set it
+   to the template commit the repo was generated from (check with a diff of `scripts/article/`
+   against that commit), or copy the files in step 1 from the 1.5.0 tag by hand.
+4. In the repo's settings enable "Allow GitHub Actions to create and approve pull requests"
+   for `metadata-sync.yml`.

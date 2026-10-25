@@ -28,7 +28,7 @@ def test_metadata_yaml_parses(tmp_path: Path) -> None:
     metadata = yaml.safe_load((project / "metadata.yaml").read_text())
     assert metadata["title"] == SPECIAL_TITLE
     assert metadata["subtitle"] == HOSTILE_SUBTITLE
-    assert metadata["description"] == SPECIAL_ABSTRACT
+    assert metadata["abstract"] == SPECIAL_ABSTRACT
     assert metadata["keywords"] == HOSTILE_KEYWORDS
 
 

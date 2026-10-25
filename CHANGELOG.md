@@ -5,6 +5,30 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [1.5.0] - 2026-10-26
+
+### Added
+
+- Artifact builds regenerate the files derived from `metadata.yaml` first:
+  `scripts.article build pdf|docx|supp` (so `make pdf`, `make docx`, `make supp`), and
+  `make html` / `make quick`. An invalid `metadata.yaml` stops the build; `--no-regenerate`
+  skips the refresh and `--dry-run` writes nothing.
+- `reusable-build.yml` regenerates in each build job, so CI artifacts match `metadata.yaml`.
+- `metadata-sync.yml` opens a pull request from the branch `metadata/sync` when the
+  committed derived files have drifted on the default branch, and updates it if one is open.
+- `docs/metadata.md` documents the optional `metadata.yaml` keys.
+
+### Changed
+
+- A new repo's `metadata.yaml` no longer carries commented-out examples, the placeholder
+  `abstract_note`, or the legacy `description` duplicate. The "A note on evidence" paragraph is
+  generated only when `abstract_note` is set.
+
+### Upgrading
+
+`make upgrade` (to template 1.5.0). Existing leftovers in `metadata.yaml` are not removed by the
+merge when you have edited those lines; delete them by hand. See `docs/upgrading.md`.
+
 ## [1.4.1] - 2026-10-25
 
 ### Fixed

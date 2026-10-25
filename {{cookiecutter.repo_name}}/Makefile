@@ -37,7 +37,7 @@ pdf:
 
 # The CLI owns the modern DOCX plan. The inline fallback keeps generated
 # repositories usable with pre-2.11 pandoc (which has no --citeproc).
-docx:
+docx: metadata
 	@if $(PANDOC) --help 2>/dev/null | grep -q -- '--citeproc'; then \
 		python3 -m scripts.article build docx --citation-style=$(CITATION_STYLE); \
 	else \
@@ -66,7 +66,7 @@ docx:
 	@echo "DOCX built: manuscript.docx"
 	@echo "Figures are read in place through --resource-path; PDF sources are not modified."
 
-html:
+html: metadata
 	@CITEPROC=""; \
 	if $(PANDOC) --help 2>/dev/null | grep -q -- '--citeproc'; then \
 		CITEPROC="--citeproc"; \
@@ -87,7 +87,7 @@ html:
 		article.tex
 	@echo "HTML built: manuscript.html"
 
-quick:
+quick: metadata
 	cd $(PAPER_DIR) && pdflatex -interaction=nonstopmode article.tex
 	@echo "Quick (single-pass) PDF built — cross-refs may be wrong"
 
