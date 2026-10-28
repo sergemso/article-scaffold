@@ -5,6 +5,16 @@ All notable changes to the template are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The version is stamped into every
 generated repo as `template_version` in `template.json`.
 
+## [Unreleased]
+
+### Changed
+
+- CI uploads a single `manuscript` artifact (`manuscript.docx`, `manuscript.pdf`, `supp/*.pdf`)
+  instead of `manuscript-docx`, `manuscript-pdf` and `manuscript-supp`.
+  - The DOCX, PDF and supplementary builds in `reusable-build.yml` are now steps of a single
+    `build` job; the `upload-*` inputs still switch each of them off.
+  - `release.yml` downloads that artifact once; the Pages job publishes only the PDF and `supp/`.
+
 ## [1.5.1] - 2026-10-26
 
 ### Fixed

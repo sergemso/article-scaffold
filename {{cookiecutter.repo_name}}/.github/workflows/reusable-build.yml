@@ -1,4 +1,5 @@
-# Reusable workflow to build PDF and DOCX artifacts.
+# Reusable workflow to build PDF, DOCX and supplementary artifacts.
+# Everything is uploaded as one artifact, "manuscript" (a single zip).
 # Called by build-artifacts.yml and release.yml in generated repositories,
 # and by template tests in the scaffold repository.
 #
@@ -56,11 +57,10 @@ permissions:
   contents: read
 
 jobs:
-  build-docx:
-    name: Build DOCX via Pandoc
-    if: ${{ inputs.upload-docx == 'true' }}
+  build:
+    name: Build manuscript artifacts
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -81,6 +81,7 @@ jobs:
           python3 -m scripts.article metadata
 
       - name: Build DOCX with Pandoc
+        if: ${{ inputs.upload-docx == 'true' }}
         run: |
           set -e
           # Pandoc resolves \input{sections/...} against its working directory, so it
@@ -103,6 +104,7 @@ jobs:
             article.tex
 
       - name: Verify DOCX output
+        if: ${{ inputs.upload-docx == 'true' }}
         run: |
           if [ ! -f manuscript.docx ]; then
             echo "::error::Pandoc did not produce manuscript.docx"
@@ -115,39 +117,8 @@ jobs:
             exit 1
           fi
 
-      - name: Upload DOCX artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: manuscript-docx
-          path: manuscript.docx
-          retention-days: ${{ inputs.artifact-retention-days }}
-          if-no-files-found: error
-
-  build-pdf:
-    name: Build PDF via pdflatex
-    if: ${{ inputs.upload-pdf == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      # The files derived from metadata.yaml are rebuilt in the runner so the
-      # artifact always matches it. Nothing is committed here; metadata-sync.yml
-      # opens a pull request when the committed copies have drifted.
-      - name: Setup Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-
-      - name: Regenerate files derived from metadata.yaml
-        run: |
-          python3 -m pip install pyyaml
-          python3 -m scripts.article metadata
-
       - name: Compile LaTeX with TeX Live
+        if: ${{ inputs.upload-pdf == 'true' }}
         uses: xu-cheng/texlive-action@v3
         with:
           texlive_version: ${{ inputs.texlive-version }}
@@ -158,6 +129,7 @@ jobs:
             cp build/article.pdf ../manuscript.pdf
 
       - name: Verify PDF output
+        if: ${{ inputs.upload-pdf == 'true' }}
         run: |
           if [ ! -f manuscript.pdf ]; then
             echo "::error::pdflatex did not produce manuscript.pdf"
@@ -177,42 +149,11 @@ jobs:
             exit 1
           fi
 
-      - name: Upload PDF artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: manuscript-pdf
-          path: manuscript.pdf
-          retention-days: ${{ inputs.artifact-retention-days }}
-          if-no-files-found: error
-
-  build-supp:
-    name: Build supplementary PDFs via pdflatex
-    if: ${{ inputs.upload-supp == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      # The files derived from metadata.yaml are rebuilt in the runner so the
-      # artifact always matches it. Nothing is committed here; metadata-sync.yml
-      # opens a pull request when the committed copies have drifted.
-      - name: Setup Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-
-      - name: Regenerate files derived from metadata.yaml
-        run: |
-          python3 -m pip install pyyaml
-          python3 -m scripts.article metadata
-
       # Mirrors `make supp-pdf`: paper/supplementary.tex plus every
       # paper/supplementary/*.tex that has a \documentclass. Nothing to build
-      # is not an error; the upload step then finds no files and is skipped.
+      # is not an error; the bundle then simply has no supp/ directory.
       - name: Compile supplementary documents with TeX Live
+        if: ${{ inputs.upload-supp == 'true' }}
         uses: xu-cheng/texlive-action@v3
         with:
           texlive_version: ${{ inputs.texlive-version }}
@@ -233,10 +174,14 @@ jobs:
               fi
             done
 
-      - name: Upload supplementary artifact
+      # One zip with everything: manuscript.docx, manuscript.pdf, supp/*.pdf.
+      - name: Upload manuscript artifact
         uses: actions/upload-artifact@v7
         with:
-          name: manuscript-supp
-          path: supp/*.pdf
+          name: manuscript
+          path: |
+            manuscript.docx
+            manuscript.pdf
+            supp/*.pdf
           retention-days: ${{ inputs.artifact-retention-days }}
-          if-no-files-found: ignore
+          if-no-files-found: error

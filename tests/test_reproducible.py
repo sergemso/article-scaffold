@@ -189,7 +189,8 @@ def test_pages_deployment_workflow_exists():
     assert "actions/configure-pages" in content
     assert "actions/upload-pages-artifact" in content
     assert "actions/download-artifact" in content
-    assert "manuscript-supp" in content
+    assert "name: manuscript\n" in content
+    assert "bundle/supp" in content
 
 
 def test_reusable_build_workflow_has_supp_input():

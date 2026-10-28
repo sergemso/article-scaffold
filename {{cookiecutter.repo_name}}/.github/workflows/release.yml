@@ -34,16 +34,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Download DOCX artifact
+      - name: Download manuscript artifact
         uses: actions/download-artifact@v8
         with:
-          name: manuscript-docx
-          path: release-assets
-
-      - name: Download PDF artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: manuscript-pdf
+          name: manuscript
           path: release-assets
 
       - name: Verify assets
@@ -82,19 +76,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Download PDF artifact
+      - name: Download manuscript artifact
         uses: actions/download-artifact@v8
         with:
-          name: manuscript-pdf
-          path: pages
+          name: manuscript
+          path: bundle
 
-      # Absent when the repository has no standalone supplementary document.
-      - name: Download supplementary artifacts
-        continue-on-error: true
-        uses: actions/download-artifact@v8
-        with:
-          name: manuscript-supp
-          path: pages/supp
+      # supp/ is absent when the repository has no standalone supplementary document.
+      - name: Assemble Pages content
+        run: |
+          mkdir -p pages
+          cp bundle/manuscript.pdf pages/
+          if [ -d bundle/supp ]; then cp -r bundle/supp pages/supp; fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
