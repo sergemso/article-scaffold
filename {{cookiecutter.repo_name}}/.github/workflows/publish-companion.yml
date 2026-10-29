@@ -1,0 +1,248 @@
+# Publish to the public companion repo
+#
+# On a final release tag (vX.Y.Z equal to metadata.yaml's version), copy an
+# allowlisted snapshot of this repository, plus the built PDF and DOCX, to the
+# public companion repo configured in companion.yaml, tag it and create a GitHub
+# Release there. Zenodo archives that Release.
+#
+# Any other tag, and every dry run, builds the snapshot and uploads it as a
+# workflow artifact without touching the companion. A dry run can start from a
+# branch: run the workflow with dry_run on and the intended tag as input.
+#
+# Needs the repository secret COMPANION_TOKEN, set by the scaffold's
+# provision-companion workflow. Without it, or without companion.yaml, the run
+# only prints a notice. See docs/companion.md.
+
+name: Publish companion
+
+"on":
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish or rehearse (vX.Y.Z)"
+        type: string
+        required: true
+      dry_run:
+        description: "Build the snapshot only; do not touch the companion"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: publish-companion-${{ github.ref }}
+  cancel-in-progress: false   # never cancel a publish mid-flight
+
+jobs:
+  gate:
+    name: Decide whether to publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      has_config: ${{ steps.gate.outputs.has_config }}
+      publish: ${{ steps.gate.outputs.publish }}
+      tag: ${{ steps.gate.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python3 -m pip install "pyyaml==6.0.2"
+
+      - name: Check the release gate
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          {
+            echo "tag=$TAG"
+            echo "publish=false"
+            echo "has_config=false"
+          } >> "$GITHUB_OUTPUT"
+          if [ ! -f companion.yaml ]; then
+            echo "::notice title=Companion skipped::companion.yaml not found; run the upgrade command to add it"
+            exit 0
+          fi
+          echo "has_config=true" >> "$GITHUB_OUTPUT"
+          python3 -m scripts.article companion --gate "$TAG" --json > "$RUNNER_TEMP/gate.json"
+          allowed=$(python3 -c 'import json,os,sys; d=json.load(open(os.environ["RUNNER_TEMP"]+"/gate.json")); print("true" if d["allowed"] else "false"); [print("reason: "+r, file=sys.stderr) for r in d["reasons"]]')
+          if [ "$allowed" != "true" ]; then
+            echo "::notice title=No companion Release::$TAG is not releasable; building a snapshot only"
+            exit 0
+          fi
+          if [ "$EVENT" = "push" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "::notice title=Dry run::$TAG would be published; dry_run is on"
+          elif [ "$REF" != "refs/tags/$TAG" ]; then
+            echo "::error title=Wrong ref::to publish $TAG, run this workflow from the tag $TAG, not from $REF"
+            exit 1
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build PDF and DOCX
+    needs: gate
+    if: needs.gate.outputs.has_config == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      artifact-retention-days: "1"
+
+  snapshot:
+    name: Build and scan the snapshot
+    needs: [gate, build]
+    if: needs.gate.outputs.has_config == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python3 -m pip install "pyyaml==6.0.2"
+
+      - name: Validate paper sources
+        run: make validate
+
+      - name: Download manuscript artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: manuscript
+          path: manuscript-artifacts
+
+      - name: Build the snapshot
+        run: |
+          set -euo pipefail
+          python3 -m scripts.article companion --build snapshot \
+            --artifacts manuscript-artifacts --json > "$RUNNER_TEMP/snapshot.json"
+          python3 -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/snapshot.json")); print(len(d["files"]), "files, tree", d["tree_sha256"])'
+
+      - name: Upload the snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: companion-snapshot
+          path: snapshot
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: Publish to the companion
+    needs: [gate, snapshot]
+    if: needs.gate.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python3 -m pip install "pyyaml==6.0.2"
+
+      - name: Download the snapshot
+        uses: actions/download-artifact@v8
+        with:
+          name: companion-snapshot
+          path: snapshot
+
+      - name: Push the snapshot and create the Release
+        env:
+          COMPANION_TOKEN: ${{ secrets.COMPANION_TOKEN }}
+          TAG: ${{ needs.gate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          set +x
+          if [ -z "${COMPANION_TOKEN:-}" ]; then
+            echo "::notice title=Companion skipped::COMPANION_TOKEN is not set; run provision-companion in the scaffold"
+            exit 0
+          fi
+          export GH_TOKEN="$COMPANION_TOKEN"
+          # Authenticate git through the environment, never through a URL.
+          auth=$(printf 'x-access-token:%s' "$COMPANION_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+
+          python3 -m scripts.article companion --plan --json > "$RUNNER_TEMP/plan.json"
+          repo=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/plan.json"))["repo"])')
+          branch=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/plan.json"))["branch"])')
+          if [ "$repo" = "$GITHUB_REPOSITORY" ]; then
+            echo "::error title=Wrong target::companion.yaml points at this repository"
+            exit 1
+          fi
+
+          snap="$PWD/snapshot"
+          git clone --quiet "https://github.com/${repo}.git" "$RUNNER_TEMP/companion"
+          cd "$RUNNER_TEMP/companion"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse --verify --quiet "origin/${branch}" > /dev/null; then
+            git checkout --quiet -B "$branch" "origin/${branch}"
+          else
+            git symbolic-ref HEAD "refs/heads/${branch}"
+          fi
+
+          # Tree id of the snapshot, computed with a throwaway index.
+          snapshot_tree=$(GIT_INDEX_FILE="$RUNNER_TEMP/snapshot.index" git --work-tree="$snap" add -A -f \
+            && GIT_INDEX_FILE="$RUNNER_TEMP/snapshot.index" git write-tree)
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
+            git fetch --quiet --no-tags origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            if [ "$(git rev-parse "${TAG}^{tree}")" = "$snapshot_tree" ]; then
+              echo "${TAG} is already published with an identical tree"
+            else
+              echo "::error title=Tag conflict::${TAG} exists on the companion with a different tree; it is never moved"
+              exit 1
+            fi
+          else
+            rsync -a --delete --exclude .git "${snap}/" ./
+            git add -A -f
+            git commit --quiet --allow-empty -m "release ${TAG}"
+            git tag -a "$TAG" -m "release ${TAG}"
+            git push --quiet --atomic origin "HEAD:refs/heads/${branch}" "refs/tags/${TAG}"
+          fi
+
+          # The Release is what Zenodo listens for. The notes stay generic so
+          # they cannot name the private repository.
+          if gh release view "$TAG" --repo "$repo" > /dev/null 2>&1; then
+            echo "Release ${TAG} already exists on the companion"
+          else
+            assets=()
+            for f in manuscript.pdf manuscript.docx; do
+              if [ -f "${snap}/${f}" ]; then assets+=("${snap}/${f}"); fi
+            done
+            gh release create "$TAG" --repo "$repo" --verify-tag \
+              --title "$TAG" --notes "Release ${TAG}" "${assets[@]}"
+          fi
+          echo "Published ${TAG} to ${repo}"
