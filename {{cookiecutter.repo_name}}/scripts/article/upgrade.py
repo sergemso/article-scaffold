@@ -377,6 +377,8 @@ def build_patch(
 
 # Files the author owns as data. They are left out of the template diff and migrated.
 _DATA_FILES = ("metadata.yaml",)
+# Files the template adds once and the author owns afterwards: later template edits are skipped.
+_OWNED_AFTER_ADD = ("companion.yaml",)
 
 
 def _scope_trees(*trees: Path) -> None:
@@ -426,6 +428,31 @@ def _refresh_untouched_derived(root: Path, before: str, after: str) -> None:
         new_expected = collect_expected(root, load_metadata(root / "metadata.yaml"))
     except (OSError, ValueError, yaml.YAMLError):
         return  # `finish` reports an unreadable metadata.yaml with its own message
+    write_expected({
+        path: text for path, text in new_expected.items()
+        if path.is_file() and path.read_text(encoding="utf-8") == old_expected.get(path)
+    })
+
+
+def _refresh_after_companion(root: Path) -> None:
+    """Regenerate derived files that matched the metadata before companion.yaml arrived.
+
+    ``companion.yaml`` moves the citation URL, so a file that equalled what the repo
+    generated without it just follows; one the author edited by hand is left for ``finish``.
+    """
+    from .metadata import collect_expected, load_metadata, write_expected
+
+    config = root / "companion.yaml"
+    hidden = config.with_name("companion.yaml.upgrade-hold")
+    try:
+        config.rename(hidden)
+        try:
+            old_expected = collect_expected(root, load_metadata(root / "metadata.yaml"))
+        finally:
+            hidden.rename(config)
+        new_expected = collect_expected(root, load_metadata(root / "metadata.yaml"))
+    except (OSError, ValueError, yaml.YAMLError):
+        return  # `finish` reports an unreadable file with its own message
     write_expected({
         path: text for path, text in new_expected.items()
         if path.is_file() and path.read_text(encoding="utf-8") == old_expected.get(path)
@@ -625,6 +652,9 @@ def _apply_changes(
                     else "exists locally with different content; merge it by hand",
                 })
                 continue
+            if status != "A" and path in _OWNED_AFTER_ADD:
+                skipped.append({"path": path, "reason": "yours after first render; not changed"})
+                continue
             result = _apply_chunk(root, chunk)
             if result.returncode == 0:
                 applied.append(path)
@@ -633,6 +663,8 @@ def _apply_changes(
             else:
                 skipped.append({"path": path, "reason": _tail(result)})
 
+    if "companion.yaml" in applied:
+        _refresh_after_companion(root)
     if migrated is not None:
         before = (root / "metadata.yaml").read_text(encoding="utf-8")
         (root / "metadata.yaml").write_text(migrated, encoding="utf-8")
