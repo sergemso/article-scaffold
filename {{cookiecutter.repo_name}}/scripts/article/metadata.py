@@ -14,6 +14,7 @@ from pathlib import Path
 
 import yaml
 
+from . import companion
 from .diagnostics import Diagnostics
 from .latex import latex_escape, replace_block
 
@@ -466,7 +467,25 @@ def load_metadata(path: Path) -> dict:
         data = yaml.safe_load(handle)
     if not isinstance(data, dict):
         raise ValueError("metadata.yaml must contain a mapping")
-    return normalize_metadata(data)
+    normalized = normalize_metadata(data)
+    _apply_companion(normalized, path.parent)
+    return normalized
+
+
+def _apply_companion(normalized: dict, root: Path) -> None:
+    """Point the derived repository URL at the companion repo, when configured.
+
+    Zenodo archives the public companion, so citations must name it rather than
+    the private article repo. An invalid companion.yaml raises ValueError, which
+    every caller reports as a plain error.
+    """
+    config = companion.read_config(root)
+    if config is None:
+        return
+    private_url = normalized["_repo_url"]
+    normalized["_repo_url"] = f"https://github.com/{config['repo']}"
+    if normalized["_doi_url"] == private_url:
+        normalized["_doi_url"] = normalized["_repo_url"]
 
 
 def normalize_metadata(data: dict) -> dict:
