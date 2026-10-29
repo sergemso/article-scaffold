@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/companion-result.schema.json",
+  "title": "Companion command result",
+  "description": "Stable output of `python3 -m scripts.article companion --json`.",
+  "type": "object",
+  "required": ["ok", "command"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "command": {"const": "companion"},
+    "mode": {"enum": ["plan", "build", "gate"]},
+    "error": {"type": "string"},
+    "repo": {"type": "string"},
+    "branch": {"type": "string"},
+    "excluded": {"type": "array", "items": {"type": "string"}},
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "tree_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "tag": {"type": "string"},
+    "version": {"type": ["string", "null"]},
+    "allowed": {"type": "boolean"},
+    "reasons": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"ok": {"const": true}}},
+      "then": {"required": ["mode"]},
+      "else": {"required": ["error"]}
+    },
+    {
+      "if": {
+        "properties": {"ok": {"const": true}, "mode": {"enum": ["plan", "build"]}},
+        "required": ["ok", "mode"]
+      },
+      "then": {"required": ["repo", "branch", "excluded", "files", "tree_sha256"]}
+    },
+    {
+      "if": {
+        "properties": {"ok": {"const": true}, "mode": {"const": "gate"}},
+        "required": ["ok", "mode"]
+      },
+      "then": {"required": ["tag", "allowed", "reasons"]}
+    }
+  ]
+}

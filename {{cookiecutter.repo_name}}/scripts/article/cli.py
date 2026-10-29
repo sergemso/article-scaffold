@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import core
+from . import companion, core
 
 
 class UsageError(Exception):
@@ -303,6 +303,52 @@ def _build_supplementary(root: Path, args: argparse.Namespace) -> int:
     return code
 
 
+def _companion(args: argparse.Namespace) -> int:
+    root = _root(args)
+    payload: dict[str, Any] = {"ok": True, "command": "companion"}
+    try:
+        if args.gate:
+            payload.update(mode="gate", **companion.gate(root, args.gate))
+        else:
+            config = companion.read_config(root)
+            if config is None:
+                raise companion.CompanionError(
+                    f"{companion.CONFIG_NAME} not found; run `upgrade` to add it"
+                )
+            if args.build:
+                payload["mode"] = "build"
+                payload.update(
+                    companion.build(root, config, Path(args.build), args.artifacts)
+                )
+            else:
+                payload["mode"] = "plan"
+                payload.update(companion.plan(root, config))
+    except (FileNotFoundError, ValueError) as exc:
+        payload.update(ok=False, error=str(exc))
+        if args.json:
+            _emit_json(payload)
+        else:
+            print(f"ERROR: {exc}", file=sys.stderr)
+        return core.ExitCode.DIAGNOSTICS
+
+    if args.json:
+        _emit_json(payload)
+    elif payload["mode"] == "gate":
+        verdict = "allowed" if payload["allowed"] else "not allowed"
+        print(f"release {payload['tag']}: {verdict}")
+        for reason in payload["reasons"]:
+            print(f"  {reason}")
+    else:
+        print(f"companion: {payload['repo']} ({payload['branch']})")
+        print(f"{len(payload['files'])} files, tree {payload['tree_sha256']}")
+        for path in payload["excluded"]:
+            print(f"  denied: {path}")
+        if payload["mode"] == "plan":
+            for item in payload["files"]:
+                print(f"  {item['path']}")
+    return core.ExitCode.OK
+
+
 def _release(args: argparse.Namespace) -> int:
     root = _root(args)
 
@@ -588,6 +634,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="confirm release application (required with --apply)",
     )
     release.set_defaults(func=_release)
+
+    companion_cmd = subparsers.add_parser(
+        "companion", help="plan or build the public companion snapshot"
+    )
+    _add_common(companion_cmd)
+    cmode = companion_cmd.add_mutually_exclusive_group()
+    cmode.add_argument(
+        "--plan", action="store_true", help="show what would be published (default)"
+    )
+    cmode.add_argument(
+        "--build", metavar="DIR", help="write the snapshot to DIR (empty or absent)"
+    )
+    cmode.add_argument(
+        "--gate", metavar="TAG", help="say whether TAG may produce a public Release"
+    )
+    companion_cmd.add_argument(
+        "--artifacts",
+        metavar="DIR",
+        help="with --build: directory holding manuscript.pdf, manuscript.docx and supp/",
+    )
+    companion_cmd.set_defaults(func=_companion)
 
     upgrade = subparsers.add_parser(
         "upgrade", help="plan or apply an upgrade to a newer template commit"
