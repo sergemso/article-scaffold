@@ -25,6 +25,7 @@ Run `python3 -m scripts.article --help` or
 | `build supp` | Build every standalone supplementary document (`paper/supplementary.tex`, `paper/supplementary/*.tex` with a `\documentclass`) to `paper/supplementary/NAME.pdf`. |
 | `build <kind> --dry-run` | Print the build plan without running it or writing any file. |
 | `build <kind> --no-regenerate` | Build without refreshing the derived files first. |
+| `companion` | Plan, build or gate the public companion snapshot (`--plan`, `--build DIR`, `--gate TAG`). See [companion.md](companion.md). |
 | `release` | Reserved for release planning; currently a stub. |
 | `upgrade` | Plan, apply or finish an upgrade to a newer template commit. |
 

@@ -78,6 +78,14 @@ repo, and nothing else; it does not commit. It refuses to replace an existing
 result before `--plan`, which refuses a dirty tree. A repo with no `template.json` cannot be planned: use the manual merge
 below for that first upgrade.
 
+## Adopting the public companion repo
+
+A repo scaffolded before companion repos existed adopts them by upgrading: `upgrade` adds
+`companion.yaml`, its schema, the `companion` command and `publish-companion.yml`, and
+regenerates `CITATION.cff` and the README citation so they point at the companion. After
+`--finish`, review `companion.yaml` (it is yours; later upgrades never overwrite it), then
+run the scaffold's `provision-companion.yml` for the repo. See [companion.md](companion.md).
+
 ## Automatic upgrade pull requests
 
 A generated repo includes `.github/workflows/upgrade.yml`. Every Monday (and on

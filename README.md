@@ -41,7 +41,7 @@ locally. The workflow:
 2. Runs `make validate` on the rendered repo (fails the workflow if the
    template is broken).
 3. Creates a new GitHub repo under `${{ github.actor }}` (or a custom owner
-   you specify) with the chosen visibility.
+   you specify) with the chosen visibility (default **private**).
 4. Pushes the initial commit, which triggers the new repo's own
    `build-artifacts.yml` to build PDF + DOCX.
 
@@ -66,6 +66,15 @@ gh workflow run bootstrap-article.yml \
 
 The workflow's job summary prints a clickable link to the new repo and a
 next-steps checklist. See the workflow file for the full input list.
+
+### Public companion repos
+
+New article repos are private, but Zenodo only archives public repos. Each article repo
+therefore has a public companion that receives an allowlisted snapshot on every final
+release tag. The bootstrap workflow creates it by calling `provision-companion.yml`
+(input `create_companion`, default true), which needs the `COMPANION_PAT` secret next to
+`GH_PAT`. Existing repos adopt it by upgrading, then running the provisioning workflow.
+Switching the companion on in Zenodo stays manual. See [docs/companion.md](docs/companion.md).
 
 ## Optional user configuration
 

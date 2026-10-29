@@ -7,7 +7,26 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-29
+
+### Added
+
+- Public companion repos: Zenodo only archives public repos, so each private article repo has a
+  public companion that receives an allowlisted snapshot on every final release tag.
+  - `companion.yaml` (repo, branch, allowlist, deny patterns) with a schema; `upgrade` adds it
+    to repos scaffolded earlier and never overwrites it afterwards.
+  - `python3 -m scripts.article companion` with `--plan`, `--build` (leak scan, deterministic
+    tree hash) and `--gate` (final `vX.Y.Z` equal to the metadata version).
+  - `publish-companion.yml` builds on `v*` tags and, for a final tag, commits the snapshot to
+    the companion, tags it and creates the GitHub Release Zenodo listens for.
+  - `provision-companion.yml` in the scaffold creates companions idempotently and installs
+    `COMPANION_TOKEN` from the scaffold secret `COMPANION_PAT`.
+
 ### Changed
+
+- `bootstrap-article.yml` creates private repos by default and provisions the companion
+  (input `create_companion`).
+- `CITATION.cff` and the README citation point at the companion when `companion.yaml` exists.
 
 - CI uploads a single `manuscript` artifact (`manuscript.docx`, `manuscript.pdf`, `supp/*.pdf`)
   instead of `manuscript-docx`, `manuscript-pdf` and `manuscript-supp`.
