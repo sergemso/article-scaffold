@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/companion.schema.json",
+  "title": "Companion repo configuration",
+  "description": "Shape of companion.yaml at the article repo root.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "repo", "branch", "include", "exclude"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "repo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "branch": {"type": "string", "minLength": 1},
+    "include": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "exclude": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

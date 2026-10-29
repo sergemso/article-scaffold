@@ -1,0 +1,40 @@
+# Public companion repo (see docs/companion.md).
+# On a final release tag the files below are copied to the companion repo,
+# which Zenodo archives. Deny patterns (exclude) beat the allowlist (include).
+# This file is yours after the first render; `upgrade` never overwrites it.
+version: 1
+repo: "{{ cookiecutter.github_user }}/{{ cookiecutter.repo_name }}.public"
+branch: main
+include:
+  - "paper/**"
+  - "data/**"
+  - "analysis/**"
+  - "schemas/**"
+  - "licenses/**"
+  - "LICENSE"
+  - "LICENSE-CODE"
+  - "README.md"
+  - "CHANGES.md"
+  - "CITATION.cff"
+  - ".zenodo.json"
+  - "metadata.yaml"
+exclude:
+  - ".git/**"
+  - ".github/**"
+  - ".claude/**"
+  - ".scholar/**"
+  - ".venv/**"
+  - ".hypothesis/**"
+  - ".mcp.json"
+  - ".upgrade-state.json"
+  - "template.json"
+  - "scripts/**"
+  - "docs/**"
+  - "paper/build/**"
+  - "**/__pycache__/**"
+  - "**/.env"
+  - "**/.env.*"
+  - "**/*.pem"
+  - "**/*.key"
+  - "**/id_rsa*"
+  - "**/id_ed25519*"
