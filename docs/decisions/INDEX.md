@@ -59,3 +59,6 @@ id,title,tags,status
 0056-workflow-branch-from-cookiecutter,"Generated workflows filter pushes on the branch chosen at generation time","ci, workflows, template",active
 0057-scholar-mcp-separate-repo-per-role,"Scholarly MCP servers live in a separate repository, one server per role","mcp, architecture, scope",active
 0058-generated-ci-workflow-hardened,"The generated go-getter workflow follows the project's CI-hardening rules","ci, workflows, go-getter",active
+0059-public-companion-repo-per-article,"Each private article repo has a public companion holding an allowlisted snapshot per release","companion, zenodo, release, privacy",active
+0060-companion-provisioning-and-auth,"The scaffold provisions companions idempotently and fans out a scoped token","companion, ci, security, bootstrap",active
+0061-companion-publish-trigger-and-gate,"Publishing to the companion runs from its own tag workflow and only final tags release","companion, zenodo, release, ci",active

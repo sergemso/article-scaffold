@@ -23,3 +23,6 @@ no-secrets-in-added-lines,"Added lines must not contain secrets","practice-packs
 pii-masked-in-tool-output,"Personal data is masked in tool output","practice-packs, governance, security, guardrail",active
 mcp-arguments-hold-no-secret,"MCP calls carry no secret","practice-packs, hooks, guardrail",active
 verification-gate-blocks-done,"A step is not done while its verification checks fail","practice-packs, verification, guardrail",active
+companion-publishes-allowlist-only,"Nothing outside the allowlist, or matching a deny pattern, reaches the companion","companion, privacy, guardrail",active
+companion-release-final-tags-only,"No Release is created on the companion unless the tag is final and matches the version","companion, zenodo, release, guardrail",active
+companion-token-least-privilege,"COMPANION_PAT is scoped to companions and GH_PAT never enters an article repo","companion, security, guardrail",active
