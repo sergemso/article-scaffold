@@ -88,7 +88,11 @@ name: Bootstrap new article repo
         options:
           - public
           - private
-        default: public
+        default: private
+      create_companion:
+        description: "Also create the public companion repo (release snapshots for Zenodo) and install COMPANION_TOKEN"
+        type: boolean
+        default: true
       new_repo_owner:
         description: "Owner of the new repo. Leave empty to use the triggering actor."
         required: false
@@ -112,6 +116,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    outputs:
+      repo_full: ${{ steps.create.outputs.repo_full }}
 
     steps:
       - name: Checkout article-scaffold
@@ -327,6 +333,7 @@ jobs:
           git remote set-url origin "https://github.com/${REPO_FULL}.git"
 
           echo "repo_url=https://github.com/$REPO_FULL" >> "$GITHUB_OUTPUT"
+          echo "repo_full=$REPO_FULL" >> "$GITHUB_OUTPUT"
           echo "::notice::Created ${REPO_VISIBILITY} repo at https://github.com/$REPO_FULL"
 
       - name: Write job summary
@@ -363,7 +370,8 @@ jobs:
               echo "3. Run \`make metadata\` to regenerate \`CITATION.cff\`, \`.zenodo.json\`, the README citation block, and the title block in \`paper/article.tex\`."
               echo "4. Open \`paper/sections/00_abstract.tex\` and start writing."
               echo "5. \`make pdf\` to build the PDF."
-              echo "6. When ready to release: bump \`version\` in \`metadata.yaml\`, add a \`CHANGES.md\` entry, run \`make metadata && make pdf\`, commit, \`git tag v1.0.0 && git push origin v1.0.0\` — the \`release.yml\` workflow in the new repo will build and publish the artifacts."
+              echo "6. Zenodo archives the public companion, not this repo. If a companion was created, switch it on at https://zenodo.org/account/settings/github/ (sync, then toggle); see docs/skills/enabling-zenodo-for-a-companion.md."
+              echo "7. When ready to release: bump \`version\` in \`metadata.yaml\`, add a \`CHANGES.md\` entry, run \`make metadata && make pdf\`, commit, \`git tag v1.0.0 && git push origin v1.0.0\` — the \`release.yml\` workflow in the new repo will build and publish the artifacts."
             else
               echo "Bootstrap failed. See the job log above for the error."
               echo ""
@@ -371,3 +379,15 @@ jobs:
               echo "Add it under Settings → Secrets and variables → Actions → New repository secret."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  companion:
+    name: Provision public companion repo
+    needs: bootstrap
+    if: inputs.create_companion
+    permissions:
+      contents: read
+    uses: ./.github/workflows/provision-companion.yml
+    with:
+      repo: ${{ needs.bootstrap.outputs.repo_full }}
+      dry_run: false
+    secrets: inherit
