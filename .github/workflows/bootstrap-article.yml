@@ -9,9 +9,17 @@
 # PREREQUISITE — `GH_PAT` secret
 # ─────────────────────────────────────────────────────────────
 # The default `GITHUB_TOKEN` cannot create new repositories. You need
-# a Personal Access Token (classic) with the `repo` scope, or a
-# fine-grained token with `Administration: write` permission on the
-# target owner. Add it as a repository secret named `GH_PAT`:
+# a Personal Access Token with repository access for the target owner.
+# Either kind works, but the required grants differ:
+#
+#   Classic PAT: the `repo` and `workflow` scopes.
+#   Fine-grained PAT: Repository access "All repositories", with repository
+#     permissions Contents: Read and write (push the tree), Workflows:
+#     Read and write (push .github/workflows), Administration: Read and
+#     write (create repos, set description/topics; also an account-level
+#     Administration permission for repo creation) and Secrets: Read and
+#     write (the companion job installs COMPANION_TOKEN).
+# Add it as a repository secret named `GH_PAT`:
 #
 #   Settings → Secrets and variables → Actions → New repository secret
 #   Name: GH_PAT
