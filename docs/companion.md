@@ -24,9 +24,14 @@ Both live in this repo under Settings, Secrets and variables, Actions.
 | `GH_PAT` | Creates repos and sets secrets. Stays in the scaffold. | Existing bootstrap PAT. |
 | `COMPANION_PAT` | Copied into each article repo as `COMPANION_TOKEN`. | Fine-grained PAT, repository permission *Contents: read and write*, repositories: the companions only. |
 
-A fine-grained token lists repositories, so when a new companion appears, edit the token to
-add it (or choose all repositories of the owner with only contents write), then run
-provisioning again to refresh the secret. Guardrail `companion-token-least-privilege`.
+A fine-grained token can only be scoped to repositories that already exist, so the
+order is: provisioning creates the companion (this works with `GH_PAT` alone and
+reports the secret as `deferred`), then you create `COMPANION_PAT` scoped to the
+companions (repository permission *Contents: read and write*), set it as a scaffold
+secret, and run provisioning again to install `COMPANION_TOKEN`. When a new companion
+appears later, edit the token to add it (or choose all repositories of the owner with
+only contents write), then run provisioning again to refresh the secret. Guardrail
+`companion-token-least-privilege`.
 
 ## Provisioning
 
@@ -41,7 +46,9 @@ It creates the public companion if absent, sets description and topics, installs
 `COMPANION_TOKEN` in the article repo and reports drift. It never changes visibility and
 never deletes. Per repo the result is `created`, `updated`, `unchanged`, `needs-upgrade`
 (the article repo has no `companion.yaml`: upgrade it first), `drift` (the companion exists
-but is private), `refused` or `error`. Re-running changes nothing except the secret.
+but is private), `refused` or `error`; the secret column reads `refreshed`, `deferred`
+(no `COMPANION_PAT` yet: scope it and run again) or `would-refresh`. Re-running changes
+nothing except the secret.
 `bootstrap-article.yml` calls it for new repos (input `create_companion`).
 
 ## Switching Zenodo on

@@ -153,12 +153,33 @@ def test_dry_run_makes_no_write_calls(monkeypatch, capsys) -> None:
     assert fake.writes() == [] and COMP not in fake.repos
 
 
-def test_empty_token_fails_unless_dry_run(monkeypatch, capsys) -> None:
+def test_empty_token_defers_secret_but_still_provisions(monkeypatch, capsys) -> None:
     monkeypatch.setenv("COMPANION_PAT", "")
     fake = FakeGh({ART: _yaml(COMP)})
-    assert pc.main(["--repo", ART], run=fake) == 2
-    assert "COMPANION_PAT" in capsys.readouterr().err
-    assert fake.calls == []
+    code = pc.main(["--repo", ART, "--json"], run=fake)
+    res = json.loads(capsys.readouterr().out)["results"]
+    assert code == 0 and res[0]["status"] == "created" and res[0]["secret"] == "deferred"
+    assert not any(a[:2] == ["secret", "set"] for a, _ in fake.calls)
+
+
+def test_token_unset_env_defers_secret(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("COMPANION_PAT", raising=False)
+    fake = FakeGh({ART: _yaml(COMP)})
+    code = pc.main(["--repo", ART, "--json"], run=fake)
+    res = json.loads(capsys.readouterr().out)["results"]
+    assert code == 0 and res[0]["secret"] == "deferred"
+    assert not any(a[:2] == ["secret", "set"] for a, _ in fake.calls)
+
+
+def test_deferred_then_scoped_token_sets_secret(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("COMPANION_PAT", raising=False)
+    fake = FakeGh({ART: _yaml(COMP)})
+    pc.main(["--repo", ART, "--json"], run=fake)
+    capsys.readouterr()
+    assert not any(a[:2] == ["secret", "set"] for a, _ in fake.calls)
+    monkeypatch.setenv("COMPANION_PAT", TOKEN)
+    code, res = _run(fake, "--repo", ART, monkeypatch=monkeypatch, capsys=capsys)
+    assert code == 0 and res[0]["secret"] == "refreshed"
 
 
 def test_token_goes_only_to_stdin_of_secret_set(monkeypatch, capsys) -> None:

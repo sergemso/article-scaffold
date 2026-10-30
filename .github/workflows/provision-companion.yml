@@ -6,6 +6,9 @@
 # Scaffold secrets: `GH_PAT` (creates repos, sets secrets; stays here) and
 # `COMPANION_PAT` (fine-grained, contents write on the companions only; copied into
 # the article repo as COMPANION_TOKEN). Neither is ever printed or passed as an argument.
+# COMPANION_PAT may be absent: a fine-grained PAT can only be scoped to a companion that
+# already exists, so the repo is created first and the secret is deferred until the token
+# is scoped and provisioning runs again.
 
 name: Provision companion repo
 
@@ -102,5 +105,6 @@ jobs:
             echo ""
             echo "- New or changed companion: switch it on at https://zenodo.org/account/settings/github/ (sync, then toggle). This cannot be automated."
             echo "- \`needs-upgrade\`: run \`python3 -m scripts.article upgrade\` in that article repo, then provision again."
+            echo "- \`deferred\` secret: create a fine-grained COMPANION_PAT (Contents: read and write, repositories: the companions only), set it as a scaffold secret, then run this workflow again with dry_run false."
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
