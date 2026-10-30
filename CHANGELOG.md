@@ -7,6 +7,13 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+### Changed
+
+- `provision-companion.yml` creates the companion repo with `GH_PAT` alone; when
+  `COMPANION_PAT` is not set yet the run reports `COMPANION_TOKEN` as `deferred`
+  instead of refusing, so a fine-grained token can be scoped to the companion after it
+  exists and provisioning run again.
+
 ## [1.6.0] - 2026-10-29
 
 ### Added

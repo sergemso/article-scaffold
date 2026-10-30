@@ -6,7 +6,10 @@
 
 For each article repo it reads `companion.yaml` from the default branch, creates the
 public companion if it is absent, re-applies its description and topics, and copies the
-env var COMPANION_PAT into the article repo as the secret COMPANION_TOKEN. It never
+env var COMPANION_PAT into the article repo as the secret COMPANION_TOKEN. When
+COMPANION_PAT is empty the repo work still happens and the secret is reported as
+`deferred`: a fine-grained PAT can only be scoped to a companion that already exists,
+so first provision the repo, then scope the token, then provision again. It never
 changes the visibility of an existing repo and never deletes anything. Needs `gh`
 authenticated with GH_PAT. Standard library plus PyYAML.
 
@@ -200,6 +203,8 @@ def provision_one(run: Runner, article: str, *, dry_run: bool, token: str) -> Re
 
     if dry_run:
         result.secret = "would-refresh"
+    elif not token:
+        result.secret = "deferred"
     else:
         done = run(["secret", "set", SECRET_NAME, "--repo", article], token)
         if done.returncode != 0:
@@ -237,8 +242,10 @@ def main(argv: list[str] | None = None, run: Runner = gh_runner) -> int:
 
     token = os.environ.get(TOKEN_ENV, "")
     if not token and not args.dry_run:
-        print(f"error: {TOKEN_ENV} is empty; set it from the scaffold secret", file=sys.stderr)
-        return 2
+        print(
+            f"note: {TOKEN_ENV} is empty; provisioning repos, secret deferred",
+            file=sys.stderr,
+        )
     try:
         results = provision(run, args.repo, args.owner, dry_run=args.dry_run, token=token)
     except (ValueError, RuntimeError) as exc:
