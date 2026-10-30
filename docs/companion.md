@@ -21,7 +21,7 @@ Both live in this repo under Settings, Secrets and variables, Actions.
 
 | Secret | Purpose | Scope |
 | --- | --- | --- |
-| `GH_PAT` | Creates repos and sets secrets. Stays in the scaffold. | Existing bootstrap PAT. |
+| `GH_PAT` | Creates repos and sets secrets. Stays in the scaffold. | Classic PAT: `repo` + `workflow`. Fine-grained PAT: all repositories, with Contents, Workflows, Administration and Secrets read/write (Administration is what `gh repo edit` needs; without it provisioning fails with `Resource not accessible by personal access token`). |
 | `COMPANION_PAT` | Copied into each article repo as `COMPANION_TOKEN`. | Fine-grained PAT, repository permission *Contents: read and write*, repositories: the companions only. |
 
 A fine-grained token can only be scoped to repositories that already exist, so the

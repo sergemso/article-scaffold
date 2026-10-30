@@ -14,6 +14,13 @@ generated repo as `template_version` in `template.json`.
   instead of refusing, so a fine-grained token can be scoped to the companion after it
   exists and provisioning run again.
 
+### Fixed
+
+- Documented the exact `GH_PAT` grants (classic scopes and fine-grained permissions,
+  including Administration and Secrets): a fine-grained token without them creates the
+  companion but fails its edit step with `Resource not accessible by personal access
+  token`.
+
 ## [1.6.0] - 2026-10-29
 
 ### Added
