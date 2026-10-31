@@ -169,6 +169,7 @@ jobs:
         with:
           name: companion-snapshot
           path: snapshot
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: error
 
