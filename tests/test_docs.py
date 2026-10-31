@@ -177,3 +177,22 @@ def test_rendered_metadata_doc_covers_related_identifiers(tmp_path: Path) -> Non
     for relation in ("isPartOf", "continues", "obsoletes"):
         assert relation in text
     assert "CITATION.cff" in text.split("`related_identifiers`", 1)[1]
+
+
+def test_readme_describes_the_app_flow_not_pats() -> None:
+    """The README must not send readers to the retired PAT credentials."""
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    for retired in ("GH_PAT", "COMPANION_PAT", "COMPANION_TOKEN", "github.actor", "strebulaev"):
+        assert retired not in text, retired
+    for needed in ("APP_PRIVATE_KEY", "provision-companion.yml", "publish-companion.yml"):
+        assert needed in text, needed
+
+
+def test_readme_states_goals_and_links_the_detail_docs() -> None:
+    """The README opens with what the scaffold is for and links every detail doc."""
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "## What it's for" in text
+    assert text.index("## What it's for") < text.index("## Two ways to bootstrap")
+    for link in ("docs/upgrading.md", "docs/companion.md", "canonical-pattern.md"):
+        assert link in text, link
+        assert (ROOT / link).exists(), link
