@@ -139,6 +139,7 @@ def test_release_is_created_through_the_releases_api_with_generic_notes() -> Non
 
 def test_snapshot_upload_keeps_dotfiles() -> None:
     # .zenodo.json is a dotfile; upload-artifact drops hidden files unless told otherwise.
-    text = (Path(__file__).resolve().parent.parent / ".github/workflows/publish-companion.yml").read_text(encoding="utf-8")
+    workflow = Path(__file__).resolve().parent.parent / ".github/workflows/publish-companion.yml"
+    text = workflow.read_text(encoding="utf-8")
     block = text.split("name: companion-snapshot", 1)[1].split("retention-days", 1)[0]
     assert "include-hidden-files: true" in block
