@@ -46,10 +46,11 @@ Done-when: the Check passes and `docs/metadata.md` in a freshly rendered repo do
 
 ## 3. App migration (scaffold side)
 
-### 3.1 Add an owner allowlist and a token-minting convention — [ ]
+### 3.1 Add an owner allowlist and a token-minting convention — [x]
 Class: implement · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_ci_hardening.py tests/test_app_token.py -q`
 Context: Decision 0062 and guardrail `app-key-stays-in-scaffold`. Secret `APP_PRIVATE_KEY` and variables `APP_ID` and `APP_OWNERS` exist (step 0.1). Existing scaffold workflows: `.github/workflows/bootstrap-article.yml`, `provision-companion.yml`; scripts: `scripts/provision_companion.py`, `scripts/bootstrap-upgrader.py`.
 Do: Create `.github/actions/app-token/action.yml`, a composite action that takes `owner` and optional `repositories` and `permissions`, fails if `owner` is not a line of `vars.APP_OWNERS`, and calls `actions/create-github-app-token` (pin its major tag in `MAJOR_TAGS`, using the major tag step 1.1 found working) with `app-id`, `private-key`, `owner`, `repositories`. It must never print the token (`::add-mask::` is handled by the action; do not echo it). Add `tests/test_app_token.py` that reads the action file and asserts the allowlist check and the absence of any `echo` of the token.
+Result (2026-10-31): `actions/create-github-app-token` major tag is `v3` (latest tag v3.3.0; not run yet). A composite action cannot read secrets, so callers pass `app-id` and `private-key` as inputs; v3 takes `permission-<name>` inputs rather than a blob, so the action exposes `permission-{administration,contents,workflows,actions}` (empty inherits the app grant). Empty `repositories` means every repo of the owner, so callers must always pass it.
 Done-when: the Check passes and the action has no default for `repositories` that widens access beyond the caller's input.
 
 ### 3.2 Rework bootstrap to create the article and companion with app tokens — [ ]‖
