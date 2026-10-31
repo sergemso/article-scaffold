@@ -32,120 +32,11 @@ extracted from a real article repository.
 Lifecycle: bootstrap, write and build, dry-run publish, owner tags and enables Zenodo, upgrade
 when the template improves.
 
-## Two ways to bootstrap a new article repo
-
-**Option A — Locally with `cookiecutter`:** see [Quick start](#quick-start-local-cookiecutter)
-below. The `post_gen_project.py` hook initialises git, installs the pre-push hook and fills in
-today's date.
-
-**Option B — Remotely with the `bootstrap-article.yml` workflow:**
-
-If you push this template to GitHub, the
-`.github/workflows/bootstrap-article.yml` workflow lets you bootstrap a new
-article repo from the GitHub UI (or via `gh workflow run`) without cloning
-locally. The workflow:
-
-1. Renders the template with the parameters you supply as workflow inputs.
-2. Runs `make validate` on the rendered repo (fails the workflow if the
-   template is broken).
-3. Creates a new GitHub repo under the `owner` input (an org or user
-   listed in `APP_OWNERS`; the workflow's default is the maintainer's article org) with the chosen
-   visibility (default **private**), and its public companion.
-4. Pushes the initial commit, which triggers the new repo's own
-   `build-artifacts.yml` to build PDF + DOCX.
-
-It authenticates as the scaffold's GitHub App, so no personal token is involved:
-the scaffold needs the secret `APP_PRIVATE_KEY` and the variables `APP_ID` and
-`APP_OWNERS` (one-time setup: `docs/skills/setting-up-the-article-github-app.md`).
-The caller only needs `gh` access that may dispatch workflows on the scaffold repo.
-Then:
-
-```bash
-gh workflow run bootstrap-article.yml \
-  -f owner=<your-org> \
-  -f topic=ai_governance \
-  -f title="From AI Scaling to AI Governance" \
-  -f subtitle="Technological Revolutions and the Political Economy of Deployment" \
-  -f author_name="Your Name" \
-  -f author_orcid="" \
-  -f version="3.0.0" \
-  -f version_label="v3 preprint" \
-  -f license="CC-BY-4.0" \
-  -f target_deposit="Zenodo" \
-  -f keywords="AI governance,regulatory capture,Carlota Perez,embedded evaluators"
-```
-
-The workflow's job summary prints a clickable link to the new repo and a
-next-steps checklist. See the workflow file for the full input list.
-
-### Public companion repos
-
-New article repos are private, but Zenodo only archives public repos. Each article repo
-therefore has a public companion that receives an allowlisted snapshot on every final
-release tag. The bootstrap workflow creates the article repo and its companion under
-the `owner` input (which must be listed in `APP_OWNERS`) by calling
-`provision-companion.yml` (input `create_companion`, default true). All of it runs on one GitHub App whose key is
-the scaffold secret `APP_PRIVATE_KEY` (variables `APP_ID`, `APP_OWNERS`); see
-`docs/skills/setting-up-the-article-github-app.md`. Publishing is a dispatch of the
-scaffold's `publish-companion.yml` for a tag, and `track-articles.yml` reports daily
-which tags have no companion release. Existing repos adopt the feature by upgrading,
-then running the provisioning workflow. Articles can link to each other as a series
-with `related_identifiers` in `metadata.yaml`.
-Switching the companion on in Zenodo stays manual. See [docs/companion.md](docs/companion.md).
-
-### Keeping repos current
-
-A generated repo never updates itself. From a clean tree in the article repo:
-
-```bash
-python3 -m scripts.article upgrade --plan
-python3 -m scripts.article upgrade --apply
-# resolve conflicts, `git add` them, then:
-python3 -m scripts.article upgrade --finish
-```
-
-Template changes arrive as a reviewable diff; your `metadata.yaml` is never rewritten, and
-files the template dropped are removed. See [docs/upgrading.md](docs/upgrading.md).
-
-### Driving the scaffold from an agent
-
-An agent never handles the App key; it dispatches scaffold workflows with `gh` and the
-App mints short-lived tokens inside them (decision `0062`). Run `gh workflow run <file>
--R <scaffold repo> -f ...`:
-
-| Job | Workflow | Key inputs | Check the result |
-| --- | --- | --- | --- |
-| New article and companion | `bootstrap-article.yml` | `owner`, `topic`, `title`, `create_companion` | job summary link |
-| Create or repair companions | `provision-companion.yml` | `repo` (`OWNER/name` or `all`), `owner`, `dry_run` | per-repo result in the run summary |
-| Publish a release | `publish-companion.yml` | `repo`, `tag`, `dry_run` | snapshot artifact file list |
-| Report status | `track-articles.yml` | none | run summary table |
-
-Always run with `dry_run=true` first and read the output (for publishing, download the
-snapshot artifact and read its file list) before repeating with `dry_run=false`.
-`owner` must be listed in `APP_OWNERS`. Pushing the final `vX.Y.Z` tag and switching the
-companion on in Zenodo are the owner's; an agent stops and asks. Details per workflow:
-[docs/companion.md](docs/companion.md).
-
-## Optional user configuration
-
-You can set personal defaults so you don't have to re-enter them every time.
-Create a config file at `~/.config/article-scaffold/config.yaml`:
-
-```yaml
-github_user: "your-github-user"
-author_name: "Your Name"
-author_orcid: "0000-0000-0000-0000"
-author_affiliation: "Your Affiliation"
-keywords: "your, keywords"
-target_deposit: "Zenodo"
-```
-
-Or set the `ARTICLE_SCAFFOLD_CONFIG` environment variable to point to a
-different file. The config is read by the `pre_gen_project.py` hook and
-applied to `metadata.yaml` by `post_gen_project.py`. **The config file is
-never copied into the generated repository.**
-
 ## Quick start (local cookiecutter)
+
+The `post_gen_project.py` hook initialises git, installs the pre-push hook and fills in
+today's date. To bootstrap without a local clone, see
+[Bootstrap remotely](#bootstrap-remotely-no-local-clone).
 
 ```bash
 # One-time install
@@ -185,6 +76,115 @@ After the prompts, cookiecutter creates a new directory named after
 `repo_name`, runs the `post_gen_project.py` hook (which initialises git,
 installs the pre-push hook, fills in the date, applies user config, and
 prints next steps), and exits.
+
+## Optional user configuration
+
+You can set personal defaults so you don't have to re-enter them every time.
+Create a config file at `~/.config/article-scaffold/config.yaml`:
+
+```yaml
+github_user: "your-github-user"
+author_name: "Your Name"
+author_orcid: "0000-0000-0000-0000"
+author_affiliation: "Your Affiliation"
+keywords: "your, keywords"
+target_deposit: "Zenodo"
+```
+
+Or set the `ARTICLE_SCAFFOLD_CONFIG` environment variable to point to a
+different file. The config is read by the `pre_gen_project.py` hook and
+applied to `metadata.yaml` by `post_gen_project.py`. **The config file is
+never copied into the generated repository.**
+
+## Bootstrap remotely (no local clone)
+
+The alternative to the local quick start above is the `bootstrap-article.yml` workflow.
+
+If you push this template to GitHub, the
+`.github/workflows/bootstrap-article.yml` workflow lets you bootstrap a new
+article repo from the GitHub UI (or via `gh workflow run`) without cloning
+locally. The workflow:
+
+1. Renders the template with the parameters you supply as workflow inputs.
+2. Runs `make validate` on the rendered repo (fails the workflow if the
+   template is broken).
+3. Creates a new GitHub repo under the `owner` input (an org or user
+   listed in `APP_OWNERS`; the workflow's default is the maintainer's article org) with the chosen
+   visibility (default **private**), and its public companion.
+4. Pushes the initial commit, which triggers the new repo's own
+   `build-artifacts.yml` to build PDF + DOCX.
+
+It authenticates as the scaffold's GitHub App, so no personal token is involved:
+the scaffold needs the secret `APP_PRIVATE_KEY` and the variables `APP_ID` and
+`APP_OWNERS` (one-time setup: `docs/skills/setting-up-the-article-github-app.md`).
+The caller only needs `gh` access that may dispatch workflows on the scaffold repo.
+Then:
+
+```bash
+gh workflow run bootstrap-article.yml \
+  -f owner=<your-org> \
+  -f topic=ai_governance \
+  -f title="From AI Scaling to AI Governance" \
+  -f subtitle="Technological Revolutions and the Political Economy of Deployment" \
+  -f author_name="Your Name" \
+  -f author_orcid="" \
+  -f version="3.0.0" \
+  -f version_label="v3 preprint" \
+  -f license="CC-BY-4.0" \
+  -f target_deposit="Zenodo" \
+  -f keywords="AI governance,regulatory capture,Carlota Perez,embedded evaluators"
+```
+
+The workflow's job summary prints a clickable link to the new repo and a
+next-steps checklist. See the workflow file for the full input list.
+
+## Public companion repos
+
+New article repos are private, but Zenodo only archives public repos. Each article repo
+therefore has a public companion that receives an allowlisted snapshot on every final
+release tag. The bootstrap workflow creates the article repo and its companion under
+the `owner` input (which must be listed in `APP_OWNERS`) by calling
+`provision-companion.yml` (input `create_companion`, default true). All of it runs on one GitHub App whose key is
+the scaffold secret `APP_PRIVATE_KEY` (variables `APP_ID`, `APP_OWNERS`); see
+`docs/skills/setting-up-the-article-github-app.md`. Publishing is a dispatch of the
+scaffold's `publish-companion.yml` for a tag, and `track-articles.yml` reports daily
+which tags have no companion release. Existing repos adopt the feature by upgrading,
+then running the provisioning workflow. Articles can link to each other as a series
+with `related_identifiers` in `metadata.yaml`.
+Switching the companion on in Zenodo stays manual. See [docs/companion.md](docs/companion.md).
+
+## Keeping repos current
+
+A generated repo never updates itself. From a clean tree in the article repo:
+
+```bash
+python3 -m scripts.article upgrade --plan
+python3 -m scripts.article upgrade --apply
+# resolve conflicts, `git add` them, then:
+python3 -m scripts.article upgrade --finish
+```
+
+Template changes arrive as a reviewable diff; your `metadata.yaml` is never rewritten, and
+files the template dropped are removed. See [docs/upgrading.md](docs/upgrading.md).
+
+## Driving the scaffold from an agent
+
+An agent never handles the App key; it dispatches scaffold workflows with `gh` and the
+App mints short-lived tokens inside them (decision `0062`). Run `gh workflow run <file>
+-R <scaffold repo> -f ...`:
+
+| Job | Workflow | Key inputs | Check the result |
+| --- | --- | --- | --- |
+| New article and companion | `bootstrap-article.yml` | `owner`, `topic`, `title`, `create_companion` | job summary link |
+| Create or repair companions | `provision-companion.yml` | `repo` (`OWNER/name` or `all`), `owner`, `dry_run` | per-repo result in the run summary |
+| Publish a release | `publish-companion.yml` | `repo`, `tag`, `dry_run` | snapshot artifact file list |
+| Report status | `track-articles.yml` | none | run summary table |
+
+Always run with `dry_run=true` first and read the output (for publishing, download the
+snapshot artifact and read its file list) before repeating with `dry_run=false`.
+`owner` must be listed in `APP_OWNERS`. Pushing the final `vX.Y.Z` tag and switching the
+companion on in Zenodo are the owner's; an agent stops and asks. Details per workflow:
+[docs/companion.md](docs/companion.md).
 
 ## What you get
 
