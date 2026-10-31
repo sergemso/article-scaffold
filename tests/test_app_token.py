@@ -52,7 +52,6 @@ def test_repositories_has_no_widening_default() -> None:
 
 
 def test_every_caller_passes_the_allowlist() -> None:
-    import re
     from pathlib import Path
 
     for wf in Path(".github/workflows").glob("*.yml"):
