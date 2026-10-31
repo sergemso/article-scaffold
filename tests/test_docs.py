@@ -192,7 +192,7 @@ def test_readme_states_goals_and_links_the_detail_docs() -> None:
     """The README opens with what the scaffold is for and links every detail doc."""
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "## What it's for" in text
-    assert text.index("## What it's for") < text.index("## Two ways to bootstrap")
+    assert text.index("## What it's for") < text.index("## Quick start")
     for link in ("docs/upgrading.md", "docs/companion.md", "canonical-pattern.md"):
         assert link in text, link
         assert (ROOT / link).exists(), link
