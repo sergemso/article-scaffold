@@ -104,10 +104,11 @@ Do: Rewrite those docs for the app flow (secrets table becomes the secret `APP_P
 Result (2026-10-31): version 1.7.0; the unreleased CHANGELOG entries moved under `[1.7.0]` and the obsolete `GH_PAT`-grants note was dropped. `go-getter apply` ran and left no tracked change (the AGENTS.md section was already current). `docs/companion.md` gained Publishing, Tracking and Linked articles sections.
 Done-when: the Check passes and `grep -rn "COMPANION_PAT\|COMPANION_TOKEN" README.md docs/companion.md docs/upgrading.md {{cookiecutter.repo_name}}/docs` finds nothing outside history notes.
 
-### 4.2 Run the full suite and an end-to-end render — [ ]
+### 4.2 Run the full suite and an end-to-end render — [x]
 Class: review · Needs: 4.1 · Check: `make test && make lint`
 Context: Same as the last step of the previous plan (`docs/plans/public-companion-repos.md` step 3.2).
 Do: Run `make test` and `make lint`. Render with cookiecutter using `github_user=strebulaev-articles` and a series `related_identifiers` entry, run `python3 -m scripts.article companion --build`, and confirm the snapshot's `.zenodo.json` carries the related identifiers and nothing under `.github/`, `scripts/` or `docs/` is included.
+Result (2026-10-31): `make test` 505 passed, 4 skipped (network); `make lint` clean (yamllint not installed). Render with `github_user=strebulaev-articles` and a two-entry series: `.zenodo.json` carries both DOIs normalised; `companion --plan --json` lists 37 files and none under `.github/`, `scripts/`, `docs/`, `.claude/`, `.scholar/`. `--build` was not run (needs built PDF/DOCX; the plan-level check covers the file list).
 Done-when: both commands exit 0, the render check holds, and any failure is reported with its output.
 
 ## 5. Adopt in the real repos
