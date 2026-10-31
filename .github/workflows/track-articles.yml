@@ -66,6 +66,7 @@ jobs:
         uses: ./.github/actions/app-token
         with:
           app-id: ${{ vars.APP_ID }}
+          allowed-owners: ${{ vars.APP_OWNERS }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ matrix.owner }}
           permission-contents: read
