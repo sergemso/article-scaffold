@@ -141,16 +141,38 @@ jobs:
           fi
           docker run --rm \
             -v "$PWD:/workspace" \
-            -w /workspace/article \
+            -w /workspace/article/paper \
             pandoc/core:3.1 \
             --output=/workspace/artifacts/manuscript.docx \
             --from=latex \
             --to=docx \
             --citeproc \
-            --bibliography=paper/refs.bib \
-            --resource-path=/workspace/article/paper:/workspace/article/paper/figures:/workspace/article \
+            --bibliography=refs.bib \
+            --resource-path=.:figures:.. \
             $REFERENCE_ARGS \
-            paper/article.tex
+            article.tex
+
+      - name: Verify the DOCX holds the sections
+        run: |
+          set -euo pipefail
+          python3 -I - <<'PY'
+          import glob, re, sys, zipfile
+
+          def words(text):
+              return len(re.sub(r"<[^>]+>", " ", text).split())
+
+          with zipfile.ZipFile("artifacts/manuscript.docx") as z:
+              got = words(z.read("word/document.xml").decode("utf-8"))
+          src = sum(
+              len(open(f, encoding="utf-8").read().split())
+              for f in glob.glob("article/paper/sections/*.tex")
+          )
+          print(f"DOCX words: {got}; section source words: {src}")
+          # A run that skips the \input files leaves only the title block.
+          if got * 4 < src:
+              print("::error::DOCX holds far less text than the section sources")
+              sys.exit(1)
+          PY
 
       - name: Build the snapshot
         working-directory: article
