@@ -273,6 +273,7 @@ jobs:
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
         run: |
           set -euo pipefail
+          set +x   # the token lives in the environment; never trace it
           REPO_FULL="${OWNER}/${REPO_NAME}"
 
           # An org-wide token can create public repos, so visibility is always

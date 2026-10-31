@@ -88,10 +88,11 @@ Do: Delete `{{cookiecutter.repo_name}}/.github/workflows/publish-companion.yml` 
 Result (2026-10-31): `upgrade` needed no new code: it diffs the old and new renders, so a file the template drops arrives as a `D` chunk that `git apply --3way` deletes (reported in `applied`; an edited copy conflicts instead of vanishing). `--plan` stays render-free and does not list files; the removal shows in `--apply`. `tests/test_upgrade_companion.py` now builds a second template fixture at `d1bc736` (the last commit with the workflow) for the removal and edited-copy cases. Template `docs/companion.md` describes dispatching the scaffold workflow.
 Done-when: the Check passes, a fresh render has no `publish-companion.yml`, and an upgrade of a repo that has it removes it.
 
-### 3.7 Test the guardrails and retire the old ones — [ ]
+### 3.7 Test the guardrails and retire the old ones — [x]
 Class: implement · Needs: 3.2, 3.3, 3.4, 3.5, 3.6 · Check: `.venv/bin/python -m pytest tests/test_app_key_guardrail.py -q`
 Context: Guardrail `app-key-stays-in-scaffold` says it is enforced by tests reading scaffold and template workflows and scripts. The deprecated `companion-token-least-privilege` was enforced by tests in `tests/test_provision_companion.py` and the publish workflow tests; those assertions are now removed or moved.
 Do: Create `tests/test_app_key_guardrail.py` asserting: `vars.APP_ID` and `secrets.APP_PRIVATE_KEY` are referenced only under `.github/` of the scaffold; nothing in `{{cookiecutter.repo_name}}/` references `APP_PRIVATE_KEY`, `GH_PAT`, `COMPANION_PAT` or `COMPANION_TOKEN`; every `create-github-app-token` use (directly or via the composite action) passes `owner`; no workflow echoes a token.
+Result (2026-10-31): `companion-token-least-privilege` was already `deprecated`. The new test also asserts every mint narrows at least one permission, the allowlist check precedes the mint, and any step with `GH_TOKEN` in its env traces nothing. It found `bootstrap-article.yml` "Create the GitHub repo" missing `set +x`; added.
 Done-when: the Check passes.
 
 ## 4. Docs and release
