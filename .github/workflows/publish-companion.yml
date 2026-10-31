@@ -70,6 +70,7 @@ jobs:
         uses: ./.github/actions/app-token
         with:
           app-id: ${{ vars.APP_ID }}
+          allowed-owners: ${{ vars.APP_OWNERS }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
           repositories: ${{ inputs.repo }}
@@ -233,6 +234,7 @@ jobs:
         uses: ./.github/actions/app-token
         with:
           app-id: ${{ vars.APP_ID }}
+          allowed-owners: ${{ vars.APP_OWNERS }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
           repositories: ${{ steps.target.outputs.name }}

@@ -2,7 +2,8 @@
 #
 # Decision 0062, guardrail app-key-stays-in-scaffold. A composite action cannot read
 # secrets, so the caller passes `app-id` (vars.APP_ID) and `private-key`
-# (secrets.APP_PRIVATE_KEY). `owner` must be a line of vars.APP_OWNERS. The token is
+# (secrets.APP_PRIVATE_KEY). `owner` must be a line of `allowed-owners`
+# (callers pass vars.APP_OWNERS; the `vars` context is not available in a composite action). The token is
 # masked by create-github-app-token and is never echoed here. Narrow it: pass
 # `repositories` (empty means every repository of the owner) and the permissions the job
 # needs (an unset permission inherits the app's own grant).
@@ -18,7 +19,10 @@ inputs:
     description: The App private key (secrets.APP_PRIVATE_KEY)
     required: true
   owner:
-    description: Account or org to mint for; must be listed in vars.APP_OWNERS
+    description: Account or org to mint for; must be listed in allowed-owners
+    required: true
+  allowed-owners:
+    description: Newline-separated owner allowlist (vars.APP_OWNERS)
     required: true
   repositories:
     description: Comma-separated repository names (without owner) to narrow the token to
@@ -53,7 +57,7 @@ runs:
       shell: bash
       env:
         OWNER: ${{ inputs.owner }}
-        APP_OWNERS: ${{ vars.APP_OWNERS }}
+        APP_OWNERS: ${{ inputs.allowed-owners }}
       run: |
         if [ -z "$OWNER" ] || ! printf '%s\n' "$APP_OWNERS" | tr -d '\r' | grep -Fxq -- "$OWNER"; then
           echo "::error::owner '$OWNER' is not listed in the APP_OWNERS variable"
