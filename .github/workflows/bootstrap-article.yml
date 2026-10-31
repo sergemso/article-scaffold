@@ -6,28 +6,17 @@
 # specified owner, and pushes the initial commit.
 #
 # ─────────────────────────────────────────────────────────────
-# PREREQUISITE — `GH_PAT` secret
+# PREREQUISITE — the scaffold GitHub App
 # ─────────────────────────────────────────────────────────────
-# The default `GITHUB_TOKEN` cannot create new repositories. You need
-# a Personal Access Token with repository access for the target owner.
-# Either kind works, but the required grants differ:
+# The workflow has no personal access token. It mints GitHub App installation
+# tokens with .github/actions/app-token from the secret `APP_PRIVATE_KEY` and the
+# variables `APP_ID` and `APP_OWNERS` (the owners it may act for). `owner` must be
+# one of them, and the App must be installed on it with all repositories. Set it
+# up with docs/skills/setting-up-the-article-github-app.md. Decision 0062.
 #
-#   Classic PAT: the `repo` and `workflow` scopes.
-#   Fine-grained PAT: Repository access "All repositories", with repository
-#     permissions Contents: Read and write (push the tree), Workflows:
-#     Read and write (push .github/workflows), Administration: Read and
-#     write (create repos, set description/topics; also an account-level
-#     Administration permission for repo creation) and Secrets: Read and
-#     write (the companion job installs COMPANION_TOKEN).
-# Add it as a repository secret named `GH_PAT`:
-#
-#   Settings → Secrets and variables → Actions → New repository secret
-#   Name: GH_PAT
-#   Value: <your PAT>
-#
-# If the new repo is to be created under the same user that owns this
-# scaffold repo, leave `new_repo_owner` blank — the workflow uses
-# `${{ github.actor }}` by default.
+# Two tokens are used: one for the owner without a repository scope
+# (Administration write) to create the repo, and one narrowed to the new repo
+# (Contents and Workflows write) to push the tree.
 
 name: Bootstrap new article repo
 
@@ -98,13 +87,13 @@ name: Bootstrap new article repo
           - private
         default: private
       create_companion:
-        description: "Also create the public companion repo (release snapshots for Zenodo) and install COMPANION_TOKEN"
+        description: "Also create the public companion repo (release snapshots for Zenodo) "
         type: boolean
         default: true
-      new_repo_owner:
-        description: "Owner of the new repo. Leave empty to use the triggering actor."
+      owner:
+        description: "Owner (org) of the new repo; must be listed in the APP_OWNERS variable"
         required: false
-        default: ""
+        default: "strebulaev-articles"
       skip_pre_push_hook:
         description: "Skip the pre-push validate hook for the initial bootstrap push (recommended: false, so the workflow fails loudly if the template is broken)"
         type: boolean
@@ -143,8 +132,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           LICENSE: ${{ inputs.license }}
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
-          NEW_REPO_OWNER: ${{ inputs.new_repo_owner }}
-          ACTOR: ${{ github.actor }}
+          OWNER: ${{ inputs.owner }}
         run: |
           set -euo pipefail
 
@@ -180,9 +168,8 @@ jobs:
               ;;
           esac
 
-          OWNER="${NEW_REPO_OWNER:-$ACTOR}"
           if ! [[ "$OWNER" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$ ]]; then
-            echo "::error::new_repo_owner is not a valid GitHub user or organization name."
+            echo "::error::owner is not a valid GitHub user or organization name."
             exit 1
           fi
 
@@ -268,28 +255,32 @@ jobs:
           git add .
           git commit -m "initial scaffold (from article-scaffold workflow)"
 
-      - name: Create and push new GitHub repo
-        id: create
+      - name: Mint token to create the repo
+        id: admin_token
+        uses: ./.github/actions/app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ steps.validate.outputs.owner }}
+          permission-administration: write
+
+      - name: Create the GitHub repo
+        id: repo
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          PROJECT_DIR: ${{ steps.cookiecutter.outputs.project_dir }}
+          GH_TOKEN: ${{ steps.admin_token.outputs.token }}
           OWNER: ${{ steps.validate.outputs.owner }}
           REPO_NAME: ${{ steps.validate.outputs.repo_name }}
           REPO_VISIBILITY: ${{ inputs.repo_visibility }}
-          SKIP_PRE_PUSH: ${{ inputs.skip_pre_push_hook }}
         run: |
           set -euo pipefail
-          cd "$PROJECT_DIR"
-          set +x   # never print the token-bearing remote URL to logs
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::Secret GH_PAT is not set. See the workflow file for setup instructions."
-            exit 1
-          fi
+          set +x   # the token lives in the environment; never trace it
           REPO_FULL="${OWNER}/${REPO_NAME}"
 
+          # An org-wide token can create public repos, so visibility is always
+          # passed explicitly (fact 0005).
           case "$REPO_VISIBILITY" in
-            public) VISIBILITY_FLAG="--public" ;;
-            private) VISIBILITY_FLAG="--private" ;;
+            public) PRIVATE=false ;;
+            private) PRIVATE=true ;;
             *)
               echo "::error::repo_visibility must be public or private."
               exit 1
@@ -304,29 +295,50 @@ jobs:
             exit 1
           fi
 
-          gh repo create "$REPO_FULL" "$VISIBILITY_FLAG" \
-            --description="Article manuscript repository scaffolded from article-scaffold."
+          gh api "orgs/${OWNER}/repos" \
+            -f name="$REPO_NAME" \
+            -F private="$PRIVATE" \
+            -f description="Article manuscript repository scaffolded from article-scaffold." \
+            >/dev/null
 
-          # Set topics explicitly so the new repo is discoverable and the
-          # bootstrap result is reproducible. Continue on error if token lacks
-          # permission to edit topics (requires admin:repo_hook or repo scope).
-          (gh repo edit "$REPO_FULL" \
-            --add-topic article \
-            --add-topic manuscript \
-            --add-topic latex \
-            --add-topic research) || true
+          gh api -X PUT "repos/${REPO_FULL}/topics" \
+            -f "names[]=article" -f "names[]=manuscript" \
+            -f "names[]=latex" -f "names[]=research" >/dev/null || true
+
+      - name: Mint token to push the new repo
+        id: push_token
+        uses: ./.github/actions/app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ steps.validate.outputs.owner }}
+          repositories: ${{ steps.validate.outputs.repo_name }}
+          permission-contents: write
+          permission-workflows: write
+
+      - name: Push the initial commit
+        id: create
+        env:
+          GH_TOKEN: ${{ steps.push_token.outputs.token }}
+          PROJECT_DIR: ${{ steps.cookiecutter.outputs.project_dir }}
+          OWNER: ${{ steps.validate.outputs.owner }}
+          REPO_NAME: ${{ steps.validate.outputs.repo_name }}
+          REPO_VISIBILITY: ${{ inputs.repo_visibility }}
+          SKIP_PRE_PUSH: ${{ inputs.skip_pre_push_hook }}
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          set +x   # never print the token-bearing remote URL to logs
+          REPO_FULL="${OWNER}/${REPO_NAME}"
 
           # Add `origin` with the token embedded in the URL so raw `git push`
           # authenticates non-interactively. We do not echo the URL.
           git remote remove origin 2>/dev/null || true
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git"
 
-          # Push the initial commit. By default the pre-push hook runs
-          # `make validate` again — harmless (we already validated) but
-          # adds a few seconds. The user can opt out via skip_pre_push_hook.
-          # The default branch is determined by cookiecutter at render time.
-          # Pass it through from the template context via the rendered project's
-          # git config or use a reasonable fallback.
+          # By default the pre-push hook runs `make validate` again; the
+          # user can opt out via skip_pre_push_hook. The default branch is
+          # whatever cookiecutter's post-gen hook initialised.
           DEFAULT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
           if [ "$SKIP_PRE_PUSH" = "true" ]; then
             git push --no-verify -u origin "$DEFAULT_BRANCH"
@@ -334,10 +346,7 @@ jobs:
             git push -u origin "$DEFAULT_BRANCH"
           fi
 
-          # Scrub the token from the remote URL so it does not leak into
-          # .git/config if someone later inspects it. The remote now points
-          # at the clean HTTPS URL; future pushes will use git's credential
-          # helper (or the user's local auth).
+          # Scrub the token from the remote URL so it does not stay in .git/config.
           git remote set-url origin "https://github.com/${REPO_FULL}.git"
 
           echo "repo_url=https://github.com/$REPO_FULL" >> "$GITHUB_OUTPUT"
@@ -383,8 +392,8 @@ jobs:
             else
               echo "Bootstrap failed. See the job log above for the error."
               echo ""
-              echo "Common failure: the \`GH_PAT\` secret is missing or does not have \`repo\` scope."
-              echo "Add it under Settings → Secrets and variables → Actions → New repository secret."
+              echo "Common failure: the App is not installed on the owner, or \`owner\` is missing from the \`APP_OWNERS\` variable."
+              echo "See docs/skills/setting-up-the-article-github-app.md."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

@@ -1,14 +1,12 @@
-# Create the public companion repo of an article repo and install COMPANION_TOKEN.
+# Create the public companion repo of an article repo.
 #
 # Idempotent: it creates the companion only if absent, re-applies description and
-# topics, never changes visibility and never deletes. See docs/decisions/0060.
-#
-# Scaffold secrets: `GH_PAT` (creates repos, sets secrets; stays here) and
-# `COMPANION_PAT` (fine-grained, contents write on the companions only; copied into
-# the article repo as COMPANION_TOKEN). Neither is ever printed or passed as an argument.
-# COMPANION_PAT may be absent: a fine-grained PAT can only be scoped to a companion that
-# already exists, so the repo is created first and the secret is deferred until the token
-# is scoped and provisioning runs again.
+# topics, never changes visibility and never deletes. Decisions 0060 (provisioning)
+# and 0062 (identity): the token is a GitHub App installation token minted with
+# .github/actions/app-token from the secret APP_PRIVATE_KEY and the variables APP_ID
+# and APP_OWNERS. It is not narrowed to a repository because the companion does not
+# exist yet; fact 0005 notes any such token can create repos, so the script always
+# creates them public explicitly and never touches an existing repo's visibility.
 
 name: Provision companion repo
 
@@ -20,9 +18,9 @@ name: Provision companion repo
         required: true
         default: "all"
       owner:
-        description: "Owner for `all` (empty: the triggering actor)"
+        description: "Owner for `all`; must be listed in APP_OWNERS"
         required: false
-        default: ""
+        default: "strebulaev-articles"
       dry_run:
         description: "Read only; report what would change"
         type: boolean
@@ -36,16 +34,11 @@ name: Provision companion repo
       owner:
         type: string
         required: false
-        default: ""
+        default: "strebulaev-articles"
       dry_run:
         type: boolean
         required: false
         default: true
-    secrets:
-      GH_PAT:
-        required: false
-      COMPANION_PAT:
-        required: false
 
 permissions:
   contents: read
@@ -73,20 +66,39 @@ jobs:
       - name: Install PyYAML
         run: pip install pyyaml
 
+      - name: Resolve owner
+        id: owner
+        env:
+          REPO: ${{ inputs.repo }}
+          OWNER_INPUT: ${{ inputs.owner }}
+        run: |
+          set -euo pipefail
+          if [ "$REPO" = "all" ]; then
+            OWNER="$OWNER_INPUT"
+          else
+            OWNER="${REPO%%/*}"
+          fi
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+
+      - name: Mint installation token
+        id: token
+        uses: ./.github/actions/app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ steps.owner.outputs.owner }}
+          permission-administration: write
+          permission-contents: read
+
       - name: Provision
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          COMPANION_PAT: ${{ secrets.COMPANION_PAT }}
+          GH_TOKEN: ${{ steps.token.outputs.token }}
           REPO: ${{ inputs.repo }}
-          OWNER: ${{ inputs.owner || github.actor }}
+          OWNER: ${{ steps.owner.outputs.owner }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          set +x   # the tokens live in the environment; never trace them
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::Secret GH_PAT is not set."
-            exit 1
-          fi
+          set +x   # the token lives in the environment; never trace it
           ARGS=(--repo "$REPO" --owner "$OWNER" --json)
           if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
           status=0
@@ -95,16 +107,15 @@ jobs:
           {
             echo "## Companion provisioning (dry run: ${DRY_RUN})"
             echo ""
-            echo "| Article repo | Status | Companion | Secret | Detail |"
-            echo "|---|---|---|---|---|"
+            echo "| Article repo | Status | Companion | Detail |"
+            echo "|---|---|---|---|"
             python3 - <<'PY'
           import json
           for r in json.load(open("results.json"))["results"]:
-              print(f"| `{r['repo']}` | {r['status']} | `{r['companion']}` | {r['secret']} | {r['detail']} |")
+              print(f"| `{r['repo']}` | {r['status']} | `{r['companion']}` | {r['detail']} |")
           PY
             echo ""
             echo "- New or changed companion: switch it on at https://zenodo.org/account/settings/github/ (sync, then toggle). This cannot be automated."
             echo "- \`needs-upgrade\`: run \`python3 -m scripts.article upgrade\` in that article repo, then provision again."
-            echo "- \`deferred\` secret: create a fine-grained COMPANION_PAT (Contents: read and write, repositories: the companions only), set it as a scaffold secret, then run this workflow again with dry_run false."
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"

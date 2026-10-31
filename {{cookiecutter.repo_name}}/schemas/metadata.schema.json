@@ -41,6 +41,22 @@
         "$ref": "#/definitions/affiliation"
       }
     },
+    "related_identifiers": {
+      "description": "Links to other records (series, predecessor, successor); DOIs or public https URLs only.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["identifier", "relation", "scheme"],
+        "properties": {
+          "identifier": {"type": "string", "minLength": 1},
+          "relation": {
+            "enum": ["isPartOf", "hasPart", "continues", "isContinuedBy", "isNewVersionOf", "isPreviousVersionOf", "obsoletes", "isObsoletedBy", "isSupplementTo", "isSupplementedBy", "references", "isReferencedBy", "isDocumentedBy"]
+          },
+          "scheme": {"enum": ["doi", "url"]}
+        }
+      }
+    },
     "author": {
       "description": "Legacy v1 single-author mapping.",
       "type": ["object", "string"],

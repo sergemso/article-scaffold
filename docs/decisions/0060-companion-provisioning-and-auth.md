@@ -1,7 +1,8 @@
 ---
 id: 0060-companion-provisioning-and-auth
 title: The scaffold provisions companions idempotently and fans out a scoped token
-status: active
+status: superseded
+superseded-by: 0062-github-app-as-scaffold-identity
 date: 2026-10-29
 tags: [companion, ci, security, bootstrap]
 track: process

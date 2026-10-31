@@ -81,8 +81,9 @@ below for that first upgrade.
 ## Adopting the public companion repo
 
 A repo scaffolded before companion repos existed adopts them by upgrading: `upgrade` adds
-`companion.yaml`, its schema, the `companion` command and `publish-companion.yml`, and
-regenerates `CITATION.cff` and the README citation so they point at the companion. After
+`companion.yaml`, its schema and the `companion` command, removes the old article-side
+`publish-companion.yml` (publishing now runs from the scaffold, see
+[companion.md](companion.md)), and regenerates `CITATION.cff` and the README citation so they point at the companion. After
 `--finish`, review `companion.yaml` (it is yours; later upgrades never overwrite it), then
 run the scaffold's `provision-companion.yml` for the repo. See [companion.md](companion.md).
 

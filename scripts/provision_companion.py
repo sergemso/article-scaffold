@@ -5,13 +5,10 @@
     python3 scripts/provision_companion.py --repo all --owner OWNER
 
 For each article repo it reads `companion.yaml` from the default branch, creates the
-public companion if it is absent, re-applies its description and topics, and copies the
-env var COMPANION_PAT into the article repo as the secret COMPANION_TOKEN. When
-COMPANION_PAT is empty the repo work still happens and the secret is reported as
-`deferred`: a fine-grained PAT can only be scoped to a companion that already exists,
-so first provision the repo, then scope the token, then provision again. It never
+public companion if it is absent and re-applies its description and topics. It never
 changes the visibility of an existing repo and never deletes anything. Needs `gh`
-authenticated with GH_PAT. Standard library plus PyYAML.
+authenticated through GH_TOKEN with an App installation token for the owner
+(Administration write, Contents read; decision 0062). Standard library plus PyYAML.
 
 `companion.yaml` is author-editable, so its `repo` value is untrusted input here: it
 must match the schema pattern, share the article repo's owner and differ from it.
@@ -22,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -31,8 +27,6 @@ from dataclasses import dataclass, field
 
 import yaml
 
-SECRET_NAME = "COMPANION_TOKEN"
-TOKEN_ENV = "COMPANION_PAT"
 ARTICLE_PREFIX = "articles."
 TOPICS = ("article", "manuscript", "latex", "zenodo")
 FAILING = {"error", "refused", "drift"}
@@ -62,7 +56,6 @@ class Result:
     status: str
     companion: str = ""
     detail: str = ""
-    secret: str = "skipped"
     changes: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -71,7 +64,6 @@ class Result:
             "status": self.status,
             "companion": self.companion,
             "detail": self.detail,
-            "secret": self.secret,
             "changes": self.changes,
         }
 
@@ -82,10 +74,6 @@ def _description(article: str) -> str:
 
 def _is_missing(done: Completed) -> bool:
     return done.returncode != 0 and ("404" in done.stderr or "Not Found" in done.stderr)
-
-
-def _scrub(text: str, token: str) -> str:
-    return text.replace(token, "***") if token else text
 
 
 def list_article_repos(run: Runner, owner: str) -> list[str]:
@@ -136,7 +124,7 @@ def refusal(article: str, companion: str) -> str:
     return ""
 
 
-def provision_one(run: Runner, article: str, *, dry_run: bool, token: str) -> Result:
+def provision_one(run: Runner, article: str, *, dry_run: bool) -> Result:
     if not REPO_RE.match(article):
         return Result(article, "refused", detail="article repo is not OWNER/NAME")
     companion, problem = read_companion_repo(run, article)
@@ -201,35 +189,21 @@ def provision_one(run: Runner, article: str, *, dry_run: bool, token: str) -> Re
                         article, "error", companion, f"edit failed: {done.stderr.strip()}"
                     )
 
-    if dry_run:
-        result.secret = "would-refresh"
-    elif not token:
-        result.secret = "deferred"
-    else:
-        done = run(["secret", "set", SECRET_NAME, "--repo", article], token)
-        if done.returncode != 0:
-            return Result(
-                article,
-                "error",
-                companion,
-                f"secret set failed: {_scrub(done.stderr.strip(), token)}",
-            )
-        result.secret = "refreshed"
     return result
 
 
-def provision(run: Runner, repo: str, owner: str, *, dry_run: bool, token: str) -> list[Result]:
+def provision(run: Runner, repo: str, owner: str, *, dry_run: bool) -> list[Result]:
     if repo == "all":
         if not owner:
             raise ValueError("--owner is required with --repo all")
         articles = list_article_repos(run, owner)
         results = []
         for article in articles:
-            res = provision_one(run, article, dry_run=dry_run, token=token)
+            res = provision_one(run, article, dry_run=dry_run)
             if res.status != "needs-upgrade":
                 results.append(res)
         return results
-    return [provision_one(run, repo, dry_run=dry_run, token=token)]
+    return [provision_one(run, repo, dry_run=dry_run)]
 
 
 def main(argv: list[str] | None = None, run: Runner = gh_runner) -> int:
@@ -240,16 +214,10 @@ def main(argv: list[str] | None = None, run: Runner = gh_runner) -> int:
     parser.add_argument("--json", action="store_true", help="print machine-readable results")
     args = parser.parse_args(argv)
 
-    token = os.environ.get(TOKEN_ENV, "")
-    if not token and not args.dry_run:
-        print(
-            f"note: {TOKEN_ENV} is empty; provisioning repos, secret deferred",
-            file=sys.stderr,
-        )
     try:
-        results = provision(run, args.repo, args.owner, dry_run=args.dry_run, token=token)
+        results = provision(run, args.repo, args.owner, dry_run=args.dry_run)
     except (ValueError, RuntimeError) as exc:
-        print(f"error: {_scrub(str(exc), token)}", file=sys.stderr)
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     if args.json:

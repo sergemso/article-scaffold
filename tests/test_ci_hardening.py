@@ -27,6 +27,7 @@ MAJOR_TAGS = {
     "actions/upload-pages-artifact": "v5",
     "xu-cheng/texlive-action": "v3",
     "softprops/action-gh-release": "v3",
+    "actions/create-github-app-token": "v3",
 }
 
 

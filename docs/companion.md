@@ -4,7 +4,9 @@ Article repos are private. Zenodo's GitHub integration only archives public repo
 reacts to a published GitHub Release (fact `0002-zenodo-github-integration-constraints`).
 So each article repo gets a public **companion** repo, `<owner>/<article repo>.public`,
 that receives an allowlisted snapshot on every final release. Zenodo archives the
-companion. Rationale: decision `0059-public-companion-repo-per-article`.
+companion. Rationale: decision `0059-public-companion-repo-per-article`. Both repos live
+in an org that has the scaffold's GitHub App installed (default `strebulaev-articles`);
+the `owner` parameter of each workflow names it (decision `0062`).
 
 ## What is and is not published
 
@@ -15,23 +17,23 @@ Published: what `companion.yaml` in the article repo allows (by default `paper/`
 output, and key or `.env` files. Deny patterns beat the allowlist, and a leak scan fails the
 build if the private repo's name or a secret pattern appears in the snapshot.
 
-## Scaffold secrets
+## Scaffold credentials
 
-Both live in this repo under Settings, Secrets and variables, Actions.
+One GitHub App is the only credential (decision `0062`). It is owned by `sergemso`,
+installed on each article org, and its key never leaves this repo. Set up once with
+`docs/skills/setting-up-the-article-github-app.md`. They live under Settings, Secrets and
+variables, Actions.
 
-| Secret | Purpose | Scope |
+| Name | Kind | Purpose |
 | --- | --- | --- |
-| `GH_PAT` | Creates repos and sets secrets. Stays in the scaffold. | Classic PAT: `repo` + `workflow`. Fine-grained PAT: all repositories, with Contents, Workflows, Administration and Secrets read/write (Administration is what `gh repo edit` needs; without it provisioning fails with `Resource not accessible by personal access token`). |
-| `COMPANION_PAT` | Copied into each article repo as `COMPANION_TOKEN`. | Fine-grained PAT, repository permission *Contents: read and write*, repositories: the companions only. |
+| `APP_PRIVATE_KEY` | secret | The App's private key. Read only by scaffold workflows. |
+| `APP_ID` | variable | The App ID. |
+| `APP_OWNERS` | variable | Allowed owners, one per line. A workflow refuses any other `owner`. |
 
-A fine-grained token can only be scoped to repositories that already exist, so the
-order is: provisioning creates the companion (this works with `GH_PAT` alone and
-reports the secret as `deferred`), then you create `COMPANION_PAT` scoped to the
-companions (repository permission *Contents: read and write*), set it as a scaffold
-secret, and run provisioning again to install `COMPANION_TOKEN`. When a new companion
-appears later, edit the token to add it (or choose all repositories of the owner with
-only contents write), then run provisioning again to refresh the secret. Guardrail
-`companion-token-least-privilege`.
+Every job mints its own short-lived installation token with
+`.github/actions/app-token`, narrowed to one owner and only the permissions it needs.
+Article repos hold no secret for this. Guardrail `app-key-stays-in-scaffold`, enforced by
+`tests/test_app_key_guardrail.py`.
 
 ## Provisioning
 
@@ -42,17 +44,45 @@ gh workflow run provision-companion.yml -f repo=OWNER/articles.topic -f dry_run=
 gh workflow run provision-companion.yml -f repo=all -f owner=OWNER -f dry_run=false
 ```
 
-It creates the public companion if absent, sets description and topics, installs
-`COMPANION_TOKEN` in the article repo and reports drift. It never changes visibility and
-never deletes. Per repo the result is `created`, `updated`, `unchanged`, `needs-upgrade`
-(the article repo has no `companion.yaml`: upgrade it first), `drift` (the companion exists
-but is private), `refused` or `error`; the secret column reads `refreshed`, `deferred`
-(no `COMPANION_PAT` yet: scope it and run again) or `would-refresh`. Re-running changes
-nothing except the secret.
+It creates the public companion if absent, sets description and topics and reports drift.
+It never changes visibility and never deletes. Per repo the result is `created`,
+`updated`, `unchanged`, `needs-upgrade` (the article repo has no `companion.yaml`: upgrade
+it first), `drift` (the companion exists but is private), `refused` or `error`.
 `bootstrap-article.yml` calls it for new repos (input `create_companion`).
+
+## Publishing a release
+
+Publishing runs from the scaffold, never from the article repo (decision `0063`). After
+the owner pushes a final `vX.Y.Z` tag equal to `metadata.yaml`'s version:
+
+```bash
+gh workflow run publish-companion.yml -f repo=articles.topic -f tag=vX.Y.Z -f dry_run=true
+```
+
+The first job, with a read-only token for that one article, checks out the tag, builds
+the PDF and DOCX, applies the gate and uploads the snapshot as an artifact. With
+`dry_run` off, a second job with a Contents-write token for the companion only commits the
+snapshot as `release vX.Y.Z`, tags it and creates the GitHub Release Zenodo listens for.
+Always dry-run first and read the artifact's file list.
+
+## Tracking
+
+`track-articles.yml` runs daily and on demand. For every owner in `APP_OWNERS` it lists
+the article repos (those with `companion.yaml`) and writes a table to the run summary:
+version, latest tag and Release, last successful run, and the companion's latest Release.
+It flags drift: an article tag newer than the companion's, or a companion that is missing
+or private. It is read only and never publishes. Locally:
+`GH_TOKEN=... python3 scripts/track_articles.py --owner OWNER [--json]`.
+
+## Linked articles
+
+An article can declare its place in a series with `related_identifiers` in
+`metadata.yaml`: a DOI or a public URL per link, validated by `make validate` (decision
+`0064`). A link to a private article repo is refused. Each article declares its own side
+of a link; see the generated repo's `docs/metadata.md`.
 
 ## Switching Zenodo on
 
 Manual and per companion: zenodo.org, account settings, GitHub tab, sync, toggle the
 companion on. Then push a final `vX.Y.Z` tag in the article repo. Full procedure:
-`docs/skills/enabling-zenodo-for-a-companion.md`. Decisions: `0060`, `0061`.
+`docs/skills/enabling-zenodo-for-a-companion.md`. Decisions: `0062`, `0063`, `0064`.

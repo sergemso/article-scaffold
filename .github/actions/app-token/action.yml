@@ -1,0 +1,73 @@
+# Mint a GitHub App installation token for one allowlisted owner.
+#
+# Decision 0062, guardrail app-key-stays-in-scaffold. A composite action cannot read
+# secrets, so the caller passes `app-id` (vars.APP_ID) and `private-key`
+# (secrets.APP_PRIVATE_KEY). `owner` must be a line of vars.APP_OWNERS. The token is
+# masked by create-github-app-token and is never echoed here. Narrow it: pass
+# `repositories` (empty means every repository of the owner) and the permissions the job
+# needs (an unset permission inherits the app's own grant).
+
+name: App token
+description: Mint an installation token for an allowlisted owner, narrowed by the caller
+
+inputs:
+  app-id:
+    description: The App ID (vars.APP_ID)
+    required: true
+  private-key:
+    description: The App private key (secrets.APP_PRIVATE_KEY)
+    required: true
+  owner:
+    description: Account or org to mint for; must be listed in vars.APP_OWNERS
+    required: true
+  repositories:
+    description: Comma-separated repository names (without owner) to narrow the token to
+    required: false
+    default: ""
+  permission-administration:
+    description: "Narrow to `read` or `write`; empty inherits the app grant"
+    required: false
+    default: ""
+  permission-contents:
+    description: "Narrow to `read` or `write`; empty inherits the app grant"
+    required: false
+    default: ""
+  permission-workflows:
+    description: "Narrow to `read` or `write`; empty inherits the app grant"
+    required: false
+    default: ""
+  permission-actions:
+    description: "Narrow to `read` or `write`; empty inherits the app grant"
+    required: false
+    default: ""
+
+outputs:
+  token:
+    description: The installation token (masked)
+    value: ${{ steps.mint.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check owner against the allowlist
+      shell: bash
+      env:
+        OWNER: ${{ inputs.owner }}
+        APP_OWNERS: ${{ vars.APP_OWNERS }}
+      run: |
+        if [ -z "$OWNER" ] || ! printf '%s\n' "$APP_OWNERS" | tr -d '\r' | grep -Fxq -- "$OWNER"; then
+          echo "::error::owner '$OWNER' is not listed in the APP_OWNERS variable"
+          exit 1
+        fi
+    - name: Mint installation token
+      id: mint
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ inputs.owner }}
+        repositories: ${{ inputs.repositories }}
+        permission-administration: ${{ inputs.permission-administration }}
+        permission-contents: ${{ inputs.permission-contents }}
+        permission-workflows: ${{ inputs.permission-workflows }}
+        permission-actions: ${{ inputs.permission-actions }}

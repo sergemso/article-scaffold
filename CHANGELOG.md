@@ -7,19 +7,32 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-31
+
+### Added
+
+- `related_identifiers` in `metadata.yaml` (series, predecessor, successor) is
+  validated (relation, scheme, DOI shape, https, no private repo URLs), DOIs are
+  normalised, and `make validate` reports problems (E030 to E034). Documented in
+  `docs/metadata.md`.
+- One GitHub App replaces the personal tokens. `.github/actions/app-token` mints a
+  per-job installation token for an owner on the `APP_OWNERS` allowlist.
+- `track-articles.yml` reports daily, read only, which article tags have no companion
+  release and which companions are missing or private.
+- `tests/test_app_key_guardrail.py` enforces that the App key stays in the scaffold.
+
 ### Changed
 
-- `provision-companion.yml` creates the companion repo with `GH_PAT` alone; when
-  `COMPANION_PAT` is not set yet the run reports `COMPANION_TOKEN` as `deferred`
-  instead of refusing, so a fine-grained token can be scoped to the companion after it
-  exists and provisioning run again.
+- Publishing moved from the article repo to the scaffold: dispatch the scaffold's
+  `publish-companion.yml` with the repo and tag. Article repos hold no publishing secret.
+- `bootstrap-article.yml` and `provision-companion.yml` use App tokens and an `owner`
+  input (default `strebulaev-articles`); `GH_PAT`, `COMPANION_PAT` and `COMPANION_TOKEN`
+  are gone and provisioning no longer reports a secret state.
 
-### Fixed
+### Removed
 
-- Documented the exact `GH_PAT` grants (classic scopes and fine-grained permissions,
-  including Administration and Secrets): a fine-grained token without them creates the
-  companion but fails its edit step with `Resource not accessible by personal access
-  token`.
+- The article-side `.github/workflows/publish-companion.yml`; `upgrade` deletes it from
+  existing repos (an edited copy conflicts instead).
 
 ## [1.6.0] - 2026-10-29
 

@@ -26,6 +26,8 @@ def _assert_expected(project: Path) -> None:
 
 def test_default_render(default_project: Path) -> None:
     _assert_expected(default_project)
+    # Publishing runs from the scaffold (decision 0063); the article holds no such workflow.
+    assert not (default_project / ".github/workflows/publish-companion.yml").exists()
     assert (default_project / "paper" / "sections" / "01_introduction.tex").is_file()
 
 

@@ -60,5 +60,8 @@ id,title,tags,status
 0057-scholar-mcp-separate-repo-per-role,"Scholarly MCP servers live in a separate repository, one server per role","mcp, architecture, scope",active
 0058-generated-ci-workflow-hardened,"The generated go-getter workflow follows the project's CI-hardening rules","ci, workflows, go-getter",active
 0059-public-companion-repo-per-article,"Each private article repo has a public companion holding an allowlisted snapshot per release","companion, zenodo, release, privacy",active
-0060-companion-provisioning-and-auth,"The scaffold provisions companions idempotently and fans out a scoped token","companion, ci, security, bootstrap",active
-0061-companion-publish-trigger-and-gate,"Publishing to the companion runs from its own tag workflow and only final tags release","companion, zenodo, release, ci",active
+0060-companion-provisioning-and-auth,"The scaffold provisions companions idempotently and fans out a scoped token","companion, ci, security, bootstrap",superseded
+0061-companion-publish-trigger-and-gate,"Publishing to the companion runs from its own tag workflow and only final tags release","companion, zenodo, release, ci",superseded
+0062-github-app-as-scaffold-identity,"One GitHub App, installed on each article org, is the scaffold's only credential","companion, ci, security, bootstrap, github-app",active
+0063-publish-and-track-from-the-scaffold,"The scaffold publishes companions on manual dispatch and tracks articles on a schedule","companion, zenodo, release, ci, github-app",active
+0064-validated-related-identifiers,"Linked articles are declared in related_identifiers, validated, and emitted to .zenodo.json only","metadata, zenodo, series",active

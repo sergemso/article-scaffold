@@ -5,9 +5,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
+from . import companion
 from .build import is_standalone_tex
 from .diagnostics import Diagnostics
 from .latex import count_unescaped, strip_comments
+from .metadata import validate_metadata
 
 MAX_INCLUDE_DEPTH = 20
 
@@ -308,6 +312,25 @@ def _check_balanced_braces(
             )
 
 
+def _check_metadata(root: Path, diagnostics: Diagnostics) -> None:
+    """Report metadata.yaml problems that would reach published records."""
+    path = root / "metadata.yaml"
+    if not path.is_file():
+        return
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        config = companion.read_config(root)
+    except (yaml.YAMLError, ValueError):
+        return
+    if not isinstance(data, dict) or "related_identifiers" not in data:
+        return
+    found = validate_metadata(
+        data, companion_repo=config["repo"] if config else None
+    )
+    for item in found.errors:
+        diagnostics.error(item.path, item.line, item.code, item.message)
+
+
 def validate_paper(root: Path) -> Diagnostics:
     """Validate a repository rooted at *root* and return all diagnostics."""
     diagnostics = Diagnostics()
@@ -320,4 +343,5 @@ def validate_paper(root: Path) -> Diagnostics:
     _check_graphics(root, paper_dir, diagnostics)
     _check_references(root, paper_dir, diagnostics)
     _check_balanced_braces(root, paper_dir, diagnostics)
+    _check_metadata(root, diagnostics)
     return diagnostics

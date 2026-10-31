@@ -1,0 +1,87 @@
+# Report the release state of every article repo, daily and on demand.
+#
+# Decision 0063. Read only: each owner on APP_OWNERS gets a token narrowed to read
+# permissions, and the table goes to the job summary. It never publishes. Identity is
+# decision 0062: the App installation token, minted with .github/actions/app-token.
+
+name: Track articles
+
+"on":
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: track-articles
+  cancel-in-progress: false
+
+jobs:
+  owners:
+    name: List owners
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      owners: ${{ steps.list.outputs.owners }}
+    steps:
+      - name: Read APP_OWNERS
+        id: list
+        env:
+          APP_OWNERS: ${{ vars.APP_OWNERS }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$APP_OWNERS" | tr -d '\r' | sed '/^[[:space:]]*$/d' \
+            | jq -R . | jq -sc . > owners.json
+          echo "owners=$(cat owners.json)" >> "$GITHUB_OUTPUT"
+
+  track:
+    name: Track ${{ matrix.owner }}
+    needs: owners
+    if: needs.owners.outputs.owners != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        owner: ${{ fromJSON(needs.owners.outputs.owners) }}
+    steps:
+      - name: Checkout article-scaffold
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Mint read-only installation token
+        id: token
+        uses: ./.github/actions/app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ matrix.owner }}
+          permission-contents: read
+          permission-actions: read
+
+      - name: Track
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          OWNER: ${{ matrix.owner }}
+        run: |
+          set -euo pipefail
+          set +x   # the token lives in the environment; never trace it
+          python3 scripts/track_articles.py --owner "$OWNER" > table.md
+          {
+            echo "## Article status: ${OWNER}"
+            echo ""
+            cat table.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat table.md
