@@ -97,10 +97,11 @@ Done-when: the Check passes.
 
 ## 4. Docs and release
 
-### 4.1 Update docs, procedures and version — [ ]
+### 4.1 Update docs, procedures and version — [x]
 Class: implement · Needs: 2.2, 3.7 · Check: `.venv/bin/python -m pytest tests/test_docs.py tests/test_migration_docs.py -q`
 Context: Docs describing the old flow: `docs/companion.md` (secrets table, provisioning, publishing), `README.md`, `docs/upgrading.md`, `{{cookiecutter.repo_name}}/docs/companion.md`, `docs/skills/enabling-zenodo-for-a-companion.md`, `CHANGELOG.md`, `pyproject.toml` (version 1.6.x now). AGENTS.md's guardrail section is generated.
 Do: Rewrite those docs for the app flow (secrets table becomes the secret `APP_PRIVATE_KEY` and the variables `APP_ID`, `APP_OWNERS`; publish by dispatching the scaffold workflow; tracker summary; `owner` parameter), update the `operationalizes` list and steps of `enabling-zenodo-for-a-companion.md`, add the linked-articles note, add a CHANGELOG entry and bump `pyproject.toml` to the next minor version. Run `go-getter apply` to regenerate the `AGENTS.md` guardrail section if the CLI is available (`.go-getter/` holds it); otherwise record that in the step.
+Result (2026-10-31): version 1.7.0; the unreleased CHANGELOG entries moved under `[1.7.0]` and the obsolete `GH_PAT`-grants note was dropped. `go-getter apply` ran and left no tracked change (the AGENTS.md section was already current). `docs/companion.md` gained Publishing, Tracking and Linked articles sections.
 Done-when: the Check passes and `grep -rn "COMPANION_PAT\|COMPANION_TOKEN" README.md docs/companion.md docs/upgrading.md {{cookiecutter.repo_name}}/docs` finds nothing outside history notes.
 
 ### 4.2 Run the full suite and an end-to-end render — [ ]

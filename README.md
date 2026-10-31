@@ -71,12 +71,15 @@ next-steps checklist. See the workflow file for the full input list.
 
 New article repos are private, but Zenodo only archives public repos. Each article repo
 therefore has a public companion that receives an allowlisted snapshot on every final
-release tag. The bootstrap workflow creates it by calling `provision-companion.yml`
-(input `create_companion`, default true). Creating the companion needs only `GH_PAT`;
-the `COMPANION_PAT` secret can follow later — a fine-grained token can only be scoped
-to a companion that already exists, so until it is set the run reports the
-`COMPANION_TOKEN` secret as `deferred`. Existing repos adopt it by upgrading, then
-running the provisioning workflow.
+release tag. The bootstrap workflow creates the article repo and its companion in the
+org `strebulaev-articles` (input `owner`) by calling `provision-companion.yml`
+(input `create_companion`, default true). All of it runs on one GitHub App whose key is
+the scaffold secret `APP_PRIVATE_KEY` (variables `APP_ID`, `APP_OWNERS`); see
+`docs/skills/setting-up-the-article-github-app.md`. Publishing is a dispatch of the
+scaffold's `publish-companion.yml` for a tag, and `track-articles.yml` reports daily
+which tags have no companion release. Existing repos adopt the feature by upgrading,
+then running the provisioning workflow. Articles can link to each other as a series
+with `related_identifiers` in `metadata.yaml`.
 Switching the companion on in Zenodo stays manual. See [docs/companion.md](docs/companion.md).
 
 ## Optional user configuration
