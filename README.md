@@ -40,8 +40,8 @@ locally. The workflow:
 1. Renders the template with the parameters you supply as workflow inputs.
 2. Runs `make validate` on the rendered repo (fails the workflow if the
    template is broken).
-3. Creates a new GitHub repo under the `owner` input (default the org
-   `strebulaev-articles`, which must be on `APP_OWNERS`) with the chosen
+3. Creates a new GitHub repo under the `owner` input (an org or user
+   listed in `APP_OWNERS`; the workflow's default is the maintainer's article org) with the chosen
    visibility (default **private**), and its public companion.
 4. Pushes the initial commit, which triggers the new repo's own
    `build-artifacts.yml` to build PDF + DOCX.
@@ -54,7 +54,7 @@ Then:
 
 ```bash
 gh workflow run bootstrap-article.yml \
-  -f owner=strebulaev-articles \
+  -f owner=<your-org> \
   -f topic=ai_governance \
   -f title="From AI Scaling to AI Governance" \
   -f subtitle="Technological Revolutions and the Political Economy of Deployment" \
@@ -74,9 +74,9 @@ next-steps checklist. See the workflow file for the full input list.
 
 New article repos are private, but Zenodo only archives public repos. Each article repo
 therefore has a public companion that receives an allowlisted snapshot on every final
-release tag. The bootstrap workflow creates the article repo and its companion in the
-org `strebulaev-articles` (input `owner`) by calling `provision-companion.yml`
-(input `create_companion`, default true). All of it runs on one GitHub App whose key is
+release tag. The bootstrap workflow creates the article repo and its companion under
+the `owner` input (which must be listed in `APP_OWNERS`) by calling
+`provision-companion.yml` (input `create_companion`, default true). All of it runs on one GitHub App whose key is
 the scaffold secret `APP_PRIVATE_KEY` (variables `APP_ID`, `APP_OWNERS`); see
 `docs/skills/setting-up-the-article-github-app.md`. Publishing is a dispatch of the
 scaffold's `publish-companion.yml` for a tag, and `track-articles.yml` reports daily
