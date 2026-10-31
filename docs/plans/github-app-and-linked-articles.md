@@ -60,10 +60,11 @@ Do: Replace every use of `secrets.GH_PAT` in `bootstrap-article.yml` with a toke
 Result (2026-10-31): input `new_repo_owner` renamed `owner` (default `strebulaev-articles`). Two tokens: org-wide Administration write creates the repo (`POST /orgs/<owner>/repos` with explicit `private`, per fact 0005), then a token narrowed to the new repo with Contents and Workflows write pushes. The `companion` job still passes `secrets: inherit`; step 3.3 makes `provision-companion.yml` mint its own token, so the companion job is untested end to end until then.
 Done-when: the Check passes and `grep -rn GH_PAT .github/workflows/bootstrap-article.yml` finds nothing.
 
-### 3.3 Rework companion provisioning to use the app token and drop token fan-out — [ ]‖
+### 3.3 Rework companion provisioning to use the app token and drop token fan-out — [x]‖
 Class: implement · Needs: 3.1 · Check: `.venv/bin/python -m pytest tests/test_provision_companion.py tests/test_bootstrap_companion.py -q`
 Context: `scripts/provision_companion.py` creates the companion if absent, re-applies description and topics, reports private companions as drift and installs `COMPANION_TOKEN` from `COMPANION_PAT` over stdin (decision 0060, now superseded). `.github/workflows/provision-companion.yml` runs it with `GH_PAT`.
 Do: Remove the token-install step, the `deferred` and `refreshed` secret states and every `COMPANION_PAT` reference from the script, workflow and tests; keep creation, description, topics, drift and refusal results and the `--dry-run` and `--json` options. The workflow mints its token with `.github/actions/app-token`. Keep `companion.yaml` treated as untrusted input.
+Result (2026-10-31): the `secret` result field is gone entirely. The workflow resolves the owner (from `repo`, or the `owner` input, default `strebulaev-articles`), mints an unnarrowed Administration-write, Contents-read token (the companion does not exist yet) and drops the `workflow_call` secrets block; `secrets: inherit` from bootstrap supplies `APP_PRIVATE_KEY`.
 Done-when: the Check passes and `grep -rn "COMPANION_PAT\|COMPANION_TOKEN\|GH_PAT" scripts/provision_companion.py .github/workflows/provision-companion.yml` finds nothing.
 
 ### 3.4 Move publishing into the scaffold — [ ]
