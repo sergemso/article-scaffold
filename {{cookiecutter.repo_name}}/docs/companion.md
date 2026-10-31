@@ -21,11 +21,14 @@ secret-looking string. `--json` prints the file list with hashes and a `tree_sha
 
 ## Release flow
 
-Pushing a `v*` tag runs `publish-companion.yml`. Only a final `vX.Y.Z` equal to the `version`
-in `metadata.yaml` publishes: it commits the snapshot to the companion as `release vX.Y.Z`,
-tags it and creates a GitHub Release with the PDF and DOCX, which Zenodo archives. Other tags
-(release candidates, mismatches) only build. Re-running a published tag is a no-op.
+Publishing runs from the scaffold repository, not from this one, so this repo holds no
+publishing credential. After tagging a final `vX.Y.Z` equal to the `version` in
+`metadata.yaml`, the owner dispatches the scaffold's `publish-companion.yml` with this repo,
+the tag and `dry_run`. It builds the PDF and DOCX, applies the same gate, commits the
+snapshot to the companion as `release vX.Y.Z`, tags it and creates a GitHub Release with the
+PDF and DOCX, which Zenodo archives. Other tags (release candidates, mismatches) never
+publish. Re-running a published tag is a no-op.
 
-To rehearse, run the workflow by hand (`workflow_dispatch`) with the tag and `dry_run` on
-(the default) and read the uploaded snapshot artifact. The workflow needs the repo secret
-`COMPANION_TOKEN`, installed by the scaffold's provisioning workflow.
+To rehearse, dispatch it with `dry_run` on (the default) and read the uploaded snapshot
+artifact. An older repo that still has `.github/workflows/publish-companion.yml` loses it on
+the next `upgrade`.

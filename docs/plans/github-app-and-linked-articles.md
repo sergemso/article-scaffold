@@ -81,10 +81,11 @@ Do: Create `scripts/track_articles.py` (stdlib plus the `gh` CLI like `scripts/p
 Result (2026-10-31): `track_articles.py --owner O` scans the installation's repos (`GET /installation/repositories`), imports the `Runner`, `read_companion_repo` and `refusal` helpers from `provision_companion.py`, and exits 1 on drift only with `--fail-on-drift`. The workflow fans out over `APP_OWNERS` with a matrix, one read-only token per owner (Contents and Actions read); `repositories` is deliberately empty there because the tracker must see every repo of the owner. Not yet dispatched live (step 5.1).
 Done-when: the Check passes and the workflow requests no write permission on any repo.
 
-### 3.6 Remove the article-side publish workflow and token — [ ]
+### 3.6 Remove the article-side publish workflow and token — [x]
 Class: implement · Needs: 3.4 · Check: `.venv/bin/python -m pytest tests/test_upgrade_companion.py tests/test_upgrade.py tests/test_render.py -q`
 Context: Repos scaffolded earlier have `.github/workflows/publish-companion.yml`; `upgrade` (`{{cookiecutter.repo_name}}/scripts/article/upgrade.py`) adds new template files and updates managed ones, and `scripts/article/migrations.py` holds versioned migrations; find how a file removed from the template is handled (`grep -n "remove\|deleted" scripts/article/upgrade.py scripts/article/migrations.py`) and follow it. If upgrade cannot delete a file, add that capability with tests rather than leaving a dead workflow.
 Do: Delete `{{cookiecutter.repo_name}}/.github/workflows/publish-companion.yml` and `tests/test_publish_companion_workflow.py`; make `upgrade` remove the file from old repos (and report it in `--plan`); remove `COMPANION_TOKEN` mentions from the template. Update `tests/test_upgrade_companion.py` accordingly.
+Result (2026-10-31): `upgrade` needed no new code: it diffs the old and new renders, so a file the template drops arrives as a `D` chunk that `git apply --3way` deletes (reported in `applied`; an edited copy conflicts instead of vanishing). `--plan` stays render-free and does not list files; the removal shows in `--apply`. `tests/test_upgrade_companion.py` now builds a second template fixture at `d1bc736` (the last commit with the workflow) for the removal and edited-copy cases. Template `docs/companion.md` describes dispatching the scaffold workflow.
 Done-when: the Check passes, a fresh render has no `publish-companion.yml`, and an upgrade of a repo that has it removes it.
 
 ### 3.7 Test the guardrails and retire the old ones — [ ]

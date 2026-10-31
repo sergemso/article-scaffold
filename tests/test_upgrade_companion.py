@@ -18,8 +18,9 @@ ADDED = (
     "companion.yaml",
     "schemas/companion.schema.json",
     "scripts/article/companion.py",
-    ".github/workflows/publish-companion.yml",
 )
+PUBLISH = ".github/workflows/publish-companion.yml"
+WITH_PUBLISH = "d1bc736"  # the last template commit that shipped the article-side workflow
 
 
 def _call(project: Path, call: str) -> dict:
@@ -33,14 +34,13 @@ def _call(project: Path, call: str) -> dict:
     return json.loads(result.stdout)
 
 
-@pytest.fixture(scope="module")
-def template(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
-    """A clone at the last pre-companion commit, plus one commit holding this working tree."""
-    if run(ROOT, "git", "cat-file", "-e", f"{BEFORE_COMPANION}^{{commit}}").returncode != 0:
-        pytest.skip(f"template history lacks {BEFORE_COMPANION} (shallow checkout)")
+def _template_from(tmp_path_factory: pytest.TempPathFactory, base: str) -> dict[str, str]:
+    """A clone at template commit ``base``, plus one commit holding this working tree."""
+    if run(ROOT, "git", "cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
+        pytest.skip(f"template history lacks {base} (shallow checkout)")
     tpl = tmp_path_factory.mktemp("tpl") / "template"
     _tpl_git(ROOT, "clone", "--quiet", str(ROOT), str(tpl))
-    _tpl_git(tpl, "checkout", "--quiet", BEFORE_COMPANION)
+    _tpl_git(tpl, "checkout", "--quiet", base)
     old = _tpl_git(tpl, "rev-parse", "HEAD")
     old_source = tmp_path_factory.mktemp("old") / "src"
     shutil.copytree(tpl, old_source, ignore=shutil.ignore_patterns(".git"))
@@ -57,21 +57,38 @@ def template(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
             "new": _tpl_git(tpl, "rev-parse", "HEAD")}
 
 
-@pytest.fixture()
-def old_repo(tmp_path: Path, template: dict[str, str]) -> Path:
-    """A repo generated before companion.yaml existed."""
+def _repo_from(tmp_path: Path, template: dict[str, str]) -> Path:
     out = tmp_path / "out"
     out.mkdir()
     project = Path(cookiecutter(
         template["old_source"], no_input=True, output_dir=str(out),
         extra_context=dict(DEFAULT_CONTEXT),
     ))
-    assert not (project / "companion.yaml").exists()
     stamp_path = project / "template.json"
     stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
     stamp.update(template=template["path"], template_commit=template["old"])
     stamp_path.write_text(json.dumps(stamp), encoding="utf-8")
     commit_all(project)
+    return project
+
+
+@pytest.fixture(scope="module")
+def template(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
+    """The last pre-companion template commit, upgraded to this working tree."""
+    return _template_from(tmp_path_factory, BEFORE_COMPANION)
+
+
+@pytest.fixture(scope="module")
+def publish_template(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
+    """The last template commit that shipped publish-companion.yml, upgraded to this tree."""
+    return _template_from(tmp_path_factory, WITH_PUBLISH)
+
+
+@pytest.fixture()
+def old_repo(tmp_path: Path, template: dict[str, str]) -> Path:
+    """A repo generated before companion.yaml existed."""
+    project = _repo_from(tmp_path, template)
+    assert not (project / "companion.yaml").exists()
     return project
 
 
@@ -103,6 +120,41 @@ def test_upgrade_delivers_the_companion_feature(
     cff = (old_repo / "CITATION.cff").read_text(encoding="utf-8")
     assert "github.com/test-user/articles.test_topic.public" in cff
     assert run(old_repo, "python3", "-m", "scripts.article", "companion", "--plan").returncode == 0
+
+
+def test_upgrade_never_adds_the_article_side_publish_workflow(
+    old_repo: Path, template: dict[str, str]
+) -> None:
+    _upgrade(old_repo, template)
+    assert not (old_repo / PUBLISH).exists()
+
+
+def test_upgrade_removes_the_article_side_publish_workflow(
+    tmp_path: Path, publish_template: dict[str, str]
+) -> None:
+    project = _repo_from(tmp_path, publish_template)
+    assert (project / PUBLISH).is_file()
+    applied = _apply(project, publish_template)
+    assert PUBLISH in applied["applied"], applied
+    assert applied["conflicted"] == [], applied
+    assert not (project / PUBLISH).exists()
+    finished = _call(project, "upgrade.finish(Path('.'))")
+    assert finished.get("ok"), finished
+    run(project, "git", "commit", "--quiet", "-m", "chore: upgrade")
+    assert PUBLISH not in run(project, "git", "ls-files").stdout.split()
+
+
+def test_upgrade_flags_an_edited_publish_workflow_instead_of_deleting_it(
+    tmp_path: Path, publish_template: dict[str, str]
+) -> None:
+    project = _repo_from(tmp_path, publish_template)
+    workflow = project / PUBLISH
+    workflow.write_text(workflow.read_text(encoding="utf-8") + "# local edit\n", encoding="utf-8")
+    commit_all(project)
+    applied = _apply(project, publish_template)
+    assert PUBLISH in applied["conflicted"] or any(
+        entry["path"] == PUBLISH for entry in applied["skipped"]
+    ), applied
 
 
 def test_second_upgrade_is_a_no_op(old_repo: Path, template: dict[str, str]) -> None:
