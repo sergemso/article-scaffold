@@ -20,7 +20,8 @@ def test_action_is_composite() -> None:
 def test_owner_checked_against_allowlist_before_minting() -> None:
     steps = _action()["runs"]["steps"]
     check = steps[0]
-    assert "vars.APP_OWNERS" in check["env"]["APP_OWNERS"]
+    assert "inputs.allowed-owners" in check["env"]["APP_OWNERS"]
+    assert "vars." not in str(_action()["runs"])  # no vars context in a composite action
     assert "grep -Fxq" in check["run"] and "exit 1" in check["run"]
     mint = next(s for s in steps if s.get("id") == "mint")
     assert steps.index(check) < steps.index(mint)
@@ -48,3 +49,13 @@ def test_repositories_has_no_widening_default() -> None:
     for name, spec in inputs.items():
         if name.startswith("permission-"):
             assert spec["default"] == ""
+
+
+def test_every_caller_passes_the_allowlist() -> None:
+    import re
+    from pathlib import Path
+
+    for wf in Path(".github/workflows").glob("*.yml"):
+        text = wf.read_text(encoding="utf-8")
+        uses = text.count("uses: ./.github/actions/app-token")
+        assert text.count("allowed-owners: ${{ vars.APP_OWNERS }}") == uses, wf

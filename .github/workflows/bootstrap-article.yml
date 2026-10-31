@@ -260,6 +260,7 @@ jobs:
         uses: ./.github/actions/app-token
         with:
           app-id: ${{ vars.APP_ID }}
+          allowed-owners: ${{ vars.APP_OWNERS }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ steps.validate.outputs.owner }}
           permission-administration: write
@@ -310,6 +311,7 @@ jobs:
         uses: ./.github/actions/app-token
         with:
           app-id: ${{ vars.APP_ID }}
+          allowed-owners: ${{ vars.APP_OWNERS }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ steps.validate.outputs.owner }}
           repositories: ${{ steps.validate.outputs.repo_name }}
