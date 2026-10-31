@@ -22,7 +22,7 @@ def test_default_visibility_is_private() -> None:
 
 def test_existing_inputs_are_intact() -> None:
     inputs = _doc()["on"]["workflow_dispatch"]["inputs"]
-    for name in ("topic", "title", "version", "license", "new_repo_owner", "skip_pre_push_hook"):
+    for name in ("topic", "title", "version", "license", "owner", "skip_pre_push_hook"):
         assert name in inputs
 
 
@@ -41,3 +41,25 @@ def test_companion_job_calls_provisioning_for_the_new_repo() -> None:
 
 def test_summary_points_at_the_zenodo_skill() -> None:
     assert "enabling-zenodo-for-a-companion" in WORKFLOW.read_text()
+
+
+def test_no_pat_and_owner_defaults_to_the_org() -> None:
+    text = WORKFLOW.read_text()
+    assert "GH_PAT" not in text and "COMPANION" not in text.replace("companion", "")
+    assert _doc()["on"]["workflow_dispatch"]["inputs"]["owner"]["default"] == "strebulaev-articles"
+
+
+def test_tokens_come_from_the_app_token_action() -> None:
+    steps = _doc()["jobs"]["bootstrap"]["steps"]
+    minted = [s for s in steps if s.get("uses") == "./.github/actions/app-token"]
+    assert [s["id"] for s in minted] == ["admin_token", "push_token"]
+    assert "repositories" not in minted[0]["with"]
+    assert minted[1]["with"]["repositories"] == "${{ steps.validate.outputs.repo_name }}"
+    assert minted[1]["with"]["permission-contents"] == "write"
+    for s in minted:
+        assert s["with"]["owner"] == "${{ steps.validate.outputs.owner }}"
+
+
+def test_repo_creation_passes_visibility_explicitly() -> None:
+    text = WORKFLOW.read_text()
+    assert 'orgs/${OWNER}/repos' in text and '-F private="$PRIVATE"' in text

@@ -53,10 +53,11 @@ Do: Create `.github/actions/app-token/action.yml`, a composite action that takes
 Result (2026-10-31): `actions/create-github-app-token` major tag is `v3` (latest tag v3.3.0; not run yet). A composite action cannot read secrets, so callers pass `app-id` and `private-key` as inputs; v3 takes `permission-<name>` inputs rather than a blob, so the action exposes `permission-{administration,contents,workflows,actions}` (empty inherits the app grant). Empty `repositories` means every repo of the owner, so callers must always pass it.
 Done-when: the Check passes and the action has no default for `repositories` that widens access beyond the caller's input.
 
-### 3.2 Rework bootstrap to create the article and companion with app tokens — [ ]‖
+### 3.2 Rework bootstrap to create the article and companion with app tokens — [x]‖
 Class: implement · Needs: 3.1 · Check: `.venv/bin/python -m pytest tests/test_bootstrap.py tests/test_bootstrap_companion.py tests/test_ci_hardening.py -q`
 Context: `bootstrap-article.yml` renders the cookiecutter and creates a private repo with `GH_PAT`, then calls `provision-companion.yml` when `create_companion` is on (see its header comment and `github_user` handling). Decision 0062 makes the app the only credential and the org the owner; `github_user` becomes the org (default `strebulaev-articles`).
 Do: Replace every use of `secrets.GH_PAT` in `bootstrap-article.yml` with a token from `.github/actions/app-token`, minted with the `owner` input; repo creation uses the org endpoint; the pushing job uses a token narrowed to the new repo. Rewrite the header comment (prerequisites) to point to `docs/skills/setting-up-the-article-github-app.md`. Keep `repo_visibility` default `private` and `create_companion`. Update the tests to assert no `GH_PAT` remains and the owner defaults to the org.
+Result (2026-10-31): input `new_repo_owner` renamed `owner` (default `strebulaev-articles`). Two tokens: org-wide Administration write creates the repo (`POST /orgs/<owner>/repos` with explicit `private`, per fact 0005), then a token narrowed to the new repo with Contents and Workflows write pushes. The `companion` job still passes `secrets: inherit`; step 3.3 makes `provision-companion.yml` mint its own token, so the companion job is untested end to end until then.
 Done-when: the Check passes and `grep -rn GH_PAT .github/workflows/bootstrap-article.yml` finds nothing.
 
 ### 3.3 Rework companion provisioning to use the app token and drop token fan-out — [ ]‖

@@ -36,11 +36,11 @@ def test_no_input_expression_reaches_a_run_block() -> None:
 def test_validation_runs_before_cookiecutter_or_github_commands() -> None:
     names = [step.get("name", "") for step in _steps()]
     assert names.index("Validate inputs") < names.index("Render template via cookiecutter")
-    assert names.index("Validate inputs") < names.index("Create and push new GitHub repo")
+    assert names.index("Validate inputs") < names.index("Mint token to create the repo")
 
     validate = _step_by_name("Validate inputs")
     env = validate["env"]
-    for key in ("TOPIC", "VERSION", "LICENSE", "REPO_VISIBILITY", "NEW_REPO_OWNER"):
+    for key in ("TOPIC", "VERSION", "LICENSE", "REPO_VISIBILITY", "OWNER"):
         assert key in env
     run = validate["run"]
     assert "REPO_NAME=\"articles.${TOPIC}\"" in run
@@ -79,13 +79,16 @@ def test_cookiecutter_uses_explicit_context_and_no_prompts() -> None:
 
 
 def test_repository_creation_is_idempotent_and_sets_topics() -> None:
-    create = _step_by_name("Create and push new GitHub repo")
-    run = create["run"]
+    run = _step_by_name("Create the GitHub repo")["run"]
     assert 'if gh repo view "$REPO_FULL"' in run
-    assert run.index("gh repo view") < run.index("gh repo create")
+    assert run.index("gh repo view") < run.index("gh api")
     assert "already exists; refusing to overwrite" in run
     for topic in ("article", "manuscript", "latex", "research"):
-        assert f"--add-topic {topic}" in run
+        assert f"names[]={topic}" in run
+
+
+def test_push_scrubs_the_token_from_the_remote() -> None:
+    run = _step_by_name("Push the initial commit")["run"]
     assert "git remote set-url origin" in run
     assert "set +x" in run
 
