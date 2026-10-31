@@ -25,4 +25,6 @@ mcp-arguments-hold-no-secret,"MCP calls carry no secret","practice-packs, hooks,
 verification-gate-blocks-done,"A step is not done while its verification checks fail","practice-packs, verification, guardrail",active
 companion-publishes-allowlist-only,"Nothing outside the allowlist, or matching a deny pattern, reaches the companion","companion, privacy, guardrail",active
 companion-release-final-tags-only,"No Release is created on the companion unless the tag is final and matches the version","companion, zenodo, release, guardrail",active
-companion-token-least-privilege,"COMPANION_PAT is scoped to companions and GH_PAT never enters an article repo","companion, security, guardrail",active
+companion-token-least-privilege,"COMPANION_PAT is scoped to companions and GH_PAT never enters an article repo","companion, security, guardrail",deprecated
+app-key-stays-in-scaffold,"The GitHub App key stays in the scaffold and every token is narrowed per job","companion, security, github-app, guardrail",active
+related-targets-are-public,"A related_identifiers target must be a DOI or a public URL","metadata, zenodo, privacy, guardrail",active

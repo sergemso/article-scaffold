@@ -1,7 +1,7 @@
 ---
 id: companion-token-least-privilege
 title: COMPANION_PAT is scoped to companions and GH_PAT never enters an article repo
-status: active
+status: deprecated
 date: 2026-10-29
 tags: [companion, security, guardrail]
 governed-by: 0060-companion-provisioning-and-auth

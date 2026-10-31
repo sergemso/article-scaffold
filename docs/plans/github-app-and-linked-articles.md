@@ -1,0 +1,116 @@
+# GitHub App identity, scaffold-side publishing, and linked-article metadata
+
+Repo: `/home/sergei/projects/sergemso/article-scaffold` (a cookiecutter template; run Python from its venv: `make setup`, then `.venv/bin/python -m pytest <file>`; the whole suite takes about two minutes, so run single files while iterating; `make lint` runs ruff). `{{cookiecutter.repo_name}}/` is the template tree rendered into each article repo. Article repos are private; each has a public companion repo that Zenodo archives (decision 0059).
+
+Two independent pieces of work live here. (A) Replace the PATs of the companion flow with one GitHub App (owned by `sergemso`, installed on the org `strebulaev-articles` and any later article owner), and move publishing and tracking into the scaffold. (B) Add validated support for linked articles (series, predecessor, successor) to `metadata.yaml`.
+
+Read first: decisions `docs/decisions/0062-github-app-as-scaffold-identity.md`, `0063-publish-and-track-from-the-scaffold.md`, `0064-validated-related-identifiers.md` (they hold the why; this file holds the what; do not re-open them; if one proves wrong, stop and mark the step `[!]` with the reason). Superseded and kept for context: `0059`, `0060`, `0061`. Guardrails `docs/guardrails/app-key-stays-in-scaffold.md`, `related-targets-are-public.md`, `companion-publishes-allowlist-only.md`, `companion-release-final-tags-only.md`. Facts `docs/facts/0002-zenodo-github-integration-constraints.md`, `0004-related-identifiers-unvalidated-passthrough.md`. Procedure `docs/skills/setting-up-the-article-github-app.md`. Prior plan with the history of what exists: `docs/plans/public-companion-repos.md`.
+
+Repo conventions that apply to every step: workflows under `.github/workflows/` and `{{cookiecutter.repo_name}}/.github/workflows/` are checked by `tests/test_ci_hardening.py` (actions pinned by major tag from its `MAJOR_TAGS` map, so add any new action there; per-job `permissions`, a `concurrency` group, no `${{ }}` in `on:`); template workflows are copied without rendering (`cookiecutter.json` `_copy_without_render`); `tests/conftest.py` has `render`, `run`, `commit_all` and the `upgrade_template`/`upgrade_project` fixtures. Commit messages follow Conventional Commits with a `Refs:` trailer naming the decision or guardrail ids. Stay out of `AGENTS.md`'s generated guardrail section; `go-getter apply` writes it. Never run `agentctl` or resume the archived T-queue.
+
+Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
+
+## 0. Owner prerequisites
+
+### 0.1 Create the GitHub App, install it on the org and store its credentials — [x]
+Class: implement · Needs: none · Check: `gh secret list -R sergemso/article-scaffold | grep -c '^APP_PRIVATE_KEY\s'`
+Human: only the owner of `sergemso` and of `https://github.com/strebulaev-articles` can do this; stop with `[!]` and say what is missing if you are an agent.
+Context: Decision 0062. The org `strebulaev-articles` exists. The app ID is stored as the variable `APP_ID`, the key as the secret `APP_PRIVATE_KEY`, and `APP_OWNERS` is a variable. Today the scaffold uses `GH_PAT` and `COMPANION_PAT`.
+Do: follow `docs/skills/setting-up-the-article-github-app.md` steps 1 to 6 exactly (app owned by `sergemso` and set to "Any account", permissions Administration/Contents/Workflows write, Actions/Metadata read, installed on all repositories, secret `APP_PRIVATE_KEY` and variables `APP_ID` and `APP_OWNERS` in `sergemso/article-scaffold`, default branch protected). Do not remove `GH_PAT` yet.
+Done-when: the Check prints `1`, `gh variable list -R sergemso/article-scaffold` shows `APP_ID` and `APP_OWNERS` (containing `strebulaev-articles`), and the app is installed on `strebulaev-articles` with all repositories.
+
+## 1. Verify the external claims
+
+### 1.1 Verify what an installation token can do in the org — [ ]
+Class: explore · Effort: medium · Needs: 0.1 · Check: `test -f docs/facts/0005-github-app-installation-token-capabilities.md`
+Context: Decision 0062 rests on claims taken from community reports, not GitHub's own docs: that an installation token can create a repo in an org (but not in a personal account), push a file under `.github/workflows/`, and create a GitHub Release; and Decision 0063 assumes that a Release created by an app or workflow token still triggers Zenodo's release webhook (fact 0002 records how Zenodo listens). Nothing is known to have been tested. Use `actions/create-github-app-token` (add it to `MAJOR_TAGS` in `tests/test_ci_hardening.py` only when a step ships it) from a throwaway workflow in a scratch branch, or the `gh api` calls with a token minted by hand; do not merge the throwaway workflow.
+Do: In a throwaway repo inside the org (name it `articles.app_probe`, delete it at the end), with an installation token: (1) create the repo with `POST /orgs/strebulaev-articles/repos`; (2) push a commit that adds `.github/workflows/probe.yml`; (3) create a Release with a token minted for that one repo; (4) mint a token narrowed to one repo and one permission, and confirm it cannot touch a second repo. Then, for the Zenodo question, ask the owner (Human) to enable the probe companion in `sandbox.zenodo.org` and report whether a Release created with the installation token produces a sandbox deposit; if the owner cannot, read the Zenodo GitHub-integration docs and record the question as unverified. Write the results, with exact error text for each failure, in `docs/facts/0005-github-app-installation-token-capabilities.md` (frontmatter as in `docs/facts/0003-…`).
+Done-when: the fact file lists each of the five claims as verified, failed or unverified, the probe repo is deleted, and any failed claim that changes Decision 0062 or 0063 has stopped the plan with the failing step marked `[!]`.
+
+## 2. Linked articles (independent of sections 0, 1 and 3)
+
+### 2.1 Validate related_identifiers in metadata and schema — [ ]‖
+Class: implement · Needs: none · Check: `.venv/bin/python -m pytest tests/test_metadata_v2.py tests/test_schemas.py tests/test_zenodo.py -q`
+Context: Decision 0064 and guardrail `related-targets-are-public`. Today `gen_zenodo_json` in `{{cookiecutter.repo_name}}/scripts/article/metadata.py` copies `metadata["related_identifiers"]` into `.zenodo.json` unchanged (fact 0004). `validate_metadata` (same file) reports problems through `Diagnostics` with `E_*` codes defined in `{{cookiecutter.repo_name}}/scripts/article/diagnostics.py`; follow the existing `E_METADATA_*` pattern and check that the code list is mirrored wherever the repo documents or tests codes (`grep -rn E_METADATA_SCHEMA .`). The JSON schema is `{{cookiecutter.repo_name}}/schemas/metadata.schema.json`; `tests/test_schemas.py` shows how it is checked. `_repo_url` is `https://github.com/<github_user>/<repo_name>` (fact 0003); the companion repo name comes from `companion.yaml` via the existing config reader in `scripts/article/companion.py`.
+Do: (1) Add `related_identifiers` to the schema as a list of objects with `identifier` (string), `relation` (enum: isPartOf, hasPart, continues, isContinuedBy, isNewVersionOf, isPreviousVersionOf, obsoletes, isObsoletedBy, isSupplementTo, isSupplementedBy, references, isReferencedBy, isDocumentedBy) and `scheme` (enum: doi, url), all required, no extra keys. (2) In `normalize_metadata` strip a leading `https://doi.org/` or `doi:` from DOI identifiers. (3) In `validate_metadata` add errors for an unknown relation, an unknown scheme, a DOI that does not match `10.\d{4,9}/\S+`, a non-https URL, and a URL under `https://github.com/<github_user>/` other than the companion repo. (4) Add tests for each error and for a valid series (an `isPartOf` DOI, a `continues` DOI) that reaches `.zenodo.json` with normalised identifiers; keep the existing absent-by-default assertions.
+Done-when: the Check passes, a metadata file with a private-repo URL fails `make validate` with a message naming the entry, and a valid one passes and appears in `.zenodo.json`.
+
+### 2.2 Document linked articles and deliver the change to old repos — [ ]
+Class: implement · Needs: 2.1 · Check: `.venv/bin/python -m pytest tests/test_docs.py tests/test_upgrade.py tests/test_metadata_v2.py -q`
+Context: `{{cookiecutter.repo_name}}/docs/metadata.md` has a table of optional keys that does not list `related_identifiers`. `upgrade` delivers changes under `scripts/` and `schemas/` to existing repos but never rewrites an author's `metadata.yaml` (fact 0003, decision 0060's config note).
+Do: (1) Add a `related_identifiers` row and a short example for a series (part of, continues, supersedes with `obsoletes`) to the table in `{{cookiecutter.repo_name}}/docs/metadata.md`, stating the relation list, the DOI-or-public-URL rule, that each article declares its own side of a link, that a successor without a DOI is added in a later version, and that links are not rendered in `CITATION.cff`, the README or the title page. (2) Add a test that an upgraded project whose `metadata.yaml` holds a private URL fails validation with the new message rather than being silently accepted. (3) Add a `CHANGELOG.md` line under a new unreleased heading.
+Done-when: the Check passes and `docs/metadata.md` in a freshly rendered repo documents the key.
+
+## 3. App migration (scaffold side)
+
+### 3.1 Add an owner allowlist and a token-minting convention — [ ]
+Class: implement · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_ci_hardening.py tests/test_app_token.py -q`
+Context: Decision 0062 and guardrail `app-key-stays-in-scaffold`. Secret `APP_PRIVATE_KEY` and variables `APP_ID` and `APP_OWNERS` exist (step 0.1). Existing scaffold workflows: `.github/workflows/bootstrap-article.yml`, `provision-companion.yml`; scripts: `scripts/provision_companion.py`, `scripts/bootstrap-upgrader.py`.
+Do: Create `.github/actions/app-token/action.yml`, a composite action that takes `owner` and optional `repositories` and `permissions`, fails if `owner` is not a line of `vars.APP_OWNERS`, and calls `actions/create-github-app-token` (pin its major tag in `MAJOR_TAGS`, using the major tag step 1.1 found working) with `app-id`, `private-key`, `owner`, `repositories`. It must never print the token (`::add-mask::` is handled by the action; do not echo it). Add `tests/test_app_token.py` that reads the action file and asserts the allowlist check and the absence of any `echo` of the token.
+Done-when: the Check passes and the action has no default for `repositories` that widens access beyond the caller's input.
+
+### 3.2 Rework bootstrap to create the article and companion with app tokens — [ ]‖
+Class: implement · Needs: 3.1 · Check: `.venv/bin/python -m pytest tests/test_bootstrap.py tests/test_bootstrap_companion.py tests/test_ci_hardening.py -q`
+Context: `bootstrap-article.yml` renders the cookiecutter and creates a private repo with `GH_PAT`, then calls `provision-companion.yml` when `create_companion` is on (see its header comment and `github_user` handling). Decision 0062 makes the app the only credential and the org the owner; `github_user` becomes the org (default `strebulaev-articles`).
+Do: Replace every use of `secrets.GH_PAT` in `bootstrap-article.yml` with a token from `.github/actions/app-token`, minted with the `owner` input; repo creation uses the org endpoint; the pushing job uses a token narrowed to the new repo. Rewrite the header comment (prerequisites) to point to `docs/skills/setting-up-the-article-github-app.md`. Keep `repo_visibility` default `private` and `create_companion`. Update the tests to assert no `GH_PAT` remains and the owner defaults to the org.
+Done-when: the Check passes and `grep -rn GH_PAT .github/workflows/bootstrap-article.yml` finds nothing.
+
+### 3.3 Rework companion provisioning to use the app token and drop token fan-out — [ ]‖
+Class: implement · Needs: 3.1 · Check: `.venv/bin/python -m pytest tests/test_provision_companion.py tests/test_bootstrap_companion.py -q`
+Context: `scripts/provision_companion.py` creates the companion if absent, re-applies description and topics, reports private companions as drift and installs `COMPANION_TOKEN` from `COMPANION_PAT` over stdin (decision 0060, now superseded). `.github/workflows/provision-companion.yml` runs it with `GH_PAT`.
+Do: Remove the token-install step, the `deferred` and `refreshed` secret states and every `COMPANION_PAT` reference from the script, workflow and tests; keep creation, description, topics, drift and refusal results and the `--dry-run` and `--json` options. The workflow mints its token with `.github/actions/app-token`. Keep `companion.yaml` treated as untrusted input.
+Done-when: the Check passes and `grep -rn "COMPANION_PAT\|COMPANION_TOKEN\|GH_PAT" scripts/provision_companion.py .github/workflows/provision-companion.yml` finds nothing.
+
+### 3.4 Move publishing into the scaffold — [ ]
+Class: implement · Effort: high · Needs: 3.1 · Check: `.venv/bin/python -m pytest tests/test_scaffold_publish_workflow.py tests/test_companion_build.py tests/test_ci_hardening.py -q`
+Context: Decision 0063. Today `{{cookiecutter.repo_name}}/.github/workflows/publish-companion.yml` runs in the article repo on `v*` tags and manual dispatch, builds via `reusable-build.yml`, runs `python3 -m scripts.article companion`, and pushes with `COMPANION_TOKEN`; its tests are `tests/test_publish_companion_workflow.py`. The gate (final `vX.Y.Z` equal to `metadata.yaml` version, `make validate` passes, leak scan clean) is in `{{cookiecutter.repo_name}}/scripts/article/companion.py` and stays there.
+Do: Create `.github/workflows/publish-companion.yml` in the scaffold, `workflow_dispatch` only, inputs `owner` (default `strebulaev-articles`), `repo`, `tag`, `dry_run` (default true). Job 1 mints a read-only token for the one article repo, checks out the tag, builds the PDF and DOCX with the article's own `make` targets, runs `python3 -m scripts.article companion --build` and uploads the snapshot artifact. Job 2 runs only when `dry_run` is false: it mints a Contents-write token narrowed to the companion repo named in `companion.yaml`, pushes the snapshot as `release vX.Y.Z`, tags it and creates the Release (use the call that step 1.1 proved works). Treat everything read from the article as untrusted: no `${{ }}` of article-controlled values inside `run:`. Create `tests/test_scaffold_publish_workflow.py` porting the assertions from `tests/test_publish_companion_workflow.py` (permissions, concurrency, no expressions in `on:`, gate honoured, no secret echo).
+Done-when: the Check passes and a dispatch with `dry_run` true against the probe or test repo uploads a snapshot artifact and does not touch the companion.
+
+### 3.5 Add the scheduled tracker — [ ]‖
+Class: implement · Needs: 3.1 · Check: `.venv/bin/python -m pytest tests/test_track_articles.py tests/test_ci_hardening.py -q`
+Context: Decision 0063. No tracker exists. The installation's repos are listed with `GET /installation/repositories`; an article repo is one that contains `companion.yaml`; the companion repo name is its `repo:` key.
+Do: Create `scripts/track_articles.py` (stdlib plus the `gh` CLI like `scripts/provision_companion.py`, with a `Runner` injection for tests) that, for each owner on `APP_OWNERS` and each article repo, reads the version in `metadata.yaml`, the latest `v*` tag and Release, the latest successful build run, and the companion's latest release tag, and prints a Markdown table plus `--json`. Flag drift (article tag newer than companion tag, companion private). Create `.github/workflows/track-articles.yml` with `schedule` (daily) and `workflow_dispatch`, read-only permissions, writing the table to `$GITHUB_STEP_SUMMARY`; it never publishes. Tests use a fake runner.
+Done-when: the Check passes and the workflow requests no write permission on any repo.
+
+### 3.6 Remove the article-side publish workflow and token — [ ]
+Class: implement · Needs: 3.4 · Check: `.venv/bin/python -m pytest tests/test_upgrade_companion.py tests/test_upgrade.py tests/test_render.py -q`
+Context: Repos scaffolded earlier have `.github/workflows/publish-companion.yml`; `upgrade` (`{{cookiecutter.repo_name}}/scripts/article/upgrade.py`) adds new template files and updates managed ones, and `scripts/article/migrations.py` holds versioned migrations; find how a file removed from the template is handled (`grep -n "remove\|deleted" scripts/article/upgrade.py scripts/article/migrations.py`) and follow it. If upgrade cannot delete a file, add that capability with tests rather than leaving a dead workflow.
+Do: Delete `{{cookiecutter.repo_name}}/.github/workflows/publish-companion.yml` and `tests/test_publish_companion_workflow.py`; make `upgrade` remove the file from old repos (and report it in `--plan`); remove `COMPANION_TOKEN` mentions from the template. Update `tests/test_upgrade_companion.py` accordingly.
+Done-when: the Check passes, a fresh render has no `publish-companion.yml`, and an upgrade of a repo that has it removes it.
+
+### 3.7 Test the guardrails and retire the old ones — [ ]
+Class: implement · Needs: 3.2, 3.3, 3.4, 3.5, 3.6 · Check: `.venv/bin/python -m pytest tests/test_app_key_guardrail.py -q`
+Context: Guardrail `app-key-stays-in-scaffold` says it is enforced by tests reading scaffold and template workflows and scripts. The deprecated `companion-token-least-privilege` was enforced by tests in `tests/test_provision_companion.py` and the publish workflow tests; those assertions are now removed or moved.
+Do: Create `tests/test_app_key_guardrail.py` asserting: `vars.APP_ID` and `secrets.APP_PRIVATE_KEY` are referenced only under `.github/` of the scaffold; nothing in `{{cookiecutter.repo_name}}/` references `APP_PRIVATE_KEY`, `GH_PAT`, `COMPANION_PAT` or `COMPANION_TOKEN`; every `create-github-app-token` use (directly or via the composite action) passes `owner`; no workflow echoes a token.
+Done-when: the Check passes.
+
+## 4. Docs and release
+
+### 4.1 Update docs, procedures and version — [ ]
+Class: implement · Needs: 2.2, 3.7 · Check: `.venv/bin/python -m pytest tests/test_docs.py tests/test_migration_docs.py -q`
+Context: Docs describing the old flow: `docs/companion.md` (secrets table, provisioning, publishing), `README.md`, `docs/upgrading.md`, `{{cookiecutter.repo_name}}/docs/companion.md`, `docs/skills/enabling-zenodo-for-a-companion.md`, `CHANGELOG.md`, `pyproject.toml` (version 1.6.x now). AGENTS.md's guardrail section is generated.
+Do: Rewrite those docs for the app flow (secrets table becomes the secret `APP_PRIVATE_KEY` and the variables `APP_ID`, `APP_OWNERS`; publish by dispatching the scaffold workflow; tracker summary; `owner` parameter), update the `operationalizes` list and steps of `enabling-zenodo-for-a-companion.md`, add the linked-articles note, add a CHANGELOG entry and bump `pyproject.toml` to the next minor version. Run `go-getter apply` to regenerate the `AGENTS.md` guardrail section if the CLI is available (`.go-getter/` holds it); otherwise record that in the step.
+Done-when: the Check passes and `grep -rn "COMPANION_PAT\|COMPANION_TOKEN" README.md docs/companion.md docs/upgrading.md {{cookiecutter.repo_name}}/docs` finds nothing outside history notes.
+
+### 4.2 Run the full suite and an end-to-end render — [ ]
+Class: review · Needs: 4.1 · Check: `make test && make lint`
+Context: Same as the last step of the previous plan (`docs/plans/public-companion-repos.md` step 3.2).
+Do: Run `make test` and `make lint`. Render with cookiecutter using `github_user=strebulaev-articles` and a series `related_identifiers` entry, run `python3 -m scripts.article companion --build`, and confirm the snapshot's `.zenodo.json` carries the related identifiers and nothing under `.github/`, `scripts/` or `docs/` is included.
+Done-when: both commands exit 0, the render check holds, and any failure is reported with its output.
+
+## 5. Adopt in the real repos
+
+### 5.1 Move the bridge-contract article into the org and dry-run a publish — [ ]
+Class: implement · Needs: 4.2 · Check: `gh workflow run publish-companion.yml -R sergemso/article-scaffold -f repo=articles.bridge_contract_for_agent_session_governance -f tag=v0.0.0 -f dry_run=true`
+Human: transferring a repository and the final tag push are the owner's; stop with `[!]` and say which is missing. Replaces step 4.1 of `docs/plans/public-companion-repos.md`.
+Context: The article repo is `/home/ubuntu/projects/sergemso/articles.bridge_contract_for_agent_session_governance` (generated at template commit `4fac8c4`, default branch `master`, remote `git@github.com:sergemso/articles.bridge_contract_for_agent_session_governance.git`). Its `CLAUDE.md` requires `docs/writing-guardrails.md` compliance for any prose, metadata or code comment (G-COUNT: never state counts of enumerable things; G-VERSION: never name draft versions) and `python3 scripts/lint-counts.py` before finishing. `metadata.yaml` is the abstract's source of truth; run `make metadata`, never edit the generated block in `paper/sections/00_abstract.tex`. The scaffold changes of this plan must be pushed to `https://github.com/sergemso/article-scaffold` first (the article's `upgrade` reads the template there).
+Do: (1) Owner transfers the repo to `strebulaev-articles` and updates the local remote. (2) On a clean tree run `python3 -m scripts.article upgrade --plan`, then `--apply`, resolve conflicts, `--finish`, commit on the branch it created; set `github_user` to the org in `metadata.yaml` and run `make metadata`. (3) Review `companion.yaml` against the repo's analysis, data and supplementary files and add allowlist entries the archive needs; keep the deny patterns. (4) Run `python3 -m scripts.article companion --plan --json`. (5) Dispatch the scaffold `provision-companion.yml` with this repo, `dry_run` true, then false. (6) Dispatch the scaffold `publish-companion.yml` with the intended tag and `dry_run` true; download the snapshot artifact and read its file list. Do NOT push a `v*` tag and do NOT switch the repo on in Zenodo; both are irreversible and the owner's call (`docs/skills/enabling-zenodo-for-a-companion.md`).
+Done-when: the upgrade branch is committed, `companion --plan --json` exits 0 and lists no path under `.claude/`, `.scholar/`, `.github/`, `scripts/` or `docs/`, the public companion exists in the org, and the dry-run artifact has been inspected.
+
+### 5.2 Clean up the test pair and the old secrets — [ ]
+Class: implement · Needs: 5.1 · Check: `gh secret list -R sergemso/article-scaffold | grep -cE '^(GH_PAT|COMPANION_PAT)\s'`
+Human: deleting repos and secrets is irreversible; the owner confirms each.
+Context: `sergemso/articles.companion_e2e_test` (private) and its public companion were kept after the earlier end-to-end validation (see the 2026-10-30 note in `docs/plans/public-companion-repos.md`). `GH_PAT` and possibly `COMPANION_PAT` remain as scaffold secrets.
+Do: With the owner's confirmation delete the test pair and the secrets `GH_PAT` and `COMPANION_PAT` from the scaffold; revoke the corresponding tokens in GitHub settings.
+Done-when: the Check prints `0` and the test repos are gone.
