@@ -143,3 +143,15 @@ def test_snapshot_upload_keeps_dotfiles() -> None:
     text = workflow.read_text(encoding="utf-8")
     block = text.split("name: companion-snapshot", 1)[1].split("retention-days", 1)[0]
     assert "include-hidden-files: true" in block
+
+
+def test_docx_is_built_from_the_paper_directory_and_checked() -> None:
+    # \input{sections/...} resolves against the working directory, so pandoc must run in
+    # paper/; from the repo root it silently drops every section and leaves the title block.
+    workflow = Path(__file__).resolve().parent.parent / ".github/workflows/publish-companion.yml"
+    text = workflow.read_text(encoding="utf-8")
+    start = text.split("name: Build the DOCX with Pandoc", 1)[1]
+    block = start.split("name: Verify the DOCX", 1)[0]
+    assert "-w /workspace/article/paper" in block
+    assert "paper/article.tex" not in block
+    assert "Verify the DOCX holds the sections" in text
