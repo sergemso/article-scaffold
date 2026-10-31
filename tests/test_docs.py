@@ -177,3 +177,12 @@ def test_rendered_metadata_doc_covers_related_identifiers(tmp_path: Path) -> Non
     for relation in ("isPartOf", "continues", "obsoletes"):
         assert relation in text
     assert "CITATION.cff" in text.split("`related_identifiers`", 1)[1]
+
+
+def test_readme_describes_the_app_flow_not_pats() -> None:
+    """The README must not send readers to the retired PAT credentials."""
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    for retired in ("GH_PAT", "COMPANION_PAT", "COMPANION_TOKEN", "github.actor"):
+        assert retired not in text, retired
+    for needed in ("APP_PRIVATE_KEY", "provision-companion.yml", "publish-companion.yml"):
+        assert needed in text, needed

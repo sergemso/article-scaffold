@@ -40,18 +40,21 @@ locally. The workflow:
 1. Renders the template with the parameters you supply as workflow inputs.
 2. Runs `make validate` on the rendered repo (fails the workflow if the
    template is broken).
-3. Creates a new GitHub repo under `${{ github.actor }}` (or a custom owner
-   you specify) with the chosen visibility (default **private**).
+3. Creates a new GitHub repo under the `owner` input (default the org
+   `strebulaev-articles`, which must be on `APP_OWNERS`) with the chosen
+   visibility (default **private**), and its public companion.
 4. Pushes the initial commit, which triggers the new repo's own
    `build-artifacts.yml` to build PDF + DOCX.
 
-To use it, add a `GH_PAT` secret to the scaffold repo
-(Settings → Secrets and variables → Actions → New repository secret).
-The PAT needs the `repo` scope (classic) or `Administration: write`
-(fine-grained) on the target owner. Then:
+It authenticates as the scaffold's GitHub App, so no personal token is involved:
+the scaffold needs the secret `APP_PRIVATE_KEY` and the variables `APP_ID` and
+`APP_OWNERS` (one-time setup: `docs/skills/setting-up-the-article-github-app.md`).
+The caller only needs `gh` access that may dispatch workflows on the scaffold repo.
+Then:
 
 ```bash
 gh workflow run bootstrap-article.yml \
+  -f owner=strebulaev-articles \
   -f topic=ai_governance \
   -f title="From AI Scaling to AI Governance" \
   -f subtitle="Technological Revolutions and the Political Economy of Deployment" \
@@ -81,6 +84,25 @@ which tags have no companion release. Existing repos adopt the feature by upgrad
 then running the provisioning workflow. Articles can link to each other as a series
 with `related_identifiers` in `metadata.yaml`.
 Switching the companion on in Zenodo stays manual. See [docs/companion.md](docs/companion.md).
+
+### Driving the scaffold from an agent
+
+An agent never handles the App key; it dispatches scaffold workflows with `gh` and the
+App mints short-lived tokens inside them (decision `0062`). Run `gh workflow run <file>
+-R <scaffold repo> -f ...`:
+
+| Job | Workflow | Key inputs | Check the result |
+| --- | --- | --- | --- |
+| New article and companion | `bootstrap-article.yml` | `owner`, `topic`, `title`, `create_companion` | job summary link |
+| Create or repair companions | `provision-companion.yml` | `repo` (`OWNER/name` or `all`), `owner`, `dry_run` | per-repo result in the run summary |
+| Publish a release | `publish-companion.yml` | `repo`, `tag`, `dry_run` | snapshot artifact file list |
+| Report status | `track-articles.yml` | none | run summary table |
+
+Always run with `dry_run=true` first and read the output (for publishing, download the
+snapshot artifact and read its file list) before repeating with `dry_run=false`.
+`owner` must be listed in `APP_OWNERS`. Pushing the final `vX.Y.Z` tag and switching the
+companion on in Zenodo are the owner's; an agent stops and asks. Details per workflow:
+[docs/companion.md](docs/companion.md).
 
 ## Optional user configuration
 
