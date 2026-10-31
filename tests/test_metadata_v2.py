@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from pathlib import Path
 
 import jsonschema
 import pytest
 import yaml
-from conftest import ROOT, render
+from conftest import ROOT, render, run
 
 TEMPLATE_SCRIPTS = ROOT / "{{cookiecutter.repo_name}}" / "scripts"
 
@@ -304,3 +305,132 @@ def test_default_metadata_is_schema_v2_and_validates(tmp_path: Path) -> None:
     assert "W020" not in _codes(normalized)
     assert normalized["_author_full"] == "Ada Lovelace"
     assert normalized["_author_affiliation"] == "Analytical Engine Institute"
+
+
+def _related(entries: list[dict], **extra: object) -> dict:
+    return {**_v2_metadata(), "related_identifiers": entries, **extra}
+
+
+def _entry(identifier: str, relation: str = "isPartOf", scheme: str = "doi") -> dict:
+    return {"identifier": identifier, "relation": relation, "scheme": scheme}
+
+
+def test_related_identifiers_absent_by_default(metadata_core) -> None:
+    normalized = metadata_core.normalize_metadata(_v2_metadata())
+    assert normalized["_metadata_ok"] is True
+    assert "related_identifiers" not in normalized
+
+
+def test_valid_series_is_normalised(metadata_core) -> None:
+    data = _related(
+        [
+            _entry("https://doi.org/10.5281/zenodo.111", "isPartOf"),
+            _entry("doi:10.5281/zenodo.222", "continues"),
+            _entry("https://example.org/series", "isSupplementTo", "url"),
+        ]
+    )
+    normalized = metadata_core.normalize_metadata(data)
+
+    assert normalized["_metadata_ok"] is True
+    assert [e["identifier"] for e in normalized["related_identifiers"]] == [
+        "10.5281/zenodo.111",
+        "10.5281/zenodo.222",
+        "https://example.org/series",
+    ]
+    assert data["related_identifiers"][0]["identifier"].startswith("https://doi.org/")
+    deposit = json.loads(metadata_core.gen_zenodo_json(normalized))
+    assert deposit["related_identifiers"][1] == _entry(
+        "10.5281/zenodo.222", "continues"
+    )
+
+
+@pytest.mark.parametrize(
+    ("entry", "code"),
+    [
+        (_entry("10.5281/zenodo.1", "isFriendOf"), "E030"),
+        (_entry("10.5281/zenodo.1", "isPartOf", "handle"), "E031"),
+        (_entry("not-a-doi"), "E032"),
+        (_entry("http://example.org/x", "isPartOf", "url"), "E033"),
+        (_entry("https://github.com/test-user/articles.multi", "isPartOf", "url"), "E034"),
+        (_entry("https://github.com/Test-User/other.public", "isPartOf", "url"), "E034"),
+        ({"identifier": "10.5281/zenodo.1", "relation": "isPartOf"}, "E026"),
+    ],
+)
+def test_invalid_related_identifier_is_reported(metadata_core, entry, code) -> None:
+    normalized = metadata_core.normalize_metadata(_related([entry]))
+
+    assert normalized["_metadata_ok"] is False
+    assert code in _codes(normalized)
+    message = next(
+        i["message"] for i in normalized["_metadata_diagnostics"] if i["code"] == code
+    )
+    assert "related_identifiers entry 1" in message
+
+
+def test_companion_url_is_allowed_other_owner_repos_are_not(metadata_core) -> None:
+    companion_url = "https://github.com/test-user/articles.multi.public"
+    data = _related([_entry(companion_url, "isSupplementedBy", "url")])
+
+    assert metadata_core.validate_metadata(data).ok is False
+    assert metadata_core.validate_metadata(
+        data, companion_repo="test-user/articles.multi.public"
+    ).ok
+    other = _related([_entry("https://github.com/test-user/secret", "isPartOf", "url")])
+    assert not metadata_core.validate_metadata(
+        other, companion_repo="test-user/articles.multi.public"
+    ).ok
+
+
+def test_related_identifiers_schema(tmp_path: Path) -> None:
+    project = render(tmp_path=tmp_path)
+    schema = yaml.safe_load((project / "schemas" / "metadata.schema.json").read_text())
+    base = yaml.safe_load((project / "metadata.yaml").read_text())
+
+    jsonschema.validate({**base, "related_identifiers": [_entry("10.1/x")]}, schema)
+    for bad in (
+        _entry("10.1/x", "isFriendOf"),
+        _entry("10.1/x", "isPartOf", "handle"),
+        {**_entry("10.1/x"), "extra": "key"},
+        {"identifier": "10.1/x", "relation": "isPartOf"},
+    ):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({**base, "related_identifiers": [bad]}, schema)
+
+
+def _set_related(project: Path, entries: list[dict]) -> None:
+    path = project / "metadata.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["related_identifiers"] = entries
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
+
+
+def test_make_validate_rejects_private_repo_link(tmp_path: Path) -> None:
+    project = render(tmp_path=tmp_path)
+    private = "https://github.com/test-user/articles.test"
+    _set_related(project, [_entry(private, "isSupplementTo", "url")])
+
+    result = run(project, "python3", "scripts/validate-paper.py")
+
+    assert result.returncode == 1
+    assert "E034" in result.stderr
+    assert "related_identifiers entry 1" in result.stderr
+    assert private in result.stderr
+
+
+def test_valid_series_passes_validate_and_reaches_zenodo_json(tmp_path: Path) -> None:
+    project = render(tmp_path=tmp_path)
+    _set_related(
+        project,
+        [
+            _entry("https://doi.org/10.5281/zenodo.111", "isPartOf"),
+            _entry("10.5281/zenodo.222", "continues"),
+        ],
+    )
+
+    assert run(project, "python3", "scripts/validate-paper.py").returncode == 0
+    assert run(project, "make", "metadata").returncode == 0
+    deposit = json.loads((project / ".zenodo.json").read_text())
+    assert deposit["related_identifiers"] == [
+        _entry("10.5281/zenodo.111", "isPartOf"),
+        _entry("10.5281/zenodo.222", "continues"),
+    ]

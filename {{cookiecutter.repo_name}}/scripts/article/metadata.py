@@ -81,10 +81,33 @@ E_METADATA_SHAPE = "E026"
 E_METADATA_SCHEMA = "E027"
 E_METADATA_KIND = "E028"
 E_METADATA_CITATION_STYLE = "E029"
+E_METADATA_RELATION = "E030"
+E_METADATA_RELATED_SCHEME = "E031"
+E_METADATA_RELATED_DOI = "E032"
+E_METADATA_RELATED_URL = "E033"
+E_METADATA_RELATED_PRIVATE = "E034"
 W_METADATA_LEGACY_AUTHOR = "W020"
 
 MANUSCRIPT_KINDS = {"perspective", "empirical", "review"}
 CITATION_STYLES = {"numeric", "author-year"}
+RELATIONS = {
+    "isPartOf",
+    "hasPart",
+    "continues",
+    "isContinuedBy",
+    "isNewVersionOf",
+    "isPreviousVersionOf",
+    "obsoletes",
+    "isObsoletedBy",
+    "isSupplementTo",
+    "isSupplementedBy",
+    "references",
+    "isReferencedBy",
+    "isDocumentedBy",
+}
+RELATED_SCHEMES = {"doi", "url"}
+DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
+DOI_PREFIX_RE = re.compile(r"^(?:https://doi\.org/|doi:)", re.IGNORECASE)
 
 
 def valid_orcid(value: object) -> bool:
@@ -467,7 +490,10 @@ def load_metadata(path: Path) -> dict:
         data = yaml.safe_load(handle)
     if not isinstance(data, dict):
         raise ValueError("metadata.yaml must contain a mapping")
-    normalized = normalize_metadata(data)
+    config = companion.read_config(path.parent)
+    normalized = normalize_metadata(
+        data, companion_repo=config["repo"] if config else None
+    )
     _apply_companion(normalized, path.parent)
     return normalized
 
@@ -488,7 +514,102 @@ def _apply_companion(normalized: dict, root: Path) -> None:
         normalized["_doi_url"] = normalized["_repo_url"]
 
 
-def normalize_metadata(data: dict) -> dict:
+def _normalize_related(
+    normalized: dict, diagnostics: Diagnostics, companion_repo: str | None
+) -> None:
+    """Normalise ``related_identifiers`` in place and report invalid entries.
+
+    Zenodo publishes these links, so a URL naming the private article repo (or
+    any GitHub repo of the article owner other than the companion) is refused.
+    """
+    raw = normalized.get("related_identifiers")
+    if raw is None:
+        return
+    if not isinstance(raw, list):
+        diagnostics.error(
+            METADATA_PATH,
+            0,
+            E_METADATA_SHAPE,
+            "related_identifiers must be a list of mappings",
+        )
+        return
+    owner_prefix = f"https://github.com/{_text(normalized.get('github_user'))}/".lower()
+    companion_url = f"https://github.com/{companion_repo}".lower() if companion_repo else ""
+    entries: list[object] = []
+    for index, entry in enumerate(raw, start=1):
+        label = f"related_identifiers entry {index}"
+        if not isinstance(entry, dict):
+            diagnostics.error(
+                METADATA_PATH, 0, E_METADATA_SHAPE, f"{label} must be a mapping"
+            )
+            entries.append(entry)
+            continue
+        entry = dict(entry)
+        entries.append(entry)
+        unknown = sorted(set(entry) - {"identifier", "relation", "scheme"})
+        missing = [k for k in ("identifier", "relation", "scheme") if not entry.get(k)]
+        if unknown or missing:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_SHAPE,
+                f"{label} needs exactly identifier, relation and scheme"
+                + (f" (missing: {', '.join(missing)})" if missing else "")
+                + (f" (unknown: {', '.join(unknown)})" if unknown else ""),
+            )
+        identifier = _text(entry.get("identifier"))
+        relation = _text(entry.get("relation"))
+        scheme = _text(entry.get("scheme"))
+        if relation and relation not in RELATIONS:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_RELATION,
+                f"{label} ({identifier}): unknown relation '{relation}'; "
+                f"use one of {sorted(RELATIONS)}",
+            )
+        if scheme and scheme not in RELATED_SCHEMES:
+            diagnostics.error(
+                METADATA_PATH,
+                0,
+                E_METADATA_RELATED_SCHEME,
+                f"{label} ({identifier}): scheme must be 'doi' or 'url', "
+                f"got: {scheme}",
+            )
+        if scheme == "doi":
+            identifier = DOI_PREFIX_RE.sub("", identifier)
+            entry["identifier"] = identifier
+            if not DOI_RE.match(identifier):
+                diagnostics.error(
+                    METADATA_PATH,
+                    0,
+                    E_METADATA_RELATED_DOI,
+                    f"{label} ({identifier}): not a DOI (expected 10.NNNN/suffix)",
+                )
+        elif scheme == "url" and identifier:
+            if not identifier.lower().startswith("https://"):
+                diagnostics.error(
+                    METADATA_PATH,
+                    0,
+                    E_METADATA_RELATED_URL,
+                    f"{label} ({identifier}): url must start with https://",
+                )
+            elif identifier.lower().startswith(owner_prefix) and not (
+                companion_url
+                and identifier.lower().rstrip("/") == companion_url
+            ):
+                diagnostics.error(
+                    METADATA_PATH,
+                    0,
+                    E_METADATA_RELATED_PRIVATE,
+                    f"{label} ({identifier}): points at a repository of "
+                    f"'{normalized.get('github_user')}' other than the public "
+                    "companion; link a DOI or a public URL instead",
+                )
+    normalized["related_identifiers"] = entries
+
+
+def normalize_metadata(data: dict, *, companion_repo: str | None = None) -> dict:
     """Add the derived keys the generators rely on, without side effects.
 
     Both the v2 ``authors``/``affiliations`` model and the legacy ``author``
@@ -525,6 +646,7 @@ def normalize_metadata(data: dict) -> dict:
             f"citation_style must be one of {sorted(CITATION_STYLES)}, "
             f"got: {citation_style}",
         )
+    _normalize_related(normalized, diagnostics, companion_repo)
     affiliations = _normalize_affiliations(normalized.get("affiliations"), diagnostics)
     authors = _normalize_authors(
         normalized,
@@ -602,9 +724,9 @@ def normalize_metadata(data: dict) -> dict:
     return normalized
 
 
-def validate_metadata(data: dict) -> Diagnostics:
+def validate_metadata(data: dict, *, companion_repo: str | None = None) -> Diagnostics:
     """Return actionable diagnostics for a metadata mapping."""
-    normalized = normalize_metadata(data)
+    normalized = normalize_metadata(data, companion_repo=companion_repo)
     diagnostics = Diagnostics()
     for item in normalized.get("_metadata_diagnostics", []):
         diagnostics.add(
