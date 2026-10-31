@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from conftest import render
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "{{cookiecutter.repo_name}}"
@@ -169,3 +170,10 @@ def test_template_workflows_use_default_branch(tmp_path: Path) -> None:
         on = doc.get("on", doc.get(True))
         assert "${{" not in str(on), f"{wf.name} has an expression inside on:"
         assert "__DEFAULT_BRANCH__" not in wf.read_text(), f"{wf.name} kept the placeholder"
+
+def test_rendered_metadata_doc_covers_related_identifiers(tmp_path: Path) -> None:
+    text = (render(tmp_path=tmp_path) / "docs" / "metadata.md").read_text(encoding="utf-8")
+    assert "`related_identifiers`" in text
+    for relation in ("isPartOf", "continues", "obsoletes"):
+        assert relation in text
+    assert "CITATION.cff" in text.split("`related_identifiers`", 1)[1]

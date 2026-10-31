@@ -36,10 +36,11 @@ Do: (1) Add `related_identifiers` to the schema as a list of objects with `ident
 Result (2026-10-31): codes E030–E034 in `scripts/article/metadata.py`; `normalize_metadata` and `validate_metadata` take `companion_repo`, which `load_metadata` reads from `companion.yaml`. `make validate` did not check metadata at all, so `validate_paper` now calls a new `_check_metadata` (only when `related_identifiers` is present).
 Done-when: the Check passes, a metadata file with a private-repo URL fails `make validate` with a message naming the entry, and a valid one passes and appears in `.zenodo.json`.
 
-### 2.2 Document linked articles and deliver the change to old repos — [ ]
+### 2.2 Document linked articles and deliver the change to old repos — [x]
 Class: implement · Needs: 2.1 · Check: `.venv/bin/python -m pytest tests/test_docs.py tests/test_upgrade.py tests/test_metadata_v2.py -q`
 Context: `{{cookiecutter.repo_name}}/docs/metadata.md` has a table of optional keys that does not list `related_identifiers`. `upgrade` delivers changes under `scripts/` and `schemas/` to existing repos but never rewrites an author's `metadata.yaml` (fact 0003, decision 0060's config note).
 Do: (1) Add a `related_identifiers` row and a short example for a series (part of, continues, supersedes with `obsoletes`) to the table in `{{cookiecutter.repo_name}}/docs/metadata.md`, stating the relation list, the DOI-or-public-URL rule, that each article declares its own side of a link, that a successor without a DOI is added in a later version, and that links are not rendered in `CITATION.cff`, the README or the title page. (2) Add a test that an upgraded project whose `metadata.yaml` holds a private URL fails validation with the new message rather than being silently accepted. (3) Add a `CHANGELOG.md` line under a new unreleased heading.
+Result (2026-10-31): the upgrade test lives in `tests/test_upgrade_companion.py` (it owns the old-template fixture); `upgrade --finish` fails with U016 carrying E034. The CHANGELOG line went under the existing `[Unreleased]` heading as `### Added`.
 Done-when: the Check passes and `docs/metadata.md` in a freshly rendered repo documents the key.
 
 ## 3. App migration (scaffold side)

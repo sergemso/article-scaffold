@@ -154,3 +154,27 @@ def test_hand_edited_companion_yaml_survives_a_later_upgrade(
         assert path.read_bytes() == edited
     finally:
         _tpl_git(tpl, "reset", "--quiet", "--hard", template["new"])
+
+
+def test_upgrade_does_not_launder_a_private_related_link(
+    old_repo: Path, template: dict[str, str]
+) -> None:
+    """upgrade never rewrites metadata.yaml, so the new validator must catch the link."""
+    path = old_repo / "metadata.yaml"
+    private = "https://github.com/test-user/articles.test_topic"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + f"related_identifiers:\n  - identifier: {private}\n"
+        "    relation: isSupplementTo\n    scheme: url\n",
+        encoding="utf-8",
+    )
+    assert run(old_repo, "make", "metadata").returncode == 0
+    run(old_repo, "git", "commit", "--quiet", "-am", "docs: link")
+    applied = _apply(old_repo, template)
+    assert applied.get("conflicted") == [], applied
+
+    finished = _call(old_repo, "upgrade.finish(Path('.'))")
+    assert finished.get("error") == "U016", finished
+    assert "E034" in finished["message"] and private in finished["message"]
+    assert private in path.read_text(encoding="utf-8")
+    assert run(old_repo, "python3", "scripts/validate-paper.py").returncode == 1

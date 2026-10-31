@@ -7,6 +7,13 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+### Added
+
+- `related_identifiers` in `metadata.yaml` (series, predecessor, successor) is
+  validated (relation, scheme, DOI shape, https, no private repo URLs), DOIs are
+  normalised, and `make validate` reports problems (E030 to E034). Documented in
+  `docs/metadata.md`.
+
 ### Changed
 
 - `provision-companion.yml` creates the companion repo with `GH_PAT` alone; when
