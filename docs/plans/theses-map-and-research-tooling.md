@@ -107,11 +107,12 @@ Do: Add `theses.yaml` and `.theses/**` to the template's `exclude`. Add a test i
 Done-when: the test passes; set the guardrail to `active` in its file and `INDEX.md` row. Existing repos need a manual `companion.yaml` edit (step 6.1).
 Resolved: deny patterns and tests added in the slot; guardrail activated. The snapshot omits the files and prunes `.theses` (reported in `excluded` only for `theses.yaml`).
 
-### 2.6 No network use in the claim, index and map code — [ ] ‖
+### 2.6 No network use in the claim, index and map code — [x] ‖
 Class: implement · Effort: low · Needs: 2.2, 2.3, 2.4 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_no_network_in_claim_code.py -q`
 Context: Guardrail `claim-check-input-stays-local`.
 Do: Add a test that parses `theses.py`, `index.py` and `claims.py` in the template with `ast` and fails on any import of `socket`, `http`, `urllib`, `requests`, `ssl`, `ftplib`, `smtplib`, `subprocess` calls to `curl` or `wget`, or `os.system`.
 Done-when: the test passes and fails on a deliberate violating fixture; set the guardrail to `active` in its file and `INDEX.md` row.
+Resolved: `tests/test_no_network_in_claim_code.py` scans the three modules and the local modules they import (`latex.py`, `diagnostics.py`); guardrail activated.
 
 ## 3. Agent procedures (skills) shipped in the template
 

@@ -1,7 +1,7 @@
 ---
 id: claim-check-input-stays-local
 title: Manuscript and source text are never an argument to an outbound call
-status: draft
+status: active
 date: 2026-11-02
 tags: [theses-map, privacy, sources, guardrail]
 governed-by: 0067-claim-checks-are-tiered-and-local
@@ -15,4 +15,4 @@ go-getter:
 
 ## Guardrail
 
-The vendored CLI opens no network connection from the claim-check, index, cache or theses code. Text reaches a model only through the host session. Draft until the scan test exists.
+The vendored CLI opens no network connection from the claim-check, index, cache or theses code. Text reaches a model only through the host session.
