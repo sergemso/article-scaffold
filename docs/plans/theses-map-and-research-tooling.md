@@ -188,11 +188,12 @@ Resolved: `scripts/track_articles.py` reads `theses.yaml` through the contents A
 
 ## 6. Adopt in this article repo
 
-### 6.1 Upgrade the article repo — [ ]
+### 6.1 Upgrade the article repo — [x]
 Class: implement · Effort: medium · Needs: 5.1, 1.2 · Check: `cd /home/sergei/projects/strebulaev-articles/articles.bridge_contract_for_agent_session_governance && python3 -m scripts.article theses lint && python3 -m scripts.article index --check && grep -q 'theses.yaml' companion.yaml`
 Context: Procedure `S/docs/skills/adopting-the-theses-map-in-an-existing-article.md`. `A` starts clean on `master`; use a branch and a pull request. `A/CLAUDE.md` forbids counts of enumerable things and draft-version references in prose and comments; run `python3 scripts/lint-counts.py`.
 Do: Follow the procedure steps 1 to 4 and 7: `upgrade --plan`, read it, `--apply`, resolve conflicts, `--finish`; add `theses.yaml` and `.theses/**` to `companion.yaml` `exclude`; run the companion dry run in the scaffold and read the file list; run `make validate`.
 Done-when: the check passes and `make validate` and `python3 scripts/lint-counts.py` exit 0.
+Resolved: A branch `feat/theses-map` (from `fix/mcp-host-paths`), commit 8489486, pushed, no PR. Template source was the local scaffold (git `url.<local>.insteadOf` for the stamp URL, `--to feat/theses-map-and-research-tooling`, 73684d0; PR #26 unmerged), run with the scaffold venv python because 3.10 lacked cookiecutter; stamp keeps the GitHub URL. Plan showed no conflicts; `companion.yaml` skipped as user-owned, so `theses.yaml` and `.theses/**` were added by hand to `exclude`; the dry run lists neither (only `schemas/theses.schema.json`). `theses lint`, `index --check`, `make validate`, `lint-counts.py` exit 0. `.mcp.json` paths exist; the `scholar-authors` host connection was not tested.
 
 ### 6.2 Seed the map from existing notes — [ ]
 Class: implement · Effort: high · Needs: 6.1 · Check: `cd /home/sergei/projects/strebulaev-articles/articles.bridge_contract_for_agent_session_governance && python3 -m scripts.article theses lint && python3 -m scripts.article theses gaps`
