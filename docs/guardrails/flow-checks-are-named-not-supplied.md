@@ -1,7 +1,7 @@
 ---
 id: flow-checks-are-named-not-supplied
 title: flow done runs only checks from a fixed table, never a command from the caller
-status: draft
+status: active
 date: 2026-11-02
 tags: [orchestration, security, guardrail]
 governed-by: 0071-flow-orders-are-host-neutral
@@ -15,4 +15,4 @@ go-getter:
 
 ## Guardrail
 
-Each order carries a check name, resolved by the CLI in a fixed table of argument vectors. No order, file or argument supplies a command line, shell string or extra flags. Draft until the tests exist.
+Each order carries a check name, resolved by the CLI in a fixed table of argument vectors. No order, file or argument supplies a command line, shell string or extra flags. Enforced by `tests/test_flow_done.py`.

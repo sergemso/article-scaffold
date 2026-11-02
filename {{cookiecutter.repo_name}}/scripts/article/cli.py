@@ -138,6 +138,14 @@ def _theses(args: argparse.Namespace) -> int:
         return core.ExitCode.DIAGNOSTICS
 
 
+def _confirm_in_terminal(action: str) -> bool:
+    """True only when a person types `yes` at an interactive terminal."""
+    if not sys.stdin.isatty():
+        return False
+    print(f"flow {action}: type 'yes' to record this as yourself: ", end="", file=sys.stderr)
+    return sys.stdin.readline().strip() == "yes"
+
+
 def _flow(args: argparse.Namespace) -> int:
     root = _root(args)
     action = args.flow_action
@@ -156,6 +164,19 @@ def _flow(args: argparse.Namespace) -> int:
         if action == "next":
             _emit_json(flow.next_order(root))
             return core.ExitCode.OK
+        if action == "done":
+            payload = flow.done(root, args.order_id)
+            _emit_json(payload)
+            return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        confirmed = _confirm_in_terminal(action)
+        if action == "attest":
+            payload = flow.attest(root, args.name, args.by, args.why, confirmed=confirmed)
+        else:
+            payload = flow.waive(
+                root, args.stage, args.by, args.why, args.expires, confirmed=confirmed
+            )
+        _emit_json(payload)
+        return core.ExitCode.OK
     except flow.FlowError as exc:
         _emit_json({"ok": False, "command": f"flow {action}", "error": str(exc)})
         return core.ExitCode.DIAGNOSTICS
@@ -760,7 +781,23 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(f_status)
     f_next = flow_sub.add_parser("next", help="print the first open work order as JSON")
     _add_common(f_next)
-    for sub in (f_status, f_next):
+    f_done = flow_sub.add_parser(
+        "done", help="close an issued order by running its named check (takes the id only)"
+    )
+    _add_common(f_done)
+    f_done.add_argument("order_id")
+    f_attest = flow_sub.add_parser("attest", help="record a human attestation (terminal only)")
+    _add_common(f_attest)
+    f_attest.add_argument("name", help="for example bibliography or claim:<node id>")
+    f_attest.add_argument("--by", required=True, help="name of the person")
+    f_attest.add_argument("--why", required=True, help="one-line reason or evidence")
+    f_waive = flow_sub.add_parser("waive", help="waive a failing gate until a date (terminal only)")
+    _add_common(f_waive)
+    f_waive.add_argument("stage", choices=flow.STAGES)
+    f_waive.add_argument("--by", required=True, help="name of the person")
+    f_waive.add_argument("--why", required=True, help="one-line reason")
+    f_waive.add_argument("--expires", required=True, help="YYYY-MM-DD")
+    for sub in (f_status, f_next, f_done, f_attest, f_waive):
         sub.set_defaults(func=_flow, command="flow")
 
     metadata = subparsers.add_parser(

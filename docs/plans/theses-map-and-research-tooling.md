@@ -226,10 +226,11 @@ Context: Decision 0071. Orders reference node ids and procedure files; they carr
 Do: `flow next` prints the first open order for the earliest failing gate, as JSON validated against `schemas/flow-order.schema.json`. Idempotent: calling it again re-issues the same open order.
 Done-when: tests cover one order per stage kind and the idempotent re-issue; order JSON stays under a size cap.
 
-### 8.4 `flow done`, named checks, retry caps and budget — [ ]
+### 8.4 `flow done`, named checks, retry caps and budget — [x]
 Class: implement · Effort: high · Needs: 8.3 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_flow_done.py -q`
 Context: Decisions 0071 and 0072; guardrails `flow-checks-are-named-not-supplied`, `flow-gated-stages-need-out-of-band-confirm`.
 Do: A fixed table maps check names to argument vectors. `flow done <order-id>` accepts nothing else, runs the check, and records a pass in `flow.yaml`; a fail increments the order's retry count. Enforce unit weights, the round budget and the retry cap: past either, `flow next` returns a needs-human order carrying the failing output and node ids and refuses `large` orders. Gated orders are closed only through the terminal confirm path from step 8.8.
+Resolved: gated orders close only when a person has recorded the confirmation (`flow attest`, terminal-only) in `flow.yaml`; the MCP terminal confirm path of 8.8 is not built yet and will call the same record. `flow attest` and `flow waive` were added for this.
 Done-when: tests cover an unknown check name, extra arguments, a retry cap hit, a spent budget refusing a `large` order, a crash between `next` and `done` (re-issued order, no double count), and a gated order refused without confirmation. Then set guardrail `flow-checks-are-named-not-supplied` to `active` in its file and `INDEX.md` row.
 
 ### 8.5 Review-round loop: ingest a review — [ ]

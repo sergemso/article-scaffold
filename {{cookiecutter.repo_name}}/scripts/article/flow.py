@@ -806,3 +806,113 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
     if old != entry:
         state["orders"][order["id"]] = entry
         save_state(root, state)
+
+
+# ---------------------------------------------------------------- done, attest
+
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9:._-]*$")
+
+
+def _fail(root: Path, state: dict[str, Any], order_id: str, output: str) -> dict[str, Any]:
+    entry = state["orders"][order_id]
+    entry["retries"] = int(entry.get("retries", 0)) + 1
+    entry["last_output"] = output[:OUTPUT_LIMIT]
+    save_state(root, state)
+    return {
+        "ok": False,
+        "command": "flow done",
+        "id": order_id,
+        "retries": entry["retries"],
+        "retry_cap": state["retry_cap"],
+        "output": entry["last_output"],
+    }
+
+
+def done(root: Path, order_id: str, today: date | None = None) -> dict[str, Any]:
+    """Close an issued order: run its named check, then confirm the condition is gone.
+
+    Takes the order id and nothing else. A pass is recorded once; closing again is a
+    no-op, so a crash between `next` and `done` never double counts.
+    """
+    state = load_state(root)
+    entry = state["orders"].get(order_id)
+    if not isinstance(entry, dict):
+        raise FlowError(f"unknown order {order_id!r}; run `flow next`")
+    if entry.get("done"):
+        return {"ok": True, "command": "flow done", "id": order_id, "charged": 0, "already": True}
+    check = entry.get("check")
+    if check is not None and check not in CHECKS:
+        raise FlowError(f"order {order_id!r} names an unknown check {check!r}; refusing")
+    confirmed = any(a["name"] == entry.get("confirm") for a in state["attestations"])
+    if entry.get("gated") and not confirmed:
+        raise FlowError(
+            f"order {order_id!r} is gated: it closes only after a person records "
+            f"`flow attest {entry.get('confirm')}` in a terminal"
+        )
+    if check is not None:
+        ran = run_check(root, check)
+        if ran["status"] != "pass":
+            return _fail(root, state, order_id, f"check {check}: {ran['status']}: {ran['output']}")
+    facts = Facts(root, state)
+    if order_id in {o["id"] for o in orders_for(entry["stage"], facts)}:
+        return _fail(root, state, order_id, "the condition behind this order still holds")
+    tier = entry.get("tier", "small")
+    weight = state["weights"].get(tier, 0)
+    state["budget"]["used"] += weight
+    state["orders"][order_id] = {
+        "kind": entry.get("kind"), "stage": entry.get("stage"), "tier": tier,
+        "check": check, "retries": 0, "done": True,
+    }
+    save_state(root, state)
+    return {"ok": True, "command": "flow done", "id": order_id, "charged": weight}
+
+
+def _require_person(by: str, why: str, confirmed: bool) -> None:
+    if not confirmed:
+        raise FlowError("a person must record this in a terminal; no confirmation was given")
+    if not by.strip() or "\n" in by or theses.is_agent_name(by):
+        raise FlowError("--by needs the one-line name of a person, not an agent role")
+    if not why.strip() or "\n" in why:
+        raise FlowError("--why needs a one-line reason")
+
+
+def attest(
+    root: Path, name: str, by: str, why: str, *, confirmed: bool, today: date | None = None
+) -> dict[str, Any]:
+    """Record a human attestation (for example `bibliography` or `claim:<node id>`)."""
+    _require_person(by, why, confirmed)
+    if not NAME_RE.match(name):
+        raise FlowError(f"attestation name must match {NAME_RE.pattern}")
+    state = load_state(root)
+    state["attestations"] = [a for a in state["attestations"] if a["name"] != name]
+    state["attestations"].append(
+        {
+            "name": name, "by": by.strip(), "at": (today or date.today()).isoformat(),
+            "why": why.strip(),
+        }
+    )
+    save_state(root, state)
+    return {"ok": True, "command": "flow attest", "name": name}
+
+
+def waive(
+    root: Path, stage: str, by: str, why: str, expires: str, *, confirmed: bool,
+    today: date | None = None,
+) -> dict[str, Any]:
+    """Record a waiver that turns a failing gate into `waived` until *expires*."""
+    _require_person(by, why, confirmed)
+    if stage not in STAGES:
+        raise FlowError(f"{stage!r} is not a stage")
+    if not _is_date(expires):
+        raise FlowError("--expires must be a YYYY-MM-DD date")
+    now = today or date.today()
+    if _as_date(expires) < now:
+        raise FlowError("--expires is in the past")
+    state = load_state(root)
+    state["waivers"] = [w for w in state["waivers"] if w["stage"] != stage]
+    state["waivers"].append(
+        {"stage": stage, "by": by.strip(), "at": now.isoformat(), "why": why.strip(),
+         "expires": str(expires)}
+    )
+    save_state(root, state)
+    return {"ok": True, "command": "flow waive", "stage": stage, "expires": str(expires)}
