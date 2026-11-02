@@ -116,11 +116,12 @@ Resolved: `tests/test_no_network_in_claim_code.py` scans the three modules and t
 
 ## 3. Agent procedures (skills) shipped in the template
 
-### 3.1 Find where procedures and host adapters belong — [ ]
+### 3.1 Find where procedures and host adapters belong — [x]
 Class: explore · Effort: low · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/facts/0008-where-template-procedures-live.md`
 Context: The template has no `.claude/`, `.go-getter/` or `.mcp.json` (fact 0007). `companion.yaml` already excludes `.claude/**`. Procedures must be host-neutral (guardrail `article-tooling-is-host-neutral`): plain markdown the work orders reference, for example under `docs/procedures/`, plus thin adapters for hosts (a skill file, an instruction-file pointer). `scripts/article/upgrade.py` decides which files `upgrade` overwrites or leaves user-owned.
 Do: Establish the neutral procedures path and the adapter locations so `upgrade` delivers and updates them, whether `upgrade` treats them as template-owned, and what pointer line an instruction file needs. Record it as fact 0008 in `S/docs/facts/` (frontmatter as in fact 0006).
 Done-when: the fact names both paths, the upgrade ownership rule with a quote from `upgrade.py`, and the adapter pointer text. Steps 3.2 to 3.4 write procedure files at the neutral path, plus adapters.
+Resolved: fact 0008 written in the slot; it also records that `AGENTS.md` and `theses.yaml` need adding to `_OWNED_AFTER_ADD` (step 5.1).
 
 ### 3.2 Red-team skill: objections and hypotheses — [ ]
 Class: implement · Effort: medium · Needs: 2.2, 3.1, 9.4 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_skills.py -q -k red_team`
