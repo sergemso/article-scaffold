@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import claims, companion, core, theses
+from . import claims, companion, core, flow, theses
 from . import index as section_index
 
 
@@ -136,6 +136,27 @@ def _theses(args: argparse.Namespace) -> int:
         message = exc.args[0] if exc.args else str(exc)
         _emit_json({"ok": False, "command": f"theses {action}", "error": message})
         return core.ExitCode.DIAGNOSTICS
+
+
+def _flow(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.flow_action
+    try:
+        if action == "status":
+            payload = flow.status(root)
+            if args.json:
+                _emit_json(payload)
+            else:
+                for entry in payload["stages"]:
+                    print(f"{entry['stage']:<15} {entry['status']:<7} {entry['reason']}")
+                    if entry["status"] == "fail":
+                        print(f"{'':<15} run: {entry['command']}")
+                print(f"current stage: {payload['current_stage']}")
+            return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+    except flow.FlowError as exc:
+        _emit_json({"ok": False, "command": f"flow {action}", "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
+    raise AssertionError(action)  # pragma: no cover
 
 
 def _metadata(args: argparse.Namespace) -> int:
@@ -727,6 +748,15 @@ def build_parser() -> argparse.ArgumentParser:
     t_accept.add_argument("--by", required=True, help="name of the accepting person")
     for sub in (t_lint, t_gaps, t_slice, t_accept):
         sub.set_defaults(func=_theses, command="theses")
+
+    flow_cmd = subparsers.add_parser(
+        "flow", help="lifecycle gates, work orders and review rounds"
+    )
+    flow_sub = flow_cmd.add_subparsers(dest="flow_action", required=True)
+    f_status = flow_sub.add_parser("status", help="per-stage gate results from the repo")
+    _add_common(f_status)
+    for sub in (f_status,):
+        sub.set_defaults(func=_flow, command="flow")
 
     metadata = subparsers.add_parser(
         "metadata", help="regenerate derived metadata from metadata.yaml"

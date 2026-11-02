@@ -1,0 +1,18 @@
+# Flow state: decisions the repo cannot derive (round, attestations, waivers, budget).
+# Schema: schemas/flow.schema.json. Gates are computed from the repo on every
+# `flow status`; there is no stage pointer here. Attestations and waivers are
+# recorded by a person in a terminal (`flow attest`, `flow waive`).
+version: 1
+round: 0
+weights:
+  script: 0
+  small: 1
+  large: 5
+budget:
+  limit: 20
+  used: 0
+retry_cap: 3
+attestations: []
+waivers: []
+orders: {}
+reviews: []

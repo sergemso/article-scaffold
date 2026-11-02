@@ -26,6 +26,7 @@ Run `python3 -m scripts.article --help` or
 | `build <kind> --dry-run` | Print the build plan without running it or writing any file. |
 | `build <kind> --no-regenerate` | Build without refreshing the derived files first. |
 | `companion` | Plan, build or gate the public companion snapshot (`--plan`, `--build DIR`, `--gate TAG`). See [companion.md](companion.md). |
+| `flow status` | Per-stage gate results computed from the repo (`flow.yaml` stores only round, attestations, waivers and budget). Exit 1 when a gate fails. |
 | `release` | Reserved for release planning; currently a stub. |
 | `upgrade` | Plan, apply or finish an upgrade to a newer template commit. |
 

@@ -214,7 +214,7 @@ Blocked: maintainer-only (`go-getter apply`); not run by a delegated agent. Also
 
 Stages (names fixed by decision 0070): frame, map, discover, draft, verify-sources, adversarial, revise, release-gate, publish. Everything here ships in the vendored CLI `S/{{cookiecutter.repo_name}}/scripts/article/` (new `flow.py`) and the template, and must stay host-neutral.
 
-### 8.2 `flow.yaml` schema and `flow status` — [ ]
+### 8.2 `flow.yaml` schema and `flow status` — [x]
 Class: implement · Effort: medium · Needs: 8.1, 9.5 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_flow_status.py -q`
 Context: Decision 0070: stored state is only round number, attestations and waivers (who, when, why), and budget used. Follow `schemas/*.schema.json` and `scripts/article/status.py` for JSON-first output.
 Do: Add `schemas/flow.schema.json`, an initial `flow.yaml` in the template, and `flow status` printing per-stage gate results computed from the repo, each with a one-line reason and the failing command. No stored stage pointer.
