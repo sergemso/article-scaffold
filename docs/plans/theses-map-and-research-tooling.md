@@ -25,10 +25,11 @@ Do: For each stage write: entry condition, gate predicate (the exact existing co
 Done-when: every stage has a gate named by a runnable command, and the replay in step 8.10 can be derived from the spec.
 Resolved: fact 0009 written in the slot (docs/facts/0009-flow-stage-and-gate-spec.md); the Check path names the main checkout, so it passes once this branch merges.
 
-### 9.1 Argument form — [ ]
+### 9.1 Argument form — [x]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-argument-form.md`
 Do: Study how the theses map would hold explicit premise-conclusion arguments (numbered premises, inference type, hidden-premise slots), and what a deterministic validity or consistency check (for example propositional encoding with a solver) can and cannot do. Propose a node type and a check, with a worked example from `A/docs/notes/`.
 Done-when: the note gives a schema proposal, one worked example, and the limits of automated checking in plain terms.
+Resolved: note written in the slot (docs/plans/notes-argument-form.md); the Check path names the main checkout, so it passes once this branch merges.
 
 ### 9.2 Term registry and definitions — [ ]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-term-registry.md`
