@@ -26,6 +26,8 @@ exclude:
   - ".venv/**"
   - ".hypothesis/**"
   - ".mcp.json"
+  - "theses.yaml"
+  - ".theses/**"
   - ".upgrade-state.json"
   - "template.json"
   - "scripts/**"

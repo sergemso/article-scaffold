@@ -1,0 +1,191 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/flow.schema.json",
+  "title": "Flow state",
+  "description": "Structure of flow.yaml: only what the repo cannot derive (round, attestations, waivers, budget used) plus the bookkeeping of issued orders. There is no stage pointer. Rules beyond the structure (no agent names in by) are enforced by scripts/article/flow.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "round",
+    "weights",
+    "budget",
+    "retry_cap",
+    "attestations",
+    "waivers",
+    "orders",
+    "reviews"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "script",
+        "small",
+        "large"
+      ],
+      "properties": {
+        "script": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "small": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "large": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "limit",
+        "used"
+      ],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "used": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "retry_cap": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attestations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/attestation"
+      }
+    },
+    "waivers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/waiver"
+      }
+    },
+    "orders": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "closed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "round",
+          "at"
+        ],
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "at": {
+            "$ref": "#/definitions/date"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "line": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\n]+$"
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "by",
+        "at",
+        "why"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/line"
+        },
+        "by": {
+          "$ref": "#/definitions/line"
+        },
+        "at": {
+          "$ref": "#/definitions/date"
+        },
+        "why": {
+          "$ref": "#/definitions/line"
+        }
+      }
+    },
+    "waiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "by",
+        "at",
+        "why",
+        "expires"
+      ],
+      "properties": {
+        "stage": {
+          "enum": [
+            "frame",
+            "map",
+            "discover",
+            "draft",
+            "verify-sources",
+            "adversarial",
+            "revise",
+            "release-gate",
+            "publish"
+          ]
+        },
+        "by": {
+          "$ref": "#/definitions/line"
+        },
+        "at": {
+          "$ref": "#/definitions/date"
+        },
+        "why": {
+          "$ref": "#/definitions/line"
+        },
+        "expires": {
+          "$ref": "#/definitions/date"
+        }
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -148,3 +149,15 @@ def upgrade_project(tmp_path: Path, upgrade_template: dict[str, str]) -> Path:
     stamp_path.write_text(json.dumps(stamp), encoding="utf-8")
     commit_all(project)
     return project
+
+
+@pytest.fixture(scope="session")
+def flow_base(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return render(tmp_path=tmp_path_factory.mktemp("flowbase"))
+
+
+@pytest.fixture()
+def flow_project(flow_base: Path, tmp_path: Path) -> Path:
+    target = tmp_path / "repo"
+    shutil.copytree(flow_base, target)
+    return target

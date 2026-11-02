@@ -87,6 +87,16 @@ A repo scaffolded before companion repos existed adopts them by upgrading: `upgr
 `--finish`, review `companion.yaml` (it is yours; later upgrades never overwrite it), then
 run the scaffold's `provision-companion.yml` for the repo. See [companion.md](companion.md).
 
+## Adopting the theses map
+
+`upgrade` adds the theses tooling to an older repo: `theses.yaml` (empty), its schema, the
+`theses`, `claims` and `index` commands, `docs/procedures/` with the matching `.claude/skills/`
+pointers, and an `AGENTS.md` pointer. `theses.yaml` and `AGENTS.md` are yours from the first add:
+later upgrades never change them, and an existing file with different content is left alone.
+`upgrade --plan` prints notice `N001` when your `companion.yaml` lacks the `theses.yaml` and
+`.theses/**` deny patterns; upgrade does not edit that file, so add them by hand before the next
+companion release.
+
 ## Automatic upgrade pull requests
 
 A generated repo includes `.github/workflows/upgrade.yml`. Every Monday (and on

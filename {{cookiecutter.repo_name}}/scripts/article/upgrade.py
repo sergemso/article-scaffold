@@ -163,6 +163,30 @@ def _metadata_is_v1(root: Path) -> bool:
     return _metadata_schema(data, Diagnostics()) == 1
 
 
+def _notices(root: Path) -> list[dict[str, str]]:
+    """Advice that does not block an upgrade (never changes ``ok``)."""
+    path = root / "companion.yaml"
+    if not path.is_file():
+        return []
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        return []
+    exclude = data.get("exclude") if isinstance(data, dict) else None
+    listed = exclude if isinstance(exclude, list) else []
+    missing = [p for p in _COMPANION_DENY if p not in listed]
+    if not missing:
+        return []
+    return [
+        {
+            "code": N_COMPANION_DENY,
+            "message": "companion.yaml is yours and upgrade does not edit it; add "
+            + " and ".join(f'"{p}"' for p in missing)
+            + " to its exclude list so the private theses map never reaches the public companion",
+        }
+    ]
+
+
 def plan(root: Path, new_ref: str | None = None) -> dict[str, Any]:
     """Return a read-only upgrade plan for the repository at ``root``."""
     root = Path(root).resolve()
@@ -219,6 +243,7 @@ def plan(root: Path, new_ref: str | None = None) -> dict[str, Any]:
             "up_to_date": up_to_date,
         },
         "refusals": [r.to_dict() for r in refusals],
+        "notices": _notices(root),
     }
 
 
@@ -378,7 +403,12 @@ def build_patch(
 # Files the author owns as data. They are left out of the template diff and migrated.
 _DATA_FILES = ("metadata.yaml",)
 # Files the template adds once and the author owns afterwards: later template edits are skipped.
-_OWNED_AFTER_ADD = ("companion.yaml",)
+# ``theses.yaml`` is the author's argument, ``flow.yaml`` their decisions (attestations, waivers,
+# budget), and ``AGENTS.md`` takes their own instructions.
+_OWNED_AFTER_ADD = ("companion.yaml", "theses.yaml", "flow.yaml", "AGENTS.md")
+# Deny patterns an existing companion.yaml needs so the private map never ships.
+_COMPANION_DENY = ("theses.yaml", ".theses/**")
+N_COMPANION_DENY = "N001"
 
 
 def _scope_trees(*trees: Path) -> None:

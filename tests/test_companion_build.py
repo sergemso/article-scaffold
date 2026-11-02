@@ -105,6 +105,33 @@ def test_deny_beats_allow(project: Path, tmp_path: Path) -> None:
     assert "analysis/__pycache__/x.pyc" not in paths
 
 
+def test_theses_map_and_cache_never_reach_the_snapshot(project: Path, tmp_path: Path) -> None:
+    config = project / "companion.yaml"
+    data = yaml.safe_load(config.read_text())
+    data["include"] = ["**"]  # a broad allowlist must not pull the map in
+    config.write_text(yaml.safe_dump(data))
+    assert (project / "theses.yaml").is_file()
+    (project / ".theses").mkdir()
+    (project / ".theses" / "claims-cache.json").write_text("{}\n")
+    (project / ".theses" / "nested").mkdir()
+    (project / ".theses" / "nested" / "x.json").write_text("{}\n")
+    snap = tmp_path / "snap"
+    result, payload = _companion(project, "--build", str(snap))
+
+    assert result.returncode == 0, result.stderr
+    paths = _paths(payload)
+    assert not [p for p in paths if p == "theses.yaml" or p.startswith(".theses/")]
+    assert "theses.yaml" in payload["excluded"]  # the directory itself is pruned unseen
+    assert not (snap / "theses.yaml").exists()
+    assert not (snap / ".theses").exists()
+
+
+def test_template_companion_config_denies_the_map(project: Path) -> None:
+    exclude = yaml.safe_load((project / "companion.yaml").read_text())["exclude"]
+    assert "theses.yaml" in exclude
+    assert ".theses/**" in exclude
+
+
 def test_planted_env_file_is_never_copied(project: Path, tmp_path: Path) -> None:
     (project / "data").mkdir(exist_ok=True)
     (project / "data" / ".env").write_text("SECRET=1\n")

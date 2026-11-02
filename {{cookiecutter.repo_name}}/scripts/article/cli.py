@@ -10,7 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import companion, core
+from . import claims, companion, core, flow, theses
+from . import index as section_index
 
 
 class UsageError(Exception):
@@ -45,6 +46,148 @@ def _validate(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
+
+
+def _index(args: argparse.Namespace) -> int:
+    root = _root(args)
+    if args.check:
+        stale = section_index.check_index(root)
+        if args.json:
+            _emit_json({"ok": not stale, "command": "index", "check": True, "stale": stale})
+        else:
+            for reason in stale:
+                print(f"ERROR: {reason}", file=sys.stderr)
+            if not stale:
+                print("Section index is current.")
+        return core.ExitCode.DIAGNOSTICS if stale else core.ExitCode.OK
+    index = section_index.write_index(root)
+    payload = {
+        "ok": True,
+        "command": "index",
+        "path": section_index.INDEX_PATH.as_posix(),
+        "sections": len(index["sections"]),
+        "labels": len(index["labels"]),
+    }
+    if args.json:
+        _emit_json(payload)
+    else:
+        print(
+            f"Wrote {payload['path']} "
+            f"({payload['sections']} sections, {payload['labels']} labels)."
+        )
+    return core.ExitCode.OK
+
+
+def _claims(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.claims_action
+    try:
+        if action == "quote-check":
+            if args.id is None and not args.all:
+                raise ValueError("give a node id or --all")
+            results = claims.quote_check(root, None if args.all else args.id)
+            bad = [r["id"] for r in results if r["verdict"] == "not-found"]
+            _emit_json({"ok": not bad, "command": "claims quote-check", "results": results})
+            return core.ExitCode.DIAGNOSTICS if bad else core.ExitCode.OK
+        if action == "excerpt":
+            print(claims.excerpt_for(root, args.id))
+            return core.ExitCode.OK
+        entry = claims.cache_for_node(root, args.id, args.set)
+        _emit_json({"ok": True, "command": "claims cache", **entry})
+        return core.ExitCode.OK
+    except ValueError as exc:
+        _emit_json({"ok": False, "command": f"claims {action}", "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
+
+
+def _theses(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.theses_action
+    if action == "lint":
+        diagnostics = theses.lint(root)
+        if args.json:
+            _emit_json(diagnostics.to_dict())
+        else:
+            if diagnostics.items:
+                print(diagnostics.format_text(), file=sys.stderr)
+            if diagnostics.ok:
+                print("Theses map is valid.")
+        return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
+    try:
+        if action == "accept":
+            changed = theses.accept(root, args.id, args.by)
+            _emit_json(
+                {"ok": True, "command": "theses accept", "id": args.id, "changed": changed}
+            )
+            return core.ExitCode.OK
+        data = theses.load_map(root)
+        if data is None:
+            raise theses.AcceptError("theses.yaml not found")
+        if not theses.structure_errors(data).ok:
+            raise theses.AcceptError("theses.yaml does not validate; run `theses lint`")
+        if action == "slice":
+            _emit_json(theses.slice_map(data, args.id, args.depth))
+            return core.ExitCode.OK
+        kinds = tuple(args.kind) if args.kind else theses.DEFAULT_GAP_KINDS
+        found = theses.gaps(data, theses.paper_labels(root), kinds)
+        _emit_json({"ok": not found, "command": "theses gaps", "gaps": found})
+        return core.ExitCode.DIAGNOSTICS if found else core.ExitCode.OK
+    except (theses.AcceptError, KeyError) as exc:
+        message = exc.args[0] if exc.args else str(exc)
+        _emit_json({"ok": False, "command": f"theses {action}", "error": message})
+        return core.ExitCode.DIAGNOSTICS
+
+
+def _confirm_in_terminal(action: str) -> bool:
+    """True only when a person types `yes` at an interactive terminal."""
+    if not sys.stdin.isatty():
+        return False
+    print(f"flow {action}: type 'yes' to record this as yourself: ", end="", file=sys.stderr)
+    return sys.stdin.readline().strip() == "yes"
+
+
+def _flow(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.flow_action
+    try:
+        if action == "status":
+            payload = flow.status(root)
+            if args.json:
+                _emit_json(payload)
+            else:
+                for entry in payload["stages"]:
+                    print(f"{entry['stage']:<15} {entry['status']:<7} {entry['reason']}")
+                    if entry["status"] == "fail":
+                        print(f"{'':<15} run: {entry['command']}")
+                print(f"current stage: {payload['current_stage']}")
+            return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        if action == "next":
+            _emit_json(flow.open_orders(root) if args.open else flow.next_order(root))
+            return core.ExitCode.OK
+        if action == "done":
+            payload = flow.done(root, args.order_id)
+            _emit_json(payload)
+            return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        if action == "round":
+            if args.round_action == "open":
+                payload = flow.round_open(root, args.review)
+            else:
+                payload = flow.round_close(root)
+            _emit_json(payload)
+            return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        confirmed = _confirm_in_terminal(action)
+        if action == "attest":
+            payload = flow.attest(root, args.name, args.by, args.why, confirmed=confirmed)
+        else:
+            payload = flow.waive(
+                root, args.stage, args.by, args.why, args.expires, confirmed=confirmed
+            )
+        _emit_json(payload)
+        return core.ExitCode.OK
+    except flow.FlowError as exc:
+        _emit_json({"ok": False, "command": f"flow {action}", "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
+    raise AssertionError(action)  # pragma: no cover
 
 
 def _metadata(args: argparse.Namespace) -> int:
@@ -452,6 +595,8 @@ def _print_upgrade(payload: dict[str, Any]) -> None:
         return
     for refusal in payload.get("refusals", []):
         print(f"REFUSED [{refusal['code']}]: {refusal['message']}", file=sys.stderr)
+    for notice in payload.get("notices", []):
+        print(f"NOTICE [{notice['code']}]: {notice['message']}", file=sys.stderr)
     info = payload.get("plan")
     if info:
         print(f"template: {info['template']}")
@@ -574,6 +719,104 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate", help="validate paper sources")
     _add_common(validate)
     validate.set_defaults(func=_validate)
+
+    index_cmd = subparsers.add_parser(
+        "index", help="write paper/build/section-index.json (labels, line ranges, summaries)"
+    )
+    _add_common(index_cmd)
+    index_cmd.add_argument(
+        "--check",
+        action="store_true",
+        help="fail when the index is missing or older than a section; write nothing",
+    )
+    index_cmd.set_defaults(func=_index)
+
+    claims_cmd = subparsers.add_parser(
+        "claims", help="check source-claim quotes against local source text"
+    )
+    claims_sub = claims_cmd.add_subparsers(dest="claims_action", required=True)
+    c_check = claims_sub.add_parser(
+        "quote-check", help="tier 1: is the quote in the local text? (exit 1 on not-found)"
+    )
+    _add_common(c_check)
+    c_check.add_argument("id", nargs="?")
+    c_check.add_argument("--all", action="store_true", help="check every active source-claim")
+    c_excerpt = claims_sub.add_parser(
+        "excerpt", help="print the matched passage for a local tier-2 judge"
+    )
+    _add_common(c_excerpt)
+    c_excerpt.add_argument("id")
+    c_cache = claims_sub.add_parser("cache", help="read or set the tier-2 verdict of a node")
+    _add_common(c_cache)
+    c_cache.add_argument("id")
+    c_cache.add_argument("--set", choices=claims.VERDICTS, help="record a verdict")
+    for sub in (c_check, c_excerpt, c_cache):
+        sub.set_defaults(func=_claims)
+
+    theses_cmd = subparsers.add_parser(
+        "theses", help="lint, inspect and promote nodes of the theses map"
+    )
+    theses_sub = theses_cmd.add_subparsers(dest="theses_action", required=True)
+    t_lint = theses_sub.add_parser("lint", help="schema and graph rules")
+    _add_common(t_lint)
+    t_gaps = theses_sub.add_parser(
+        "gaps", help="list gaps (exit 1 when any): ids and one-line text only"
+    )
+    _add_common(t_gaps)
+    t_gaps.add_argument(
+        "--kind",
+        action="append",
+        choices=theses.GAP_KINDS,
+        help="gap kind to report (repeatable; default: all but thesis-unattacked)",
+    )
+    t_slice = theses_sub.add_parser("slice", help="a node and its neighbourhood")
+    _add_common(t_slice)
+    t_slice.add_argument("id")
+    t_slice.add_argument("--depth", type=int, default=1, help="edges to follow (default 1)")
+    t_accept = theses_sub.add_parser("accept", help="promote a proposed node (people only)")
+    _add_common(t_accept)
+    t_accept.add_argument("id")
+    t_accept.add_argument("--by", required=True, help="name of the accepting person")
+    for sub in (t_lint, t_gaps, t_slice, t_accept):
+        sub.set_defaults(func=_theses, command="theses")
+
+    flow_cmd = subparsers.add_parser(
+        "flow", help="lifecycle gates, work orders and review rounds"
+    )
+    flow_sub = flow_cmd.add_subparsers(dest="flow_action", required=True)
+    f_status = flow_sub.add_parser("status", help="per-stage gate results from the repo")
+    _add_common(f_status)
+    f_next = flow_sub.add_parser("next", help="print the first open work order as JSON")
+    _add_common(f_next)
+    f_next.add_argument(
+        "--open", action="store_true",
+        help="list every open order of the current stage with parallel_safe marks",
+    )
+    f_done = flow_sub.add_parser(
+        "done", help="close an issued order by running its named check (takes the id only)"
+    )
+    _add_common(f_done)
+    f_done.add_argument("order_id")
+    f_attest = flow_sub.add_parser("attest", help="record a human attestation (terminal only)")
+    _add_common(f_attest)
+    f_attest.add_argument("name", help="for example bibliography or claim:<node id>")
+    f_attest.add_argument("--by", required=True, help="name of the person")
+    f_attest.add_argument("--why", required=True, help="one-line reason or evidence")
+    f_waive = flow_sub.add_parser("waive", help="waive a failing gate until a date (terminal only)")
+    _add_common(f_waive)
+    f_waive.add_argument("stage", choices=flow.STAGES)
+    f_waive.add_argument("--by", required=True, help="name of the person")
+    f_waive.add_argument("--why", required=True, help="one-line reason")
+    f_waive.add_argument("--expires", required=True, help="YYYY-MM-DD")
+    f_round = flow_sub.add_parser("round", help="open a review round from a file, or close it")
+    round_sub = f_round.add_subparsers(dest="round_action", required=True)
+    r_open = round_sub.add_parser("open", help="one proposed objection node per review item")
+    _add_common(r_open)
+    r_open.add_argument("--review", required=True, help="local review file in this repository")
+    r_close = round_sub.add_parser("close", help="record the round once the gates pass")
+    _add_common(r_close)
+    for sub in (f_status, f_next, f_done, f_attest, f_waive, r_open, r_close):
+        sub.set_defaults(func=_flow, command="flow")
 
     metadata = subparsers.add_parser(
         "metadata", help="regenerate derived metadata from metadata.yaml"

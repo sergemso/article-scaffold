@@ -158,3 +158,70 @@ def test_workflow_is_read_only_and_never_publishes() -> None:
         assert "owner" in with_
         assert not any(v == "write" for k, v in with_.items() if k.startswith("permission-"))
     assert "gh release" not in text and "-X" not in text and "git push" not in text
+
+
+MAP = """\
+version: 1
+nodes:
+  - {id: t1, type: thesis, text: Private thesis wording, status: proposed}
+  - {id: t2, type: thesis, text: Another private thesis, status: proposed}
+  - {id: o1, type: objection, text: Private objection wording, status: proposed}
+  - {id: d1, type: defense, text: Private defense, status: proposed}
+  - {id: o2, type: objection, text: Defended objection, status: proposed}
+edges:
+  - {from: d1, to: o2, type: rebuts}
+  - {from: o2, to: t1, type: attacks}
+"""
+
+
+def with_map(text: str) -> dict:
+    repo = article()
+    repo["files"]["theses.yaml"] = text
+    return repo
+
+
+def test_map_gaps_are_reported_as_kinds_counts_and_ids() -> None:
+    gh = FakeGh({ART: with_map(MAP), COMP: {"release": "v0.1.0"}})
+    (row,) = ta.track(gh, ORG)
+    assert row.map_gaps == {
+        "objection-undefended": ["o1"],
+        "thesis-unsupported": ["t1", "t2"],
+    }
+    assert row.problems == []
+    table = ta.render_table([row])
+    assert "objection-undefended 1; thesis-unsupported 2" in table
+
+
+def test_report_carries_no_map_text() -> None:
+    gh = FakeGh({ART: with_map(MAP), COMP: {"release": "v0.1.0"}})
+    rows = ta.track(gh, ORG)
+    out = ta.render_table(rows) + json.dumps([r.as_dict() for r in rows])
+    assert "wording" not in out and "Another" not in out and "Defended" not in out
+
+
+def test_repo_without_a_map_is_skipped_and_shows_no_gap_cell() -> None:
+    gh = FakeGh({ART: article(), COMP: {"release": "v0.1.0"}})
+    (row,) = ta.track(gh, ORG)
+    assert row.map_gaps is None and row.problems == []
+    assert "Map gaps" in ta.render_table([row])
+    assert ta._gap_cell(row) == ""
+
+
+def test_clean_map_says_none_and_invalid_map_is_a_problem() -> None:
+    gh = FakeGh({ART: with_map("version: 1\nnodes: []\nedges: []\n"), COMP: {"release": "v0.1.0"}})
+    (clean,) = ta.track(gh, ORG)
+    assert clean.map_gaps == {} and ta._gap_cell(clean) == "none"
+    gh = FakeGh({ART: with_map("nodes: nope\n"), COMP: {"release": "v0.1.0"}})
+    (bad,) = ta.track(gh, ORG)
+    assert bad.map_gaps is None and bad.problems == ["theses.yaml does not validate"]
+    gh = FakeGh({ART: with_map("a: [unclosed\n"), COMP: {"release": "v0.1.0"}})
+    (broken,) = ta.track(gh, ORG)
+    assert broken.problems == ["theses.yaml is not valid YAML"]
+
+
+def test_map_read_stays_a_get_and_never_flags_drift() -> None:
+    gh = FakeGh({ART: with_map(MAP), COMP: {"release": "v0.1.0"}})
+    (row,) = ta.track(gh, ORG)
+    assert row.drift == []
+    reads = [c for c in gh.calls if any("theses.yaml" in a for a in c)]
+    assert reads and all(c[0] == "api" and "-X" not in c for c in reads)
