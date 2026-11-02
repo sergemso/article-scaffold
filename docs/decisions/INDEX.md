@@ -65,3 +65,11 @@ id,title,tags,status
 0062-github-app-as-scaffold-identity,"One GitHub App, installed on each article org, is the scaffold's only credential","companion, ci, security, bootstrap, github-app",active
 0063-publish-and-track-from-the-scaffold,"The scaffold publishes companions on manual dispatch and tracks articles on a schedule","companion, zenodo, release, ci, github-app",active
 0064-validated-related-identifiers,"Linked articles are declared in related_identifiers, validated, and emitted to .zenodo.json only","metadata, zenodo, series",active
+0065-theses-map-is-a-yaml-graph,"An article's argument is kept as one YAML graph with a JSON schema, read in slices","theses-map, argument, cost",active
+0066-argument-agents-are-gap-driven-and-propose-only,"Argument agents work on gaps found by a linter and only propose; a human promotes","theses-map, agents, cost, review",active
+0067-claim-checks-are-tiered-and-local,"Claim-versus-source checks run as script, then small-model excerpt judgment, then human attestation, all on local text","theses-map, sources, cost, privacy",active
+0068-research-tooling-split,"Map, index, quote-match and cache ship in the vendored CLI; discovery extends scholar-authors; agent procedures are skills","theses-map, architecture, scholar-mcp, upgrade",active
+0069-token-economy-for-article-repos,"Article repos use a section index, a hash-keyed check cache, tiered routing and verdict-only noisy work","cost, practice-packs, theses-map",active
+0070-article-lifecycle-is-derived-from-the-repo,"Lifecycle stage readiness is computed from the repo; only decisions are stored","orchestration, lifecycle, theses-map",active
+0071-flow-orders-are-host-neutral,"The lifecycle is driven by work orders from the vendored CLI, served over MCP by scholar-authors, and bound to no agent host","orchestration, architecture, scholar-mcp, host-neutral",active
+0072-flow-budgets-are-unit-and-retry-caps,"A round is bounded by tier-weighted units and a per-order retry cap, not by host token counts","orchestration, cost, host-neutral",active
