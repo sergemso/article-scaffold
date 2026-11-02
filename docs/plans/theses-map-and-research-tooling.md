@@ -43,10 +43,11 @@ Do: Extend decision 0067 for sources where meaning depends on edition, translati
 Done-when: the note proposes node fields and tier rules, and names what remains human judgment.
 Resolved: note written in the slot (docs/plans/notes-interpretive-fidelity.md); the Check path names the main checkout, so it passes once this branch merges.
 
-### 9.4 Counterexample, steelman and objection standards — [ ]
+### 9.4 Counterexample, steelman and objection standards — [x]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-adversarial-standards.md`
 Do: Define what a red-team pass must produce (strongest form of each objection, counterexamples, objections from rival traditions) and what a blue-team defense must show, as a checklist the linter can partly enforce (an objection marked `strongest-form` must cite its source).
 Done-when: the note has the checklist and which items are lintable.
+Resolved: note written in the slot (docs/plans/notes-adversarial-standards.md); the Check path names the main checkout, so it passes once this branch merges.
 
 ### 9.5 Formal-methods hook and AI-use provenance — [ ]
 Class: explore · Effort: low · Needs: 8.1 · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-formal-and-provenance.md`
