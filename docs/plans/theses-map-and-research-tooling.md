@@ -72,11 +72,12 @@ Done-when: the check passes, and a fresh host session lists `scholar-authors` as
 
 ## 2. Theses map in the scaffold CLI
 
-### 2.1 Schema, template map and validation hook — [ ]
+### 2.1 Schema, template map and validation hook — [x]
 Class: implement · Effort: medium · Needs: 8.1, 9.1, 9.2, 9.3 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_theses_schema.py -q`
 Context: Decision 0065. Existing schemas live in `S/{{cookiecutter.repo_name}}/schemas/` (`metadata.schema.json` validates `metadata.yaml`; see `S/tests/test_schemas.py` for how they are tested). Validation logic is in `S/{{cookiecutter.repo_name}}/scripts/article/validate.py` and runs through `make validate`.
 Do: Add `schemas/theses.schema.json` to the template. Node types `thesis`, `hypothesis`, `objection`, `defense`, `source-claim`; edge types `supports`, `attacks`, `rebuts`; node fields id, text (one line), status (`proposed`, `accepted`, `retired`), anchor (a LaTeX `\label` or null), bib_keys, accepted-by (required when status is `accepted`; must not name an agent role); `source-claim` nodes also require quote and locator. Add an empty-but-valid `theses.yaml` at the template root. Make `validate.py` validate it when present and fail on unknown fields, dangling edge ids and anchors that do not exist in `paper/`. Add `S/tests/test_theses_schema.py` with a valid fixture and one failing fixture per rule.
 Done-when: the test passes; an `accepted` node without `accepted-by` fails validation; a rendered article (`S/tests/test_render.py` style) still passes `make validate` with the empty map.
+Resolved: schema, `theses.yaml`, `scripts/article/theses.py` (stdlib+yaml checks, codes T001 to T016) and the `validate.py` hook added in the slot; `argument` nodes from note 9.1 are not in the schema (note not yet accepted as a decision).
 
 ### 2.2 Theses CLI: lint, gaps, slice, accept — [ ]
 Class: implement · Effort: high · Needs: 2.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_theses_cli.py -q`

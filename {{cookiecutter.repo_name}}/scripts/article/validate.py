@@ -12,6 +12,7 @@ from .build import is_standalone_tex
 from .diagnostics import Diagnostics
 from .latex import count_unescaped, strip_comments
 from .metadata import validate_metadata
+from .theses import MAP_FILE, validate_map
 
 MAX_INCLUDE_DEPTH = 20
 
@@ -331,6 +332,23 @@ def _check_metadata(root: Path, diagnostics: Diagnostics) -> None:
         diagnostics.error(item.path, item.line, item.code, item.message)
 
 
+def _check_theses(root: Path, paper_dir: Path, diagnostics: Diagnostics) -> None:
+    """Validate theses.yaml when present."""
+    path = root / MAP_FILE
+    if not path.is_file():
+        return
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        diagnostics.error(MAP_FILE, 0, "T001", f"invalid YAML: {exc}")
+        return
+    labels: set[str] = set()
+    for tex in _tex_files(paper_dir):
+        content = strip_comments(tex.read_text(encoding="utf-8"))
+        labels.update(m.group(1).strip() for m in LABEL_RE.finditer(content))
+    validate_map(data, labels, diagnostics)
+
+
 def validate_paper(root: Path) -> Diagnostics:
     """Validate a repository rooted at *root* and return all diagnostics."""
     diagnostics = Diagnostics()
@@ -344,4 +362,5 @@ def validate_paper(root: Path) -> Diagnostics:
     _check_references(root, paper_dir, diagnostics)
     _check_balanced_braces(root, paper_dir, diagnostics)
     _check_metadata(root, diagnostics)
+    _check_theses(root, paper_dir, diagnostics)
     return diagnostics

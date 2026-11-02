@@ -1,0 +1,8 @@
+# Theses map: claims, objections and defenses as a graph.
+# Schema: schemas/theses.schema.json. Agents may add nodes with
+# `status: proposed`; only a person sets `accepted` (with `accepted-by`).
+# Node types: thesis, hypothesis, objection, defense, source-claim.
+# Edge types: supports, attacks, rebuts (edge goes from -> to).
+version: 1
+nodes: []
+edges: []
