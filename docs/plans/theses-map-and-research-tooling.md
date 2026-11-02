@@ -79,11 +79,12 @@ Do: Add `schemas/theses.schema.json` to the template. Node types `thesis`, `hypo
 Done-when: the test passes; an `accepted` node without `accepted-by` fails validation; a rendered article (`S/tests/test_render.py` style) still passes `make validate` with the empty map.
 Resolved: schema, `theses.yaml`, `scripts/article/theses.py` (stdlib+yaml checks, codes T001 to T016) and the `validate.py` hook added in the slot; `argument` nodes from note 9.1 are not in the schema (note not yet accepted as a decision).
 
-### 2.2 Theses CLI: lint, gaps, slice, accept — [ ]
+### 2.2 Theses CLI: lint, gaps, slice, accept — [x]
 Class: implement · Effort: high · Needs: 2.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_theses_cli.py -q`
 Context: Decisions 0065, 0066. The CLI is `S/{{cookiecutter.repo_name}}/scripts/article/cli.py` (JSON-first, `python3 -m scripts.article ...`); follow how `status.py` and `release.py` register subcommands and emit JSON, and validate output against a schema in `schemas/` if that is the convention there (see `diagnostics.schema.json`).
 Do: Add `scripts/article/theses.py` and subcommands `theses lint` (schema plus graph rules), `theses gaps` (thesis with no support; objection with no defense; claim resting on one source; node whose anchor label is missing), `theses slice <id> [--depth N]` (node plus neighbourhood, compact JSON, stable order) and `theses accept <id> --by <name>` (sets status and accepted-by; refuses an agent-role name; edits only that node and preserves comments and order). Keep output small: ids and one-line text, never source text.
 Done-when: tests cover each gap kind, slice depth, accept on a proposed node, accept refused for an agent name, and idempotent re-run. Then set guardrail `agent-nodes-need-human-promotion` to `active` in `S/docs/guardrails/` and its `INDEX.md` row.
+Resolved: `theses lint|gaps|slice|accept` in the slot; `gaps` exits 1 when it finds any, kinds `thesis-unsupported`, `objection-undefended`, `single-source`, `anchor-missing` by default and `thesis-unattacked` via `--kind` (names from fact 0009); guardrail activated.
 
 ### 2.3 Section index — [ ] ‖
 Class: implement · Effort: medium · Needs: none · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_section_index.py -q`

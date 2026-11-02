@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import companion, core
+from . import companion, core, theses
 
 
 class UsageError(Exception):
@@ -45,6 +45,44 @@ def _validate(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
+
+
+def _theses(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.theses_action
+    if action == "lint":
+        diagnostics = theses.lint(root)
+        if args.json:
+            _emit_json(diagnostics.to_dict())
+        else:
+            if diagnostics.items:
+                print(diagnostics.format_text(), file=sys.stderr)
+            if diagnostics.ok:
+                print("Theses map is valid.")
+        return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
+    try:
+        if action == "accept":
+            changed = theses.accept(root, args.id, args.by)
+            _emit_json(
+                {"ok": True, "command": "theses accept", "id": args.id, "changed": changed}
+            )
+            return core.ExitCode.OK
+        data = theses.load_map(root)
+        if data is None:
+            raise theses.AcceptError("theses.yaml not found")
+        if not theses.structure_errors(data).ok:
+            raise theses.AcceptError("theses.yaml does not validate; run `theses lint`")
+        if action == "slice":
+            _emit_json(theses.slice_map(data, args.id, args.depth))
+            return core.ExitCode.OK
+        kinds = tuple(args.kind) if args.kind else theses.DEFAULT_GAP_KINDS
+        found = theses.gaps(data, theses.paper_labels(root), kinds)
+        _emit_json({"ok": not found, "command": "theses gaps", "gaps": found})
+        return core.ExitCode.DIAGNOSTICS if found else core.ExitCode.OK
+    except (theses.AcceptError, KeyError) as exc:
+        message = exc.args[0] if exc.args else str(exc)
+        _emit_json({"ok": False, "command": f"theses {action}", "error": message})
+        return core.ExitCode.DIAGNOSTICS
 
 
 def _metadata(args: argparse.Namespace) -> int:
@@ -574,6 +612,33 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate", help="validate paper sources")
     _add_common(validate)
     validate.set_defaults(func=_validate)
+
+    theses_cmd = subparsers.add_parser(
+        "theses", help="lint, inspect and promote nodes of the theses map"
+    )
+    theses_sub = theses_cmd.add_subparsers(dest="theses_action", required=True)
+    t_lint = theses_sub.add_parser("lint", help="schema and graph rules")
+    _add_common(t_lint)
+    t_gaps = theses_sub.add_parser(
+        "gaps", help="list gaps (exit 1 when any): ids and one-line text only"
+    )
+    _add_common(t_gaps)
+    t_gaps.add_argument(
+        "--kind",
+        action="append",
+        choices=theses.GAP_KINDS,
+        help="gap kind to report (repeatable; default: all but thesis-unattacked)",
+    )
+    t_slice = theses_sub.add_parser("slice", help="a node and its neighbourhood")
+    _add_common(t_slice)
+    t_slice.add_argument("id")
+    t_slice.add_argument("--depth", type=int, default=1, help="edges to follow (default 1)")
+    t_accept = theses_sub.add_parser("accept", help="promote a proposed node (people only)")
+    _add_common(t_accept)
+    t_accept.add_argument("id")
+    t_accept.add_argument("--by", required=True, help="name of the accepting person")
+    for sub in (t_lint, t_gaps, t_slice, t_accept):
+        sub.set_defaults(func=_theses, command="theses")
 
     metadata = subparsers.add_parser(
         "metadata", help="regenerate derived metadata from metadata.yaml"
