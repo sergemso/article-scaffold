@@ -137,11 +137,12 @@ Do: Write the blue-team skill alike: one gap, one slice, draft `defense` nodes w
 Done-when: the test passes and the skill refuses to cite a source that has no `source-claim` node.
 Resolved: `docs/procedures/blue-team.md` and adapter `.claude/skills/blue-team/SKILL.md` added in the slot.
 
-### 3.4 Claim-check skill (tier 2) — [ ]
+### 3.4 Claim-check skill (tier 2) — [x]
 Class: implement · Effort: medium · Needs: 2.4, 3.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_skills.py -q -k claim_check`
 Context: Decision 0067. Tier 1 is `claims quote-check`. Tier 2 sends the model only the matched excerpt and the paper's claim wording and asks for `supports`, `overstates` or `contradicts`; results go to the cache from step 2.4. This is the one place a small model is used; the skill states that routing class (decision 0007, 0069).
 Do: Write the skill: run `claims quote-check --all`; for each `found` node without a fresh cache entry, judge excerpt versus claim; write the verdict to the cache; list `overstates` and `contradicts` for the human; leave tier 3 attestation to the human (`theses accept`/an attestation field).
 Done-when: the test passes and the skill names the cache and never reads outside the excerpt.
+Resolved: `docs/procedures/claim-check.md` and adapter `.claude/skills/claim-check/SKILL.md` added in the slot; the skill uses `claims excerpt` and `claims cache --set` from step 2.4. Tier 3 attestation has no CLI or map field yet; the skill leaves it to the author.
 
 ## 4. Discovery tools in scholar-mcp
 

@@ -68,3 +68,25 @@ def test_blue_team_procedure_and_adapter(project: Path) -> None:
     assert "docs/procedures/claim-check.md" in text
     assert "theses accept" in text and "do not run" in text
     _adapter(project, "blue-team")
+
+
+def test_claim_check_procedure_and_adapter(project: Path) -> None:
+    text = _procedure(project, "claim-check")
+    assert "scripts.article claims quote-check --all" in text
+    assert "scripts.article claims excerpt" in text
+    assert "scripts.article claims cache" in text and "--set" in text
+    assert ".theses/claims-cache.json" in text
+    for verdict in ("supports", "overstates", "contradicts"):
+        assert f"`{verdict}`" in text
+    assert "small, cheap model" in text
+    assert "Read outside the excerpt" in text
+    assert "Do not open the source file" in text
+    assert "tier 3" in text and "attestation" in text
+    _adapter(project, "claim-check")
+
+
+def test_procedures_are_host_neutral_and_listed(project: Path) -> None:
+    names = sorted(p.stem for p in (project / "docs" / "procedures").glob("*.md"))
+    assert names == ["blue-team", "claim-check", "red-team"]
+    for name in names:
+        assert (project / ".claude" / "skills" / name / "SKILL.md").is_file()
