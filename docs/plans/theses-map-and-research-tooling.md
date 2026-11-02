@@ -18,11 +18,12 @@ Status legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]
 
 Do these before any implementation. They are exploration and design; each ends with a spec or a proposal for the owner to accept as a decision, and none changes code. Step ids keep their original numbers (8.1, 9.1 to 9.5) so references elsewhere stay valid. Steps 9.1 to 9.4 shape the theses schema (step 2.1) and the agent procedures (3.2 to 3.4), and 8.1 shapes the flow (section 8), so those steps now depend on them. Nothing in sections 1 to 8 represents conceptual argument until 9.1 to 9.4 are accepted.
 
-### 8.1 Specify stages, gates and orders — [ ]
+### 8.1 Specify stages, gates and orders — [x]
 Class: plan · Effort: high · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/facts/0009-flow-stage-and-gate-spec.md`
 Context: Decision 0070 requires every gate to be a cheap deterministic predicate. Evidence of the real loop is in the article repo `A`: `A/docs/plans/review-0.6.0-path-to-publication.md`, `review-response-v0.9.md`, `review-response-v0.10.md`, `bridge-contract-publication-readiness.md` (read these, do not copy their content). Available predicates: `theses gaps`, `claims quote-check`, `index --check`, `make validate`, `python3 scripts/check_pdf_layout.py`-style layout checks (in `A`), bibliography verification (scholar-mcp `verify_bibliography`, run by the human or MCP, not the CLI).
 Do: For each stage write: entry condition, gate predicate (the exact existing command or a new one with its tests named), the order kinds it emits with tier hints, and which are gated. Mark any stage with no computable gate as a human-only step. Record as fact 0009 in `S/docs/facts/`, with a JSON schema outline for an order (fields: id, stage, nodes, outputs, tier, procedure, check, gated).
 Done-when: every stage has a gate named by a runnable command, and the replay in step 8.10 can be derived from the spec.
+Resolved: fact 0009 written in the slot (docs/facts/0009-flow-stage-and-gate-spec.md); the Check path names the main checkout, so it passes once this branch merges.
 
 ### 9.1 Argument form — [ ]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-argument-form.md`
