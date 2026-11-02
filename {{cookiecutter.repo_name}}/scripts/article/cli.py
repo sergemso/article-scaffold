@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import companion, core, theses
+from . import claims, companion, core, theses
 from . import index as section_index
 
 
@@ -76,6 +76,28 @@ def _index(args: argparse.Namespace) -> int:
             f"({payload['sections']} sections, {payload['labels']} labels)."
         )
     return core.ExitCode.OK
+
+
+def _claims(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.claims_action
+    try:
+        if action == "quote-check":
+            if args.id is None and not args.all:
+                raise ValueError("give a node id or --all")
+            results = claims.quote_check(root, None if args.all else args.id)
+            bad = [r["id"] for r in results if r["verdict"] == "not-found"]
+            _emit_json({"ok": not bad, "command": "claims quote-check", "results": results})
+            return core.ExitCode.DIAGNOSTICS if bad else core.ExitCode.OK
+        if action == "excerpt":
+            print(claims.excerpt_for(root, args.id))
+            return core.ExitCode.OK
+        entry = claims.cache_for_node(root, args.id, args.set)
+        _emit_json({"ok": True, "command": "claims cache", **entry})
+        return core.ExitCode.OK
+    except ValueError as exc:
+        _emit_json({"ok": False, "command": f"claims {action}", "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
 
 
 def _theses(args: argparse.Namespace) -> int:
@@ -654,6 +676,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail when the index is missing or older than a section; write nothing",
     )
     index_cmd.set_defaults(func=_index)
+
+    claims_cmd = subparsers.add_parser(
+        "claims", help="check source-claim quotes against local source text"
+    )
+    claims_sub = claims_cmd.add_subparsers(dest="claims_action", required=True)
+    c_check = claims_sub.add_parser(
+        "quote-check", help="tier 1: is the quote in the local text? (exit 1 on not-found)"
+    )
+    _add_common(c_check)
+    c_check.add_argument("id", nargs="?")
+    c_check.add_argument("--all", action="store_true", help="check every active source-claim")
+    c_excerpt = claims_sub.add_parser(
+        "excerpt", help="print the matched passage for a local tier-2 judge"
+    )
+    _add_common(c_excerpt)
+    c_excerpt.add_argument("id")
+    c_cache = claims_sub.add_parser("cache", help="read or set the tier-2 verdict of a node")
+    _add_common(c_cache)
+    c_cache.add_argument("id")
+    c_cache.add_argument("--set", choices=claims.VERDICTS, help="record a verdict")
+    for sub in (c_check, c_excerpt, c_cache):
+        sub.set_defaults(func=_claims)
 
     theses_cmd = subparsers.add_parser(
         "theses", help="lint, inspect and promote nodes of the theses map"

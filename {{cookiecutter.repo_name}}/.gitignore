@@ -32,6 +32,9 @@ Thumbs.db
 build/
 dist/
 
+# Claim-check cache (hashes and verdicts, local only)
+.theses/
+
 # Python caches (for generate-metadata.py)
 __pycache__/
 *.pyc

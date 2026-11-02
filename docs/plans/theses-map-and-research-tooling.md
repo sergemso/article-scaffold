@@ -93,11 +93,12 @@ Do: Add `scripts/article/index.py` and subcommand `index` writing `paper/build/s
 Done-when: tests pass on a rendered article; `index` output for a 3000-line section set is under a few kilobytes; an edited section makes `index --check` fail until `index` is rerun.
 Resolved: `scripts/article/index.py` and `index [--check]` in the slot; `make validate` runs the check only when the index file exists (it is gitignored build output, so a fresh clone has none).
 
-### 2.4 Quote match (tier 1) and check cache — [ ]
+### 2.4 Quote match (tier 1) and check cache — [x]
 Class: implement · Effort: high · Needs: 2.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_claims.py -q`
 Context: Decision 0067. Local source texts live in `paper/sources/` (in `A`: PDFs and `.txt` files with `MANIFEST.md` and `NOTICE.md` stating their terms). `source-claim` nodes carry `quote` and `locator`.
 Do: Add `scripts/article/claims.py` and subcommands `claims quote-check [<id>|--all]` (normalise whitespace, hyphenation and Unicode quotes, then find the quote in the source text file named by the node's bib key via a mapping in `paper/sources/MANIFEST.md` or a `source:` field; report `found`, `not-found` or `no-local-text`), and a cache under `.theses/` keyed by the SHA-256 of claim text plus excerpt (read and write helpers used by tier 2 in step 3.4). PDFs are read only through an already-extracted `.txt`; do not add a PDF dependency here. Add `.theses/` to the template `.gitignore`.
 Done-when: tests cover exact match, whitespace and hyphen differences, a changed quote, a missing source file, and a cache hit that skips recomputation. Output is verdicts and locators only.
+Resolved: `scripts/article/claims.py` with `claims quote-check [<id>|--all]` (exit 1 on `not-found`), `claims excerpt <id>` and `claims cache <id> [--set supports|overstates|contradicts]` (cache file `.theses/claims-cache.json`, hashes and verdicts only) in the slot; `.theses/` added to the template `.gitignore`.
 
 ### 2.5 Keep the map out of the companion — [ ]
 Class: implement · Effort: low · Needs: 2.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_companion_build.py -q`
