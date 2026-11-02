@@ -37,10 +37,11 @@ Do: Propose a registry of defined terms with a first-use anchor, consistency lin
 Done-when: the note includes a schema proposal and the lint's false-positive risks.
 Resolved: note written in the slot (docs/plans/notes-term-registry.md); the Check path names the main checkout, so it passes once this branch merges.
 
-### 9.3 Interpretive fidelity of quoted sources — [ ]
+### 9.3 Interpretive fidelity of quoted sources — [x]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-interpretive-fidelity.md`
 Do: Extend decision 0067 for sources where meaning depends on edition, translation or context: locators across editions, quotation of translations, and a charitable-reading check beyond `supports/overstates/contradicts`.
 Done-when: the note proposes node fields and tier rules, and names what remains human judgment.
+Resolved: note written in the slot (docs/plans/notes-interpretive-fidelity.md); the Check path names the main checkout, so it passes once this branch merges.
 
 ### 9.4 Counterexample, steelman and objection standards — [ ]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-adversarial-standards.md`
