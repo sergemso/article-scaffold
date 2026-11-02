@@ -22,9 +22,6 @@
       "hash": "sha256:2528788ad90954d60da57caca98782e6fd9baf9d6e842c3f6040fd8a9b391fa0",
       "mode": "755"
     },
-    ".github/workflows/go-getter-checks.yml": {
-      "hash": "sha256:6ee2e2d1eac3a658434d19c3f810eb75e9f990c481132be03d090c6d9c33f3af"
-    },
     ".go-getter/bin/go-getter": {
       "hash": "sha256:e0ccad23c4952a6b5f95f832350250c344c6f3c7aae1f4011d83720c9e13865c",
       "mode": "755"
@@ -505,13 +502,16 @@
     },
     ".go-getter/cli/src/packs/verification-gate/pack.json": {
       "hash": "sha256:1b2dc1ea0a6383b83c73278b8c3d0ca8d048fcab4199b1e15d5a678c99fef30a"
+    },
+    ".github/workflows/go-getter-checks.yml": {
+      "hash": "sha256:6ee2e2d1eac3a658434d19c3f810eb75e9f990c481132be03d090c6d9c33f3af"
     }
   },
   "shared": {
     "AGENTS.md": [
       {
         "kind": "block",
-        "hash": "sha256:0eba16513b21c6c1ef341387fcbd4a4a18f95041f6395af3eb00e2328aad2ffe",
+        "hash": "sha256:aff0179580cdcad18058615231c8e58d8c4ef46871adbf7f35b0b3791b41987a",
         "appended": true
       }
     ],
