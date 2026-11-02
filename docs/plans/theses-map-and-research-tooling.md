@@ -58,11 +58,12 @@ Resolved: note written in the slot (docs/plans/notes-formal-and-provenance.md); 
 
 ## 1. Make the existing MCP server work
 
-### 1.1 Build the scholar-mcp virtualenv — [ ] ‖
+### 1.1 Build the scholar-mcp virtualenv — [x] ‖
 Class: implement · Effort: low · Needs: none · Check: `test -x /home/sergei/projects/sergemso/scholar-mcp/.venv/bin/scholar-authors`
 Context: `M/.venv` does not exist on this host (the checkout was cloned on 2026-11-02), so the command named in `A/.mcp.json` cannot run. `M/README.md` documents `make setup` (hash-checked install from `requirements.lock`, Python 3.11 or newer).
 Do: In `M`, run `make setup`. Do not edit lock files.
 Done-when: `M/.venv/bin/scholar-authors` exists and prints usage when run with no arguments.
+Resolved: Python 3.12 had to be installed first (the host default is older than 3.11); ran `make setup PYTHON=/home/sergei/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/bin/python3.12` in `M`, lock files untouched. `M/.venv/bin/scholar-authors` exists and prints its usage line (exit 2); an MCP `initialize` plus `tools/list` over stdio returned `serverInfo` scholar-authors 1.30.0 and the tool list.
 
 ### 1.2 Fix the MCP host config in the article repo and the template — [ ]
 Class: implement · Effort: low · Needs: 1.1 · Check: `cd /home/sergei/projects/strebulaev-articles/articles.bridge_contract_for_agent_session_governance && ! grep -q /home/ubuntu .mcp.json && grep -q /home/sergei/projects/sergemso/scholar-mcp .mcp.json`
