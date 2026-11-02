@@ -7,17 +7,21 @@ An article repo is a repository of the installation that holds `companion.yaml`.
 one it reads the version in `metadata.yaml`, the latest final `vX.Y.Z` tag and Release,
 the latest successful workflow run and the companion's latest Release, then flags drift:
 the article tag is newer than the companion's, or the companion is missing or private.
-Read only: it never publishes. Needs `gh` authenticated through GH_TOKEN with an App
-installation token for the owner (Contents, Actions and Metadata read; decision 0063).
+A repo that also holds `theses.yaml` gets its map gap kinds, counts and node ids in the
+report (counts in the table, ids in --json); never text. Read only: it never publishes.
+Needs `gh` authenticated through GH_TOKEN with an App installation token for the owner
+(Contents, Actions and Metadata read; decision 0063).
 Standard library plus PyYAML. Everything read from an article repo is untrusted input.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import re
 import sys
+import types
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -37,6 +41,18 @@ from provision_companion import (  # noqa: E402
 __all__ = ["Completed", "Runner", "gh_runner", "track", "main"]
 
 FINAL_TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+ARTICLE_LIB = (
+    Path(__file__).resolve().parent.parent / "{{cookiecutter.repo_name}}" / "scripts" / "article"
+)
+
+
+def _load_theses():
+    """The template's map code, imported without running the package's __init__."""
+    if "_article_lib" not in sys.modules:
+        package = types.ModuleType("_article_lib")
+        package.__path__ = [str(ARTICLE_LIB)]
+        sys.modules["_article_lib"] = package
+    return importlib.import_module("_article_lib.theses")
 
 
 @dataclass
@@ -51,6 +67,8 @@ class Row:
     companion_private: bool = False
     drift: list[str] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
+    # None: the repo has no theses.yaml. Otherwise gap kind -> node ids (ids only).
+    map_gaps: dict[str, list[str]] | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -64,6 +82,7 @@ class Row:
             "companion_private": self.companion_private,
             "drift": self.drift,
             "problems": self.problems,
+            "map_gaps": self.map_gaps,
         }
 
 
@@ -109,6 +128,29 @@ def _version(run: Runner, repo: str) -> str:
     return str(value) if value is not None else ""
 
 
+def map_gaps(run: Runner, repo: str) -> tuple[dict[str, list[str]] | None, str]:
+    """(gap kind -> ids, problem). None when there is no map. Anchors are not checked."""
+    done = run(
+        ["api", "-H", "Accept: application/vnd.github.raw", f"repos/{repo}/contents/theses.yaml"],
+        None,
+    )
+    if done.returncode != 0:
+        if _is_missing(done):
+            return None, ""
+        return None, f"cannot read theses.yaml: {done.stderr.strip()}"
+    theses = _load_theses()
+    try:
+        data = yaml.safe_load(done.stdout)
+    except yaml.YAMLError:
+        return None, "theses.yaml is not valid YAML"
+    if not theses.structure_errors(data).ok:
+        return None, "theses.yaml does not validate"
+    grouped: dict[str, list[str]] = {}
+    for gap in theses.gaps(data, None):
+        grouped.setdefault(gap["kind"], []).append(gap["id"])
+    return grouped, ""
+
+
 def _latest_release(run: Runner, repo: str) -> tuple[str, str]:
     """(tag, problem); tag is '' when the repo has no Release."""
     done = run(["api", f"repos/{repo}/releases/latest"], None)
@@ -129,6 +171,9 @@ def track_one(run: Runner, repo: str) -> Row | None:
     if problem:
         row.problems.append(problem)
     row.version = _version(run, repo)
+    row.map_gaps, bad = map_gaps(run, repo)
+    if bad:
+        row.problems.append(bad)
 
     refs = run(
         ["api", "--paginate", f"repos/{repo}/git/matching-refs/tags/v", "--jq", ".[].ref"], None
@@ -195,11 +240,19 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ") if text else "-"
 
 
+def _gap_cell(row: Row) -> str:
+    if row.map_gaps is None:
+        return ""
+    if not row.map_gaps:
+        return "none"
+    return "; ".join(f"{kind} {len(ids)}" for kind, ids in sorted(row.map_gaps.items()))
+
+
 def render_table(rows: list[Row]) -> str:
     lines = [
         "| Article repo | Version | Tag | Release | Last good run | Companion "
-        "| Companion release | Drift |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Companion release | Map gaps | Drift |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         flags = "; ".join(r.drift + r.problems)
@@ -211,6 +264,7 @@ def render_table(rows: list[Row]) -> str:
             r.build,
             f"`{r.companion}`" if r.companion else "",
             r.companion_release,
+            _gap_cell(r),
             flags,
         ]
         lines.append("| " + " | ".join(_cell(c) for c in cells) + " |")

@@ -174,11 +174,12 @@ Do: Declare `theses.yaml` and `.theses/` user-owned in the upgrade rules; make `
 Done-when: the check passes; the pre-existing upgrade tests still pass. If step 1.2 found a hard-coded `/home/ubuntu` in the template, remove it here (use a placeholder the user fills) with a test.
 Resolved: `theses.yaml` and `AGENTS.md` added to `_OWNED_AFTER_ADD`; `upgrade --plan` returns `notices` (code `N001`) for a `companion.yaml` lacking the two deny patterns; new tests in `tests/test_upgrade_theses.py`; documented in `docs/upgrading.md`. Step 1.2 itself was not run here, but `grep -rn /home/ubuntu` over the template, hooks and tests finds nothing, so there was nothing to remove. Check `tests/test_bootstrap_upgrader.py` passes unchanged.
 
-### 5.2 Series report of map gaps — [ ]
+### 5.2 Series report of map gaps — [x]
 Class: implement · Effort: medium · Needs: 2.2 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_track_articles.py -q`
 Context: `S/scripts/track_articles.py` and `S/.github/workflows/track-articles.yml` list the installation's article repos and write a registry to the job summary; it never publishes. Articles in a series link through `related_identifiers`. The map is private; a report must carry counts and ids only, to the owner's job summary, never to the companion.
 Do: Add per-repo gap kinds and counts (from `theses gaps` output, read through the repo contents API or the checkout the tracker already makes) to the summary table; skip repos without `theses.yaml`.
 Done-when: the test passes with a fixture repo that has gaps and one that has no map.
+Resolved: `scripts/track_articles.py` reads `theses.yaml` through the contents API, reuses the template's `theses.gaps` (anchor-missing is not reported, since section files are not read), shows kind and count in a new `Map gaps` column and ids in `--json`, never node text.
 
 ## 6. Adopt in this article repo
 
