@@ -49,11 +49,12 @@ Do: Define what a red-team pass must produce (strongest form of each objection, 
 Done-when: the note has the checklist and which items are lintable.
 Resolved: note written in the slot (docs/plans/notes-adversarial-standards.md); the Check path names the main checkout, so it passes once this branch merges.
 
-### 9.5 Formal-methods hook and AI-use provenance — [ ]
+### 9.5 Formal-methods hook and AI-use provenance — [x]
 Class: explore · Effort: low · Needs: 8.1 · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-formal-and-provenance.md`
 Context: `A` already runs a model checker (`scripts/run-tlc-docker.sh`, `docs/logs/p6-tlc`). The template's backmatter has an AI-use statement.
 Do: Propose how formal checks become named flow checks, and a provenance log recording which orders agents performed, tier used and the human acceptance, from which the AI-use statement can be derived.
 Done-when: the note proposes both and says what the log must never contain (manuscript text).
+Resolved: note written in the slot (docs/plans/notes-formal-and-provenance.md); the Check path names the main checkout, so it passes once this branch merges.
 
 ## 1. Make the existing MCP server work
 
