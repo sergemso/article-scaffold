@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from . import companion, core, theses
+from . import index as section_index
 
 
 class UsageError(Exception):
@@ -45,6 +46,36 @@ def _validate(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
+
+
+def _index(args: argparse.Namespace) -> int:
+    root = _root(args)
+    if args.check:
+        stale = section_index.check_index(root)
+        if args.json:
+            _emit_json({"ok": not stale, "command": "index", "check": True, "stale": stale})
+        else:
+            for reason in stale:
+                print(f"ERROR: {reason}", file=sys.stderr)
+            if not stale:
+                print("Section index is current.")
+        return core.ExitCode.DIAGNOSTICS if stale else core.ExitCode.OK
+    index = section_index.write_index(root)
+    payload = {
+        "ok": True,
+        "command": "index",
+        "path": section_index.INDEX_PATH.as_posix(),
+        "sections": len(index["sections"]),
+        "labels": len(index["labels"]),
+    }
+    if args.json:
+        _emit_json(payload)
+    else:
+        print(
+            f"Wrote {payload['path']} "
+            f"({payload['sections']} sections, {payload['labels']} labels)."
+        )
+    return core.ExitCode.OK
 
 
 def _theses(args: argparse.Namespace) -> int:
@@ -612,6 +643,17 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate", help="validate paper sources")
     _add_common(validate)
     validate.set_defaults(func=_validate)
+
+    index_cmd = subparsers.add_parser(
+        "index", help="write paper/build/section-index.json (labels, line ranges, summaries)"
+    )
+    _add_common(index_cmd)
+    index_cmd.add_argument(
+        "--check",
+        action="store_true",
+        help="fail when the index is missing or older than a section; write nothing",
+    )
+    index_cmd.set_defaults(func=_index)
 
     theses_cmd = subparsers.add_parser(
         "theses", help="lint, inspect and promote nodes of the theses map"

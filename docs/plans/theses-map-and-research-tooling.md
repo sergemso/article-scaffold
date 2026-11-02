@@ -86,11 +86,12 @@ Do: Add `scripts/article/theses.py` and subcommands `theses lint` (schema plus g
 Done-when: tests cover each gap kind, slice depth, accept on a proposed node, accept refused for an agent name, and idempotent re-run. Then set guardrail `agent-nodes-need-human-promotion` to `active` in `S/docs/guardrails/` and its `INDEX.md` row.
 Resolved: `theses lint|gaps|slice|accept` in the slot; `gaps` exits 1 when it finds any, kinds `thesis-unsupported`, `objection-undefended`, `single-source`, `anchor-missing` by default and `thesis-unattacked` via `--kind` (names from fact 0009); guardrail activated.
 
-### 2.3 Section index — [ ] ‖
+### 2.3 Section index — [x] ‖
 Class: implement · Effort: medium · Needs: none · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_section_index.py -q`
 Context: Decision 0069. Sections are `paper/sections/NN_name.tex`; labels are `\label{...}`. The script library is `S/{{cookiecutter.repo_name}}/scripts/article/`.
 Do: Add `scripts/article/index.py` and subcommand `index` writing `paper/build/section-index.json` (gitignored build output): per label, file and line range; per section a one-line summary taken from the first sentence of its first paragraph (no model call). Add `index --check` that fails when the file is older than any `paper/sections/*.tex`. Wire `--check` into `make validate`.
 Done-when: tests pass on a rendered article; `index` output for a 3000-line section set is under a few kilobytes; an edited section makes `index --check` fail until `index` is rerun.
+Resolved: `scripts/article/index.py` and `index [--check]` in the slot; `make validate` runs the check only when the index file exists (it is gitignored build output, so a fresh clone has none).
 
 ### 2.4 Quote match (tier 1) and check cache — [ ]
 Class: implement · Effort: high · Needs: 2.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_claims.py -q`

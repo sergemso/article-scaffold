@@ -123,6 +123,7 @@ supp: supp-pdf
 
 validate:
 	@python3 scripts/validate-paper.py
+	@if [ -f paper/build/section-index.json ]; then python3 -m scripts.article index --check; fi
 	@echo "All validation checks passed."
 
 # Install or reinstall the pre-push hook. Safe to run repeatedly.
