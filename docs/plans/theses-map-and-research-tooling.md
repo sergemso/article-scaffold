@@ -162,12 +162,13 @@ Do: Add `related_works`, `cited_by` and `venue_candidates` to the authors server
 Done-when: the full suite and `ruff check .` pass; every new threat-model row names a passing test; the tools list shows three new tools with short descriptions.
 Resolved: `related_works`, `cited_by` and `venue_candidates` added to the authors server (scholar-mcp `feat/discovery-tools`, 6e1641b); OpenAlex gets a `discovery` role in `sources.py`. Tests in `tests/authors/test_discovery_tools.py`, `tests/corpus/test_discovery.py`, `tests/guardrails/test_discovery.py`; threat-model rows 28 to 30. Full suite 689 passed, 2 skipped with `ARTICLE_SCAFFOLD` set to the scaffold master checkout (without it 35 repo-tool tests error on the default `/home/ubuntu/...` path); `ruff check .` clean. Venue candidates are venues of works whose full text matches the string, with no total.
 
-### 4.3 Live run, README and tag — [ ]
+### 4.3 Live run, README and tag — [x]
 Class: review · Effort: medium · Needs: 4.2 · Check: `test -s /home/sergei/projects/sergemso/scholar-mcp/docs/e2e-0.1.4.md`
 Human: tagging and pushing needs the owner's explicit go-ahead.
 Context: Earlier runs are `M/docs/e2e-0.1.*.md`; release practice is in `M/docs/plans/scholar-reviewers.md` step 5.2 (`chore(release): set version X`, annotated tag, ask before pushing).
 Do: Run the three tools through a real stdio session against `A`, including a hostile candidate title and an over-limit request; write the transcript to `docs/e2e-0.1.4.md`; add the tools to `M/README.md`; set the version and tag locally; ask the owner before pushing.
 Done-when: the transcript shows each refusal; the README lists the tools; the tag exists locally.
+Resolved: live and fixture stdio sessions against the article repo (read-only; its git state was unchanged) are in `M/docs/e2e-0.1.4.md`: the over-limit `limit`, an unknown argument and a smuggled `--yes` identifier are each refused, and a hostile candidate title and `meta.notice` (from a fixture response; the live registry returned no hostile text) stay inside the fenced data field. README gained a discovery section. Version set to 0.2.1 (not 0.1.4: 0.2.0 was already tagged) in `chore(release): record the discovery run and set version 0.2.1` (scholar-mcp `feat/discovery-tools`, 742752c); annotated tag `v0.2.1` exists LOCALLY at that commit and is NOT pushed, awaiting the owner's go-ahead. No PR opened. The e2e file keeps the plan's name 0.1.4.
 
 ## 5. Delivery to existing repos
 
@@ -256,11 +257,12 @@ Context: Fact 0008 gives the paths. Steps 3.2 to 3.4 write the red-team, blue-te
 Do: Add the lifecycle procedure ("run `flow next`, do the order, `flow done`, stop on needs-human") at the neutral path, one thin adapter for Claude Code and an instruction-file pointer. Add `tests/test_host_neutral.py`: scan the rendered template for `go-getter` and model names; allow host-specific paths only in the adapter location.
 Done-when: the tests pass; set guardrail `article-tooling-is-host-neutral` to `active` in its file and `INDEX.md` row.
 
-### 8.8 MCP wrapper in scholar-authors — [ ]
+### 8.8 MCP wrapper in scholar-authors — [x]
 Class: implement · Effort: high · Needs: 8.4 · Check: `cd /home/sergei/projects/sergemso/scholar-mcp && .venv/bin/python -m pytest tests/authors tests/guardrails -q`
 Context: scholar-mcp decision 0070; patterns in `M/packages/authors/src/scholar_authors/repo_tools.py` (fixed argument vectors) and `release_tools.py` plus `scholar_core/confirm.py` (plan, hash, terminal confirm).
 Do: Add `flow_status`, `flow_next`, `flow_done` with closed schemas (`flow_done` takes only an order id). Gated orders return a plan id and are closed by `scholar-authors confirm`. Fence order text that carries manuscript or registry strings. Add threat-model rows (smuggled check, gated order closed without confirm, injected order text) with named tests, and audit-log entries per call.
 Done-when: the suite and `ruff check .` pass; each new threat-model row names a passing test; set the scaffold guardrail `flow-gated-stages-need-out-of-band-confirm` to `active` once its tests exist.
+Resolved: `flow_status`, `flow_next` and `flow_done` in `M/packages/authors/src/scholar_authors/flow_tools.py` (scholar-mcp `feat/discovery-tools`, bb2508e), wired into `serve` and `confirm`. A gated order from `flow_next` returns a plan id; `scholar-authors confirm` re-checks the order, runs `flow attest` with the person's terminal inherited (so the CLI prompts a second time, "type yes", by design: attest stays terminal-only) with `--by` from `git config user.name`, then `flow done`. Threat-model rows 31 to 33; tests `tests/authors/test_flow_tools.py` and `tests/guardrails/test_flow_gated.py`; full suite 720 passed, 2 skipped, `ruff check .` clean. Not verified: the confirm path against a real gated order in the real CLI with a real tty (tests use a stub CLI that logs argument vectors, and the real CLI only for status, next, unknown and unconfirmed gated orders). Guardrail set to `active` in its file and `docs/guardrails/INDEX.md`.
 
 ### 8.9 Upgrade delivery of flow — [x]
 Class: implement · Effort: medium · Needs: 8.4, 8.7, 5.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_upgrade_apply.py tests/test_upgrade_user_owned.py tests/test_upgrade_flow.py -q`
