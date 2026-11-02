@@ -202,11 +202,12 @@ Do: Create nodes, all `status: proposed`: each competitor as an `objection` or `
 Done-when: `theses lint` passes, `theses gaps` runs and lists the real gaps, and no node is `accepted`.
 Resolved: A commit 69ec883 on `feat/theses-map`, pushed, no PR. Map has theses, hypotheses, objections and defenses, all `proposed`, none accepted; competitor objections and responses from the enemies note, review objections (those about content, not layout or editing) from the v0.10 review plan, each with an anchor label. Four source-claim nodes, each with a verbatim quote found by `claims quote-check --all` in a local `.txt` source; Herdr and AgentThread have no `.txt` source so no source-claim was made for them. Sibling plans were not mined, and whether a defense is already in the paper text was not checked (they are proposals). `theses lint` ok; `theses gaps` lists single-source on three hypotheses and thesis-unsupported on four theses (exit 1 by design). `make validate` and `lint-counts.py` exit 0.
 
-### 6.3 First claim check on the seeded map — [ ]
+### 6.3 First claim check on the seeded map — [x]
 Class: review · Effort: medium · Needs: 6.2, 2.4, 3.4 · Check: `cd /home/sergei/projects/strebulaev-articles/articles.bridge_contract_for_agent_session_governance && python3 -m scripts.article claims quote-check --all`
 Context: Decision 0067. Tier 1 is deterministic; tier 2 uses the claim-check skill; tier 3 is the owner's.
 Do: Run tier 1 on every `source-claim` node and report `not-found` and `no-local-text` nodes to the owner; run tier 2 on `found` ones; list `overstates` and `contradicts`. Do not edit the paper.
 Done-when: the owner has a list of failures and weak claims with node ids.
+Resolved: tier 1 found every source-claim node (no not-found, no no-local-text); tier 2 judged by the agent from cached excerpts only: all supports, none overstates or contradicts; verdicts in the git-ignored local cache; owner's note in A at docs/notes/2026-11-02-first-claim-check.md (commit e186fe7 on feat/theses-map); tier 3 not done.
 
 ## 7. Regenerate the instruction file
 
