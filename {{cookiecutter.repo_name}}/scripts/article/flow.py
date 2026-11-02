@@ -48,6 +48,7 @@ STATE_FIELDS = {
     "waivers",
     "orders",
     "reviews",
+    "closed",
 }
 HEADER = (
     "# Flow state: decisions the repo cannot derive (round, attestations, waivers, budget).\n"
@@ -136,6 +137,13 @@ def state_errors(data: object) -> list[str]:
         errors.append("orders must be a mapping")
     if not isinstance(data.get("reviews"), list):
         errors.append("reviews must be a list")
+    closed = data.get("closed", [])
+    if not isinstance(closed, list) or not all(
+        isinstance(c, dict) and set(c) == {"round", "at"} and _nonneg_int(c["round"])
+        and _is_date(c["at"])
+        for c in closed
+    ):
+        errors.append("closed must be a list of {round, at}")
     return errors
 
 
@@ -297,8 +305,25 @@ def _gap_gate(f: Facts, kinds: tuple[str, ...], ok_reason: str) -> dict[str, Any
     return _verdict(True, ok_reason, command)
 
 
+def untriaged(f: Facts) -> list[str]:
+    """Review-item objections that still have no anchor (set by triage)."""
+    return sorted(
+        n["id"]
+        for n in f.nodes.values()
+        if n["type"] == "objection" and n["status"] == "proposed"
+        and n.get("source") and not n.get("anchor")
+    )
+
+
 def _gate_map(f: Facts) -> dict[str, Any]:
-    return _gap_gate(f, MAP_GAP_KINDS, "no thesis, objection or anchor gaps")
+    result = _gap_gate(f, MAP_GAP_KINDS, "no thesis, objection or anchor gaps")
+    pending = untriaged(f)
+    if result["ok"] and pending:
+        return _verdict(
+            False, f"review items not triaged (no anchor): {', '.join(pending[:5])}",
+            f"{CMD} theses slice {pending[0]}",
+        )
+    return result
 
 
 def _gate_discover(f: Facts) -> dict[str, Any]:
@@ -593,6 +618,14 @@ def orders_for(stage: str, f: Facts) -> list[dict[str, Any]]:
             )
         )
     elif stage == "map":
+        for node_id in untriaged(f):
+            out.append(
+                make_order(
+                    stage, "triage-objection", nodes=[node_id], outputs=_node_output(node_id),
+                    check="theses-lint",
+                    reason=f"set anchor, severity and the stage to reopen for {node_id}",
+                )
+            )
         for node_id, kinds in sorted(_by_node(f.gap_ids(*MAP_GAP_KINDS)).items()):
             defence = "objection-undefended" in kinds or "thesis-unsupported" in kinds
             out.append(
@@ -916,3 +949,99 @@ def waive(
     )
     save_state(root, state)
     return {"ok": True, "command": "flow waive", "stage": stage, "expires": str(expires)}
+
+
+# --------------------------------------------------------------- review round
+
+ITEM_RE = re.compile(r"^\s{0,3}(\d+)[.)]\s+(.*)$")
+HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
+ITEM_LIMIT = 240
+
+
+def split_review(text: str) -> list[tuple[int, str]]:
+    """Items of a review as (line number, one-line text), by a deterministic rule.
+
+    A numbered list wins; otherwise each heading is an item. A numbered item continues
+    over the following non-blank, non-item lines. Item text is data: it is stored as a
+    node's one-line text and never placed in an order.
+    """
+    lines = text.splitlines()
+    numbered = [i for i, line in enumerate(lines) if ITEM_RE.match(line)]
+    items: list[tuple[int, str]] = []
+    if numbered:
+        for i in numbered:
+            parts = [ITEM_RE.match(lines[i]).group(2)]
+            for follow in lines[i + 1 :]:
+                if not follow.strip() or ITEM_RE.match(follow) or HEADING_RE.match(follow):
+                    break
+                parts.append(follow)
+            items.append((i + 1, " ".join(" ".join(parts).split())))
+    else:
+        for i, line in enumerate(lines):
+            match = HEADING_RE.match(line)
+            if match and match.group(1).strip():
+                items.append((i + 1, " ".join(match.group(1).split())))
+    return [(n, t[:ITEM_LIMIT]) for n, t in items if t]
+
+
+def _review_path(root: Path, review: str) -> tuple[Path, str]:
+    path = (root / review).resolve() if not Path(review).is_absolute() else Path(review).resolve()
+    base = root.resolve()
+    if not path.is_file() or not path.is_relative_to(base):
+        raise FlowError("the review must be a file inside this repository")
+    return path, path.relative_to(base).as_posix()
+
+
+def round_open(root: Path, review: str, today: date | None = None) -> dict[str, Any]:
+    """Start a round from a local review file: one proposed objection per item."""
+    path, rel = _review_path(root, review)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    state = load_state(root)
+    for seen in state["reviews"]:
+        if seen.get("file") == rel and seen.get("sha256") == digest:
+            return {"ok": True, "command": "flow round open", "round": state["round"],
+                    "created": [], "unchanged": True}
+    items = split_review(text)
+    if not items:
+        raise FlowError("no items found: use a numbered list or headings")
+    data = theses.load_map(root)
+    if data is None or not theses.structure_errors(data).ok:
+        raise FlowError("theses.yaml is missing or invalid; run `theses lint`")
+    known = {n["id"] for n in data.get("nodes") or []}
+    fresh: list[dict[str, str]] = []
+    for line, item in items:
+        node_id = "rv-" + hashlib.sha256(item.encode("utf-8")).hexdigest()[:8]
+        if node_id in known or any(n["id"] == node_id for n in fresh):
+            continue
+        fresh.append({
+            "id": node_id, "type": "objection", "text": item, "status": "proposed",
+            "source": rel, "locator": f"line {line}",
+        })
+    try:
+        theses.add_nodes(root, fresh)
+    except theses.AcceptError as exc:
+        raise FlowError(str(exc)) from exc
+    state["round"] += 1
+    state["budget"]["used"] = 0
+    state["orders"] = {}
+    state["reviews"].append({"file": rel, "sha256": digest, "round": state["round"]})
+    save_state(root, state)
+    return {"ok": True, "command": "flow round open", "round": state["round"],
+            "created": [n["id"] for n in fresh], "unchanged": False}
+
+
+def round_close(root: Path, today: date | None = None) -> dict[str, Any]:
+    """Record the round as closed once every gate before publish passes or is waived."""
+    now = today or date.today()
+    state = load_state(root)
+    results = evaluate(Facts(root, state), now)
+    failing = [r["stage"] for r in results if r["status"] == "fail"]
+    if failing:
+        return {"ok": False, "command": "flow round close", "round": state["round"],
+                "failing": failing}
+    closed = state.setdefault("closed", [])
+    if not any(c["round"] == state["round"] for c in closed):
+        closed.append({"round": state["round"], "at": now.isoformat()})
+        save_state(root, state)
+    return {"ok": True, "command": "flow round close", "round": state["round"], "failing": []}

@@ -233,10 +233,11 @@ Do: A fixed table maps check names to argument vectors. `flow done <order-id>` a
 Resolved: gated orders close only when a person has recorded the confirmation (`flow attest`, terminal-only) in `flow.yaml`; the MCP terminal confirm path of 8.8 is not built yet and will call the same record. `flow attest` and `flow waive` were added for this.
 Done-when: tests cover an unknown check name, extra arguments, a retry cap hit, a spent budget refusing a `large` order, a crash between `next` and `done` (re-issued order, no double count), and a gated order refused without confirmation. Then set guardrail `flow-checks-are-named-not-supplied` to `active` in its file and `INDEX.md` row.
 
-### 8.5 Review-round loop: ingest a review — [ ]
+### 8.5 Review-round loop: ingest a review — [x]
 Class: implement · Effort: high · Needs: 8.4, 2.2 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_flow_round.py -q`
 Context: A round replaces hand-written review-response plans. The review is local text (markdown or plain) given as a file; it is never sent anywhere (guardrail `claim-check-input-stays-local`).
 Do: `flow round open --review <file>` increments the round, splits the review into items by a simple deterministic rule (headings or numbered list), and creates one `proposed` `objection` node per item with the item text as one line and a pointer to the review file and line. Triage (anchor, severity, which stage reopens) is then done by orders of tier `small`. `flow round close` requires the release-gate predicates and records the result.
+Resolved: the review file must be inside the repository (its relative path is stored in the node's `source`, the line in `locator`). Untriaged items (proposed objections with a `source` and no `anchor`) fail the map gate and get `triage-objection` orders. `flow round close` stores `closed` entries in `flow.yaml`.
 Done-when: tests cover a numbered-list review, a heading review, a review with an injected instruction (treated as data, never an order field), and re-opening the same file (no duplicate nodes).
 
 ### 8.6 Parallel orders and map merges — [ ]

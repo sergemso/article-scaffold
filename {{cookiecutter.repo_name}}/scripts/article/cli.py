@@ -168,6 +168,13 @@ def _flow(args: argparse.Namespace) -> int:
             payload = flow.done(root, args.order_id)
             _emit_json(payload)
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        if action == "round":
+            if args.round_action == "open":
+                payload = flow.round_open(root, args.review)
+            else:
+                payload = flow.round_close(root)
+            _emit_json(payload)
+            return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
         confirmed = _confirm_in_terminal(action)
         if action == "attest":
             payload = flow.attest(root, args.name, args.by, args.why, confirmed=confirmed)
@@ -797,7 +804,14 @@ def build_parser() -> argparse.ArgumentParser:
     f_waive.add_argument("--by", required=True, help="name of the person")
     f_waive.add_argument("--why", required=True, help="one-line reason")
     f_waive.add_argument("--expires", required=True, help="YYYY-MM-DD")
-    for sub in (f_status, f_next, f_done, f_attest, f_waive):
+    f_round = flow_sub.add_parser("round", help="open a review round from a file, or close it")
+    round_sub = f_round.add_subparsers(dest="round_action", required=True)
+    r_open = round_sub.add_parser("open", help="one proposed objection node per review item")
+    _add_common(r_open)
+    r_open.add_argument("--review", required=True, help="local review file in this repository")
+    r_close = round_sub.add_parser("close", help="record the round once the gates pass")
+    _add_common(r_close)
+    for sub in (f_status, f_next, f_done, f_attest, f_waive, r_open, r_close):
         sub.set_defaults(func=_flow, command="flow")
 
     metadata = subparsers.add_parser(

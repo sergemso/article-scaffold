@@ -370,3 +370,64 @@ def accept(root: Path, node_id: str, by: str) -> bool:
         raise AcceptError("the result would not validate; fix `theses lint` first")
     path.write_text(new, encoding="utf-8")
     return True
+
+
+# ----------------------------------------------------------------- add nodes
+
+
+def _quote(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def append_nodes_text(text: str, new_nodes: list[dict]) -> str:
+    """Return *text* with *new_nodes* appended after the last node.
+
+    Only inserts lines: existing nodes, comments and ordering stay byte for byte, so two
+    branches that edit different nodes still merge. Values are written as quoted scalars.
+    """
+    if not new_nodes:
+        return text
+    root = yaml.compose(text)
+    value = None
+    for key, item in root.value:
+        if key.value == "nodes":
+            value = item
+    if value is None:
+        raise AcceptError("theses.yaml has no nodes list")
+    key_indent = 0
+    for key, item in root.value:
+        if item is value:
+            key_indent = key.start_mark.column
+    indent = " " * (key_indent + 2)
+    block = ""
+    for node in new_nodes:
+        first = True
+        for field, field_value in node.items():
+            lead = f"{indent}- " if first else f"{indent}  "
+            block += f"{lead}{field}: {_quote(str(field_value))}\n"
+            first = False
+    if value.flow_style:
+        if value.value:
+            raise AcceptError("nodes is in flow style; edit the file by hand")
+        head = text[: value.start_mark.index].rstrip(" ")
+        tail = text[value.end_mark.index :]
+        return head + "\n" + block + tail.lstrip(" ").lstrip("\n")
+    last = value.value[-1]
+    stop = len(text[: last.end_mark.index].rstrip())
+    at = text.find("\n", stop)
+    at = len(text) if at < 0 else at + 1
+    prefix = "" if at == 0 or text[at - 1] == "\n" else "\n"
+    return text[:at] + prefix + block + text[at:]
+
+
+def add_nodes(root: Path, new_nodes: list[dict]) -> None:
+    """Append nodes to theses.yaml; refuses a result that would not validate."""
+    path = root / MAP_FILE
+    if not path.is_file():
+        raise AcceptError("theses.yaml not found")
+    new = append_nodes_text(path.read_text(encoding="utf-8"), new_nodes)
+    check = Diagnostics()
+    validate_map(yaml.safe_load(new), None, check)
+    if not check.ok:
+        raise AcceptError("the result would not validate; fix `theses lint` first")
+    path.write_text(new, encoding="utf-8")
