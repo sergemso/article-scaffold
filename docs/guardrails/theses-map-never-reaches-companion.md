@@ -1,7 +1,7 @@
 ---
 id: theses-map-never-reaches-companion
 title: The theses map and its check cache never reach the public companion
-status: draft
+status: active
 date: 2026-11-02
 tags: [companion, privacy, theses-map, guardrail]
 governed-by: 0065-theses-map-is-a-yaml-graph
@@ -15,4 +15,4 @@ go-getter:
 
 ## Guardrail
 
-`theses.yaml` and the check cache directory are deny patterns in `companion.yaml`. The snapshot build fails, publishing nothing, if the result contains either. Draft until the snapshot test exists.
+`theses.yaml` and the check cache directory are deny patterns in `companion.yaml`. The snapshot build fails, publishing nothing, if the result contains either.

@@ -100,11 +100,12 @@ Do: Add `scripts/article/claims.py` and subcommands `claims quote-check [<id>|--
 Done-when: tests cover exact match, whitespace and hyphen differences, a changed quote, a missing source file, and a cache hit that skips recomputation. Output is verdicts and locators only.
 Resolved: `scripts/article/claims.py` with `claims quote-check [<id>|--all]` (exit 1 on `not-found`), `claims excerpt <id>` and `claims cache <id> [--set supports|overstates|contradicts]` (cache file `.theses/claims-cache.json`, hashes and verdicts only) in the slot; `.theses/` added to the template `.gitignore`.
 
-### 2.5 Keep the map out of the companion — [ ]
+### 2.5 Keep the map out of the companion — [x]
 Class: implement · Effort: low · Needs: 2.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_companion_build.py -q`
 Context: Guardrail `theses-map-never-reaches-companion`. `S/{{cookiecutter.repo_name}}/companion.yaml` has an `include` allowlist and an `exclude` deny list ("yours after the first render; `upgrade` never overwrites it"). The snapshot builder is `scripts/article/companion.py`.
 Do: Add `theses.yaml` and `.theses/**` to the template's `exclude`. Add a test in `S/tests/test_companion_build.py` that puts both in a rendered repo, even with a broad `include`, and asserts the build fails or omits them as the existing deny-pattern tests do.
 Done-when: the test passes; set the guardrail to `active` in its file and `INDEX.md` row. Existing repos need a manual `companion.yaml` edit (step 6.1).
+Resolved: deny patterns and tests added in the slot; guardrail activated. The snapshot omits the files and prunes `.theses` (reported in `excluded` only for `theses.yaml`).
 
 ### 2.6 No network use in the claim, index and map code — [ ] ‖
 Class: implement · Effort: low · Needs: 2.2, 2.3, 2.4 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_no_network_in_claim_code.py -q`
