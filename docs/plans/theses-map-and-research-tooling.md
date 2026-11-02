@@ -272,8 +272,9 @@ Class: implement · Effort: medium · Needs: 8.4, 8.7, 5.1 · Check: `cd /home/s
 Do: Make `flow.yaml` user-owned (like `metadata.yaml`); deliver `flow.py`, schemas, procedures and adapters through `upgrade`.
 Done-when: an old rendered repo upgrades to include flow with its own `flow.yaml` untouched.
 
-### 8.10 Acceptance replay on the article repo — [ ]
+### 8.10 Acceptance replay on the article repo — [x]
 Class: review · Effort: high · Needs: 8.5, 6.2, 8.4 · Check: `cd /home/sergei/projects/strebulaev-articles/articles.bridge_contract_for_agent_session_governance && python3 -m scripts.article flow status`
 Context: `A/docs/plans/review-response-v0.10.md` records a real review round (its items and fixes). Comply with `A/CLAUDE.md`: no counts of enumerable things, no draft-version references in anything you write; run `python3 scripts/lint-counts.py`.
 Do: In a branch, run `flow round open` on a text copy of that review's item list, drive the loop with `flow next`/`flow done`, and compare the orders it issues and the gaps it finds against the hand-written plan. Record in `A/docs/notes/` which of the plan's items the flow found, missed, or found additionally, and what the weights cost in units.
 Done-when: the note lists matches and misses with evidence; no paper text changed by this step.
+Resolved: replay on branch feat/flow-replay in A (commit c26fb88; note docs/notes/2026-11-02-flow-replay.md). Round opened from a text copy of the review's numbered findings; every finding became a proposed objection node. The loop stopped at its first order (state-thesis, needs a person to accept a thesis), so no later order, no gated order and no flow done was exercised; unit cost zero. Matches are by construction; the mapping to plan ids is the agent's judgment; misses and extra gaps are listed in the note. Check command exits nonzero because gates fail, as expected on an unaccepted map.
