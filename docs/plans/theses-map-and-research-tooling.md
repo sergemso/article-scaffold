@@ -258,8 +258,8 @@ Context: scholar-mcp decision 0070; patterns in `M/packages/authors/src/scholar_
 Do: Add `flow_status`, `flow_next`, `flow_done` with closed schemas (`flow_done` takes only an order id). Gated orders return a plan id and are closed by `scholar-authors confirm`. Fence order text that carries manuscript or registry strings. Add threat-model rows (smuggled check, gated order closed without confirm, injected order text) with named tests, and audit-log entries per call.
 Done-when: the suite and `ruff check .` pass; each new threat-model row names a passing test; set the scaffold guardrail `flow-gated-stages-need-out-of-band-confirm` to `active` once its tests exist.
 
-### 8.9 Upgrade delivery of flow — [ ]
-Class: implement · Effort: medium · Needs: 8.4, 8.7, 5.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_upgrade_apply.py tests/test_upgrade_user_owned.py -q`
+### 8.9 Upgrade delivery of flow — [x]
+Class: implement · Effort: medium · Needs: 8.4, 8.7, 5.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_upgrade_apply.py tests/test_upgrade_user_owned.py tests/test_upgrade_flow.py -q`
 Do: Make `flow.yaml` user-owned (like `metadata.yaml`); deliver `flow.py`, schemas, procedures and adapters through `upgrade`.
 Done-when: an old rendered repo upgrades to include flow with its own `flow.yaml` untouched.
 

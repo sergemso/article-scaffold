@@ -403,8 +403,9 @@ def build_patch(
 # Files the author owns as data. They are left out of the template diff and migrated.
 _DATA_FILES = ("metadata.yaml",)
 # Files the template adds once and the author owns afterwards: later template edits are skipped.
-# ``theses.yaml`` is the author's argument and ``AGENTS.md`` takes their own instructions.
-_OWNED_AFTER_ADD = ("companion.yaml", "theses.yaml", "AGENTS.md")
+# ``theses.yaml`` is the author's argument, ``flow.yaml`` their decisions (attestations, waivers,
+# budget), and ``AGENTS.md`` takes their own instructions.
+_OWNED_AFTER_ADD = ("companion.yaml", "theses.yaml", "flow.yaml", "AGENTS.md")
 # Deny patterns an existing companion.yaml needs so the private map never ships.
 _COMPANION_DENY = ("theses.yaml", ".theses/**")
 N_COMPANION_DENY = "N001"
