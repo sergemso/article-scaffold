@@ -1,7 +1,7 @@
 ---
 id: article-tooling-is-host-neutral
 title: Nothing the template ships names go-getter or requires one agent host
-status: draft
+status: active
 date: 2026-11-02
 tags: [template, host-neutral, guardrail]
 governed-by: 0071-flow-orders-are-host-neutral
@@ -15,4 +15,4 @@ go-getter:
 
 ## Guardrail
 
-Files under `{{cookiecutter.repo_name}}` do not mention go-getter and name no model. A host-specific file (for example a Claude Code skill or an AGENTS.md pointer) exists only as a thin adapter in a clearly named adapter location and contains no logic. Draft until the scan test exists.
+Files under `{{cookiecutter.repo_name}}` do not mention go-getter and name no model. A host-specific file (for example a Claude Code skill or an AGENTS.md pointer) exists only as a thin adapter in a clearly named adapter location and contains no logic. Enforced by `tests/test_host_neutral.py`.

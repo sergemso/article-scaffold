@@ -31,6 +31,6 @@ related-targets-are-public,"A related_identifiers target must be a DOI or a publ
 theses-map-never-reaches-companion,"The theses map and its check cache never reach the public companion","companion, privacy, theses-map, guardrail",active
 agent-nodes-need-human-promotion,"A map node written by an agent is not accepted until a human accepts it","theses-map, agents, guardrail",active
 claim-check-input-stays-local,"Manuscript and source text are never an argument to an outbound call","theses-map, privacy, sources, guardrail",active
-article-tooling-is-host-neutral,"Nothing the template ships names go-getter or requires one agent host","template, host-neutral, guardrail",draft
+article-tooling-is-host-neutral,"Nothing the template ships names go-getter or requires one agent host","template, host-neutral, guardrail",active
 flow-checks-are-named-not-supplied,"flow done runs only checks from a fixed table, never a command from the caller","orchestration, security, guardrail",active
 flow-gated-stages-need-out-of-band-confirm,"Release-gate and publish orders are closed only by a confirmation in the owner's terminal","orchestration, release, guardrail",draft

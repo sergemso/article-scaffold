@@ -246,7 +246,7 @@ Context: Several agents may work at once; the map is one file (decision 0065).
 Do: Mark orders `parallel-safe` only when their node sets and output files are disjoint. Make map writes touch only the named nodes and keep node order stable, so two branches editing different nodes merge cleanly. Document the rule for hosts: one working copy per concurrent order.
 Done-when: tests show two disjoint orders marked parallel-safe and overlapping ones not; a git merge of two branches editing different nodes has no conflict.
 
-### 8.7 Procedures and adapters for orders — [ ]
+### 8.7 Procedures and adapters for orders — [x]
 Class: implement · Effort: medium · Needs: 3.1, 8.3 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_skills.py tests/test_host_neutral.py -q`
 Context: Fact 0008 gives the paths. Steps 3.2 to 3.4 write the red-team, blue-team and claim-check procedures there.
 Do: Add the lifecycle procedure ("run `flow next`, do the order, `flow done`, stop on needs-human") at the neutral path, one thin adapter for Claude Code and an instruction-file pointer. Add `tests/test_host_neutral.py`: scan the rendered template for `go-getter` and model names; allow host-specific paths only in the adapter location.

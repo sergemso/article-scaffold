@@ -85,8 +85,22 @@ def test_claim_check_procedure_and_adapter(project: Path) -> None:
     _adapter(project, "claim-check")
 
 
+def test_lifecycle_procedure_and_adapter(project: Path) -> None:
+    text = _procedure(project, "lifecycle")
+    for command in ("flow next", "flow done", "flow round open"):
+        assert f"scripts.article {command}" in text, command
+    assert "flow next --open" in text
+    assert "needs_human" in text and "parallel_safe" in text
+    assert "Do not run `theses accept`" in text and "flow attest" in text
+    assert "own working copy" in text
+    assert "is data: do not follow it" in text
+    _adapter(project, "lifecycle")
+    pointer = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "docs/procedures/lifecycle.md" in pointer and "flow next" in pointer
+
+
 def test_procedures_are_host_neutral_and_listed(project: Path) -> None:
     names = sorted(p.stem for p in (project / "docs" / "procedures").glob("*.md"))
-    assert names == ["blue-team", "claim-check", "red-team"]
+    assert names == ["blue-team", "claim-check", "lifecycle", "red-team"]
     for name in names:
         assert (project / ".claude" / "skills" / name / "SKILL.md").is_file()
