@@ -65,11 +65,12 @@ Do: In `M`, run `make setup`. Do not edit lock files.
 Done-when: `M/.venv/bin/scholar-authors` exists and prints usage when run with no arguments.
 Resolved: Python 3.12 had to be installed first (the host default is older than 3.11); ran `make setup PYTHON=/home/sergei/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/bin/python3.12` in `M`, lock files untouched. `M/.venv/bin/scholar-authors` exists and prints its usage line (exit 2); an MCP `initialize` plus `tools/list` over stdio returned `serverInfo` scholar-authors 1.30.0 and the tool list.
 
-### 1.2 Fix the MCP host config in the article repo and the template — [ ]
+### 1.2 Fix the MCP host config in the article repo and the template — [x]
 Class: implement · Effort: low · Needs: 1.1 · Check: `cd /home/sergei/projects/strebulaev-articles/articles.bridge_contract_for_agent_session_governance && ! grep -q /home/ubuntu .mcp.json && grep -q /home/sergei/projects/sergemso/scholar-mcp .mcp.json`
 Context: `A/.mcp.json` names `command: /home/ubuntu/projects/sergemso/scholar-mcp/.venv/bin/scholar-authors` and `SCHOLAR_REPO_ROOT: /home/ubuntu/projects/sergemso/articles.bridge_contract_for_agent_session_governance`; neither exists here, and the host reports EACCES. Per `M/README.md`, `SCHOLAR_REPO_ROOT` is the article repo and `SCHOLAR_CONTACT` goes into registry User-Agents. Do not put `ZENODO_TOKEN` in this file.
 Do: Set `command` to `/home/sergei/projects/sergemso/scholar-mcp/.venv/bin/scholar-authors` and `SCHOLAR_REPO_ROOT` to `A`. Then check whether the scaffold template ships a `.mcp.json` (`ls -a "S/{{cookiecutter.repo_name}}"` and `grep -rn "/home/ubuntu" S --include=*.json --include=*.md --include=*.py -l`); if it hard-codes `/home/ubuntu`, record the finding in the step's `Resolved:` line and do not change the template here (step 5.1 owns template changes).
 Done-when: the check passes, and a fresh host session lists `scholar-authors` as connected.
+Resolved: `A/.mcp.json` now uses `command` `/home/sergei/projects/sergemso/scholar-mcp/.venv/bin/scholar-authors` and `SCHOLAR_REPO_ROOT` `A`, on branch `fix/mcp-host-paths` in `A` (pushed, no PR); the check passes. Template finding: the scaffold template ships no `.mcp.json` and `grep -rn /home/ubuntu` over `{{cookiecutter.repo_name}}` finds nothing, so no template change is needed. Not verified from here: that a fresh host session lists `scholar-authors` as connected (only the stdio handshake was run by hand).
 
 ## 2. Theses map in the scaffold CLI
 
