@@ -31,10 +31,11 @@ Do: Study how the theses map would hold explicit premise-conclusion arguments (n
 Done-when: the note gives a schema proposal, one worked example, and the limits of automated checking in plain terms.
 Resolved: note written in the slot (docs/plans/notes-argument-form.md); the Check path names the main checkout, so it passes once this branch merges.
 
-### 9.2 Term registry and definitions — [ ]
+### 9.2 Term registry and definitions — [x]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-term-registry.md`
 Do: Propose a registry of defined terms with a first-use anchor, consistency lint (term used before defined, used in two senses) and a tier-2 sense-drift check. Cover how `A`'s paper currently defines its terms.
 Done-when: the note includes a schema proposal and the lint's false-positive risks.
+Resolved: note written in the slot (docs/plans/notes-term-registry.md); the Check path names the main checkout, so it passes once this branch merges.
 
 ### 9.3 Interpretive fidelity of quoted sources — [ ]
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/article-scaffold/docs/plans/notes-interpretive-fidelity.md`
