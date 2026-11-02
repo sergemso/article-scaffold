@@ -35,8 +35,13 @@ Blocked by host hooks where the host supports it:
 
 Advisory:
 
+- A map node written by an agent is not accepted until a human accepts it (`agent-nodes-need-human-promotion`)
+- Nothing the template ships names go-getter or requires one agent host (`article-tooling-is-host-neutral`)
 - No mid-task model, effort or instruction-file change; switches are confirmed (`cache-hygiene-rule`)
+- Manuscript and source text are never an argument to an outbound call (`claim-check-input-stays-local`)
 - Context is compacted at task boundaries (`compaction-timing-rule`)
+- flow done runs only checks from a fixed table, never a command from the caller (`flow-checks-are-named-not-supplied`)
+- Release-gate and publish orders are closed only by a confirmation in the owner's terminal (`flow-gated-stages-need-out-of-band-confirm`)
 - Handoffs must carry a brief, a result and evidence (`handoff-has-brief-result-evidence`)
 - Agents hand over to a human only when blocked (`human-escalation-rule`)
 - No more than 1 agents run at once (`max-concurrent-agents-rule`)
@@ -45,5 +50,6 @@ Advisory:
 - Detailed procedures live in skills loaded on demand (`procedure-delivery-rule`)
 - Restricted data is handled only on hosts with a blocking pre-tool hook (`restricted-data-hosts-rule`)
 - The reviewer must not modify files (`reviewer-read-only`)
+- The theses map and its check cache never reach the public companion (`theses-map-never-reaches-companion`)
 
 <!-- go-getter:end -->
