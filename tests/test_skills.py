@@ -54,3 +54,17 @@ def test_red_team_procedure_and_adapter(project: Path) -> None:
     assert "one gap" in text
     assert "article.tex" in text and "Do not read" in text
     _adapter(project, "red-team")
+
+
+def test_blue_team_procedure_and_adapter(project: Path) -> None:
+    text = _procedure(project, "blue-team")
+    for command in ("theses gaps", "theses slice", "theses lint", "index"):
+        assert f"scripts.article {command}" in text, command
+    assert "status: proposed" in text
+    assert "status: accepted" not in text
+    assert "`rebuts`" in text and "`defense`" in text
+    assert "Cite a source that has no `source-claim` node" in text
+    assert "do not cite the source" in text
+    assert "docs/procedures/claim-check.md" in text
+    assert "theses accept" in text and "do not run" in text
+    _adapter(project, "blue-team")

@@ -130,11 +130,12 @@ Do: Write the skill at the neutral procedures path from fact 0008. Procedure: ru
 Done-when: the test passes; a rendered repo contains the skill; the skill never instructs setting `accepted`.
 Resolved: `docs/procedures/red-team.md`, adapter `.claude/skills/red-team/SKILL.md` and a template `AGENTS.md` pointer added in the slot. The procedure uses only fields in the 2.1 schema; the extra fields from note 9.4 (form, tradition, severity) are not in the map until that note is accepted, so the skill asks for them in its report.
 
-### 3.3 Blue-team skill: defenses — [ ]
+### 3.3 Blue-team skill: defenses — [x]
 Class: implement · Effort: medium · Needs: 2.2, 3.1, 9.4 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_skills.py -q -k blue_team`
 Context: As step 3.2; the gap is an objection with no defense or a thesis with weak support.
 Do: Write the blue-team skill alike: one gap, one slice, draft `defense` nodes with `rebuts` edges and bib keys for evidence, all `proposed`; each claim of evidence must point at a `source-claim` node, to be checked by step 3.4.
 Done-when: the test passes and the skill refuses to cite a source that has no `source-claim` node.
+Resolved: `docs/procedures/blue-team.md` and adapter `.claude/skills/blue-team/SKILL.md` added in the slot.
 
 ### 3.4 Claim-check skill (tier 2) — [ ]
 Class: implement · Effort: medium · Needs: 2.4, 3.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_skills.py -q -k claim_check`
