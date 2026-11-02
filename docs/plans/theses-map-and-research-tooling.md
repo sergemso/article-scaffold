@@ -240,7 +240,7 @@ Do: `flow round open --review <file>` increments the round, splits the review in
 Resolved: the review file must be inside the repository (its relative path is stored in the node's `source`, the line in `locator`). Untriaged items (proposed objections with a `source` and no `anchor`) fail the map gate and get `triage-objection` orders. `flow round close` stores `closed` entries in `flow.yaml`.
 Done-when: tests cover a numbered-list review, a heading review, a review with an injected instruction (treated as data, never an order field), and re-opening the same file (no duplicate nodes).
 
-### 8.6 Parallel orders and map merges — [ ]
+### 8.6 Parallel orders and map merges — [x]
 Class: implement · Effort: medium · Needs: 8.3 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_flow_parallel.py -q`
 Context: Several agents may work at once; the map is one file (decision 0065).
 Do: Mark orders `parallel-safe` only when their node sets and output files are disjoint. Make map writes touch only the named nodes and keep node order stable, so two branches editing different nodes merge cleanly. Document the rule for hosts: one working copy per concurrent order.

@@ -5,34 +5,132 @@
   "description": "One order from `python3 -m scripts.article flow next` (the `order` field). An order carries ids, paths and names only; it never contains manuscript or source text. The host reads slices through `theses slice` and `index` output.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "stage", "kind", "nodes", "outputs", "tier", "procedure", "check", "gated", "retries", "needs_human", "confirm", "reason"],
+  "required": [
+    "id",
+    "stage",
+    "kind",
+    "nodes",
+    "outputs",
+    "tier",
+    "procedure",
+    "check",
+    "gated",
+    "retries",
+    "needs_human",
+    "confirm",
+    "reason"
+  ],
   "properties": {
-    "id": { "type": "string", "pattern": "^o-[0-9a-f]{12}$" },
+    "id": {
+      "type": "string",
+      "pattern": "^o-[0-9a-f]{12}$"
+    },
     "stage": {
-      "enum": ["frame", "map", "discover", "draft", "verify-sources", "adversarial", "revise", "release-gate", "publish"]
+      "enum": [
+        "frame",
+        "map",
+        "discover",
+        "draft",
+        "verify-sources",
+        "adversarial",
+        "revise",
+        "release-gate",
+        "publish"
+      ]
     },
-    "kind": { "type": "string", "pattern": "^[a-z][a-z-]*$" },
-    "nodes": { "type": "array", "maxItems": 20, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" } },
-    "outputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-    "tier": { "enum": ["script", "small", "large"] },
-    "procedure": { "type": ["string", "null"] },
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]*$"
+    },
+    "nodes": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*$"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "tier": {
+      "enum": [
+        "script",
+        "small",
+        "large"
+      ]
+    },
+    "procedure": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "check": {
-      "enum": ["theses-lint", "theses-gaps", "index-check", "claims-quote-check", "make-validate", "release-plan", "layout-check", "lint-counts", null]
+      "enum": [
+        "theses-lint",
+        "theses-gaps",
+        "index-check",
+        "claims-quote-check",
+        "make-validate",
+        "release-plan",
+        "layout-check",
+        "lint-counts",
+        null
+      ]
     },
-    "gated": { "type": "boolean" },
-    "retries": { "type": "integer", "minimum": 0 },
-    "needs_human": { "type": "boolean" },
-    "confirm": { "type": ["string", "null"] },
-    "reason": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "^[^\\n]+$" },
+    "gated": {
+      "type": "boolean"
+    },
+    "retries": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "needs_human": {
+      "type": "boolean"
+    },
+    "confirm": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[^\\n]+$"
+    },
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["order", "check", "output"],
+      "required": [
+        "order",
+        "check",
+        "output"
+      ],
       "properties": {
-        "order": { "type": "string" },
-        "check": { "type": ["string", "null"] },
-        "output": { "type": "string", "maxLength": 400 }
+        "order": {
+          "type": "string"
+        },
+        "check": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "output": {
+          "type": "string",
+          "maxLength": 400
+        }
       }
+    },
+    "parallel_safe": {
+      "type": "boolean"
     }
   }
 }

@@ -1045,3 +1045,54 @@ def round_close(root: Path, today: date | None = None) -> dict[str, Any]:
         closed.append({"round": state["round"], "at": now.isoformat()})
         save_state(root, state)
     return {"ok": True, "command": "flow round close", "round": state["round"], "failing": []}
+
+
+# ------------------------------------------------------------ parallel orders
+
+
+def _paths_overlap(a: str, b: str) -> bool:
+    if a == b:
+        return True
+    return (a.endswith("/") and b.startswith(a)) or (b.endswith("/") and a.startswith(b))
+
+
+def mark_parallel(orders: list[dict[str, Any]]) -> None:
+    """Set `parallel_safe` on each order: true only if its nodes and outputs are disjoint
+    from every other order in the list and a person is not needed.
+
+    Map writes touch only the named nodes (see `theses.accept_text`), so orders on
+    different nodes edit different lines of `theses.yaml` and merge cleanly.
+    """
+    for order in orders:
+        safe = not order["needs_human"] and not order["gated"]
+        for other in orders:
+            if other is order:
+                continue
+            if set(order["nodes"]) & set(other["nodes"]) or any(
+                _paths_overlap(x, y) for x in order["outputs"] for y in other["outputs"]
+            ):
+                safe = False
+        order["parallel_safe"] = safe
+
+
+def open_orders(root: Path, today: date | None = None) -> dict[str, Any]:
+    """Every open order of the current stage, with `parallel_safe` marks.
+
+    Hosts run one working copy per concurrent order and merge the branches.
+    """
+    state = load_state(root)
+    facts = Facts(root, state)
+    results = evaluate(facts, today or date.today())
+    stage = current_stage(results)
+    if stage is None:
+        return {"ok": True, "command": "flow next", "orders": []}
+    orders = []
+    for order in orders_for(stage, facts):
+        entry = _record(state, order)
+        order["retries"] = int(entry.get("retries", 0)) if entry else 0
+        order = _apply_limits(order, entry, state)
+        if not order["needs_human"]:
+            _remember(root, state, order)
+        orders.append(order)
+    mark_parallel(orders)
+    return {"ok": True, "command": "flow next", "orders": orders}
