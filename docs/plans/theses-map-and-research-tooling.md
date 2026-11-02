@@ -123,11 +123,12 @@ Do: Establish the neutral procedures path and the adapter locations so `upgrade`
 Done-when: the fact names both paths, the upgrade ownership rule with a quote from `upgrade.py`, and the adapter pointer text. Steps 3.2 to 3.4 write procedure files at the neutral path, plus adapters.
 Resolved: fact 0008 written in the slot; it also records that `AGENTS.md` and `theses.yaml` need adding to `_OWNED_AFTER_ADD` (step 5.1).
 
-### 3.2 Red-team skill: objections and hypotheses — [ ]
+### 3.2 Red-team skill: objections and hypotheses — [x]
 Class: implement · Effort: medium · Needs: 2.2, 3.1, 9.4 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_skills.py -q -k red_team`
 Context: Decision 0066. The skill receives one gap from `theses gaps` and the output of `theses slice <id>`; it must not read `article.tex` or whole sections.
 Do: Write the skill at the neutral procedures path from fact 0008. Procedure: run `theses gaps`, take one gap, run `theses slice`, read at most the section lines named by the anchor via the section index, draft objections or hypotheses as nodes with `status: proposed` (never `accepted`), each with an anchor or bib keys, and append them with a CLI or file edit that passes `theses lint`. Tell the model to stop after one gap and report ids. Add `tests/test_skills.py` asserting the skill file exists in a rendered repo, is under 150 lines, and names the CLI commands it uses.
 Done-when: the test passes; a rendered repo contains the skill; the skill never instructs setting `accepted`.
+Resolved: `docs/procedures/red-team.md`, adapter `.claude/skills/red-team/SKILL.md` and a template `AGENTS.md` pointer added in the slot. The procedure uses only fields in the 2.1 schema; the extra fields from note 9.4 (form, tradition, severity) are not in the map until that note is accepted, so the skill asks for them in its report.
 
 ### 3.3 Blue-team skill: defenses — [ ]
 Class: implement · Effort: medium · Needs: 2.2, 3.1, 9.4 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_skills.py -q -k blue_team`
