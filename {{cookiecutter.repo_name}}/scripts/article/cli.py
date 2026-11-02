@@ -543,6 +543,8 @@ def _print_upgrade(payload: dict[str, Any]) -> None:
         return
     for refusal in payload.get("refusals", []):
         print(f"REFUSED [{refusal['code']}]: {refusal['message']}", file=sys.stderr)
+    for notice in payload.get("notices", []):
+        print(f"NOTICE [{notice['code']}]: {notice['message']}", file=sys.stderr)
     info = payload.get("plan")
     if info:
         print(f"template: {info['template']}")

@@ -167,11 +167,12 @@ Done-when: the transcript shows each refusal; the README lists the tools; the ta
 
 ## 5. Delivery to existing repos
 
-### 5.1 Upgrade delivers the new files and leaves the map alone — [ ]
+### 5.1 Upgrade delivers the new files and leaves the map alone — [x]
 Class: implement · Effort: medium · Needs: 2.2, 2.3, 2.4, 3.1 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_upgrade_user_owned.py tests/test_upgrade_apply.py tests/test_bootstrap_upgrader.py -q`
 Context: `upgrade --plan/--apply/--finish` (`scripts/article/upgrade.py`) keeps `metadata.yaml` and `companion.yaml` user-owned. `theses.yaml` is the author's argument and must never be overwritten or removed. Existing `companion.yaml` files are not updated by `upgrade`.
 Do: Declare `theses.yaml` and `.theses/` user-owned in the upgrade rules; make `upgrade --plan` print a notice when an existing `companion.yaml` lacks the two deny patterns from step 2.5. Add tests: an old rendered repo upgrades and gains the CLI, schema, skills and index; its `theses.yaml` is untouched; the notice appears.
 Done-when: the check passes; the pre-existing upgrade tests still pass. If step 1.2 found a hard-coded `/home/ubuntu` in the template, remove it here (use a placeholder the user fills) with a test.
+Resolved: `theses.yaml` and `AGENTS.md` added to `_OWNED_AFTER_ADD`; `upgrade --plan` returns `notices` (code `N001`) for a `companion.yaml` lacking the two deny patterns; new tests in `tests/test_upgrade_theses.py`; documented in `docs/upgrading.md`. Step 1.2 itself was not run here, but `grep -rn /home/ubuntu` over the template, hooks and tests finds nothing, so there was nothing to remove. Check `tests/test_bootstrap_upgrader.py` passes unchanged.
 
 ### 5.2 Series report of map gaps — [ ]
 Class: implement · Effort: medium · Needs: 2.2 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_track_articles.py -q`

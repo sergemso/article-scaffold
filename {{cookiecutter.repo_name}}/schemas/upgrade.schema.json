@@ -26,6 +26,18 @@
       "type": "array",
       "items": { "$ref": "#/definitions/problem" }
     },
+    "notices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^N[0-9]{3}$" },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "up_to_date": { "type": "boolean" },
     "no_changes": { "type": "boolean" },
     "branch": { "type": ["string", "null"] },
