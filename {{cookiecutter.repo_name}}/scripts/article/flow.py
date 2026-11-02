@@ -8,6 +8,7 @@ orders). There is no stage pointer: the current stage is the earliest failing ga
 
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 import sys
@@ -249,6 +250,9 @@ class Facts:
     def index_stale(self) -> list[str]:
         return self._once("index", lambda: section_index.check_index(self.root))
 
+    def check(self, name: str) -> dict[str, Any]:
+        return self._once(f"check:{name}", lambda: run_check(self.root, name))
+
     def attested(self, name: str) -> bool:
         return any(a["name"] == name for a in self.state["attestations"])
 
@@ -348,8 +352,7 @@ def _gate_adversarial(f: Facts) -> dict[str, Any]:
 def _gate_revise(f: Facts) -> dict[str, Any]:
     result = _validate_and_index(f, f"{CMD} validate", "validation passes and the index is current")
     if result["ok"] and f.counts_script:
-        run = run_check(f.root, "lint-counts")
-        if run["status"] != "pass":
+        if f.check("lint-counts")["status"] != "pass":
             return _verdict(False, "the counts lint fails", "python3 scripts/lint-counts.py")
     return result
 
@@ -365,7 +368,7 @@ def _gate_release(f: Facts) -> dict[str, Any]:
     if not plan.get("ok") or not checks.get("has_version") or not checks.get("tag_absent"):
         why = plan.get("error") or "the release plan has a blocking item"
         return _verdict(False, why, command)
-    if f.layout_script and run_check(f.root, "layout-check")["status"] != "pass":
+    if f.layout_script and f.check("layout-check")["status"] != "pass":
         return _verdict(False, "the layout check fails", "python3 scripts/check_pdf_layout.py")
     if not f.attested("bibliography"):
         return _verdict(False, "no recorded bibliography verification", f"{CMD} flow attest")
@@ -494,3 +497,312 @@ def status(root: Path, today: date | None = None) -> dict[str, Any]:
         "budget": {"limit": budget["limit"], "used": budget["used"]},
         "stages": results,
     }
+
+
+# -------------------------------------------------------------------- orders
+
+ORDER_SCHEMA_VERSION = "1.0"
+MAX_NODES = 20
+PROCEDURES = Path("docs") / "procedures"
+
+
+def procedure(name: str) -> str:
+    return (PROCEDURES / f"{name}.md").as_posix()
+
+
+def order_id(stage: str, kind: str, nodes: list[str], check: str | None) -> str:
+    """Stable id: stage, kind, check and sorted node ids, hashed."""
+    text = "|".join([stage, kind, check or "", *sorted(nodes)])
+    return "o-" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def make_order(
+    stage: str,
+    kind: str,
+    *,
+    nodes: list[str] | None = None,
+    outputs: list[str] | None = None,
+    tier: str = "small",
+    proc: str | None = None,
+    check: str | None = None,
+    gated: bool = False,
+    needs_human: bool = False,
+    confirm: str | None = None,
+    reason: str,
+) -> dict[str, Any]:
+    """An order carries ids, paths and names only; never manuscript or source text."""
+    ids = sorted(nodes or [])[:MAX_NODES]
+    return {
+        "id": order_id(stage, kind, ids, check),
+        "stage": stage,
+        "kind": kind,
+        "nodes": ids,
+        "outputs": list(outputs or []),
+        "tier": tier,
+        "procedure": proc,
+        "check": check,
+        "gated": gated,
+        "retries": 0,
+        "needs_human": needs_human,
+        "confirm": confirm,
+        "reason": reason,
+    }
+
+
+def _map_problem_order(stage: str, f: Facts) -> dict[str, Any]:
+    _, problem = f.map
+    if problem == "theses.yaml not found":
+        return make_order(
+            stage, "state-thesis", tier="script", needs_human=True, reason=problem
+        )
+    return make_order(
+        stage, "fix-validation", outputs=["theses.yaml"], check="theses-lint",
+        reason=f"{problem}; run theses lint",
+    )
+
+
+def _by_node(gaps: list[dict]) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {}
+    for gap in gaps:
+        grouped.setdefault(gap["id"], []).append(gap["kind"])
+    return grouped
+
+
+def _node_output(node_id: str) -> list[str]:
+    return [f"{theses.MAP_FILE}#{node_id}"]
+
+
+def orders_for(stage: str, f: Facts) -> list[dict[str, Any]]:
+    """Open orders for *stage*, in a stable order (the first is the one to issue)."""
+    if stage == "publish":
+        return [
+            make_order(
+                stage, "publish", tier="script", needs_human=True,
+                reason="deposit and tag are irreversible; read the release plan and decide",
+            )
+        ]
+    needs_map = stage in ("frame", "map", "discover", "verify-sources", "adversarial")
+    if needs_map and f.map[0] is None:
+        return [_map_problem_order(stage, f)]
+    out: list[dict[str, Any]] = []
+    if stage == "frame":
+        out.append(
+            make_order(
+                stage, "state-thesis", tier="script", needs_human=True,
+                reason="no thesis is accepted; add one and run theses accept",
+            )
+        )
+    elif stage == "map":
+        for node_id, kinds in sorted(_by_node(f.gap_ids(*MAP_GAP_KINDS)).items()):
+            defence = "objection-undefended" in kinds or "thesis-unsupported" in kinds
+            out.append(
+                make_order(
+                    stage, "fill-gap", nodes=[node_id], outputs=_node_output(node_id),
+                    proc=procedure("blue-team") if defence else None, check="theses-lint",
+                    reason=f"gap {', '.join(sorted(kinds))} on {node_id}",
+                )
+            )
+    elif stage == "discover":
+        for node_id in sorted(_by_node(f.gap_ids("single-source"))):
+            out.append(
+                make_order(
+                    stage, "find-related", nodes=[node_id], outputs=_node_output(node_id),
+                    check="theses-lint", reason=f"{node_id} rests on a single source",
+                )
+            )
+    elif stage in ("draft", "revise"):
+        out += _draft_orders(stage, f)
+    elif stage == "verify-sources":
+        out += _verify_orders(stage, f)
+    elif stage == "adversarial":
+        for gap in f.gap_ids("thesis-unattacked"):
+            out.append(
+                make_order(
+                    stage, "red-team", nodes=[gap["id"]], outputs=_node_output(gap["id"]),
+                    proc=procedure("red-team"), check="theses-lint",
+                    reason=f"thesis {gap['id']} has no accepted objection",
+                )
+            )
+        for gap in f.gap_ids("objection-undefended"):
+            out.append(
+                make_order(
+                    stage, "blue-team", nodes=[gap["id"]], outputs=_node_output(gap["id"]),
+                    proc=procedure("blue-team"), check="theses-lint",
+                    reason=f"objection {gap['id']} has no defense",
+                )
+            )
+    elif stage == "release-gate":
+        out += _release_orders(stage, f)
+    return out
+
+
+def _draft_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
+    out = []
+    if f.index_stale:
+        out.append(
+            make_order(
+                stage, "reindex", tier="script", outputs=[section_index.INDEX_PATH.as_posix()],
+                check="index-check", reason="the section index is missing or stale",
+            )
+        )
+    if f.validation_errors:
+        kind, tier = ("write-section", "large") if stage == "draft" else ("fix-validation", "small")
+        out.append(
+            make_order(
+                stage, kind, outputs=["paper/"], tier=tier, check="make-validate",
+                reason=f"{f.validation_errors} validation error(s); run validate",
+            )
+        )
+    if stage == "revise" and f.counts_script and f.check("lint-counts")["status"] != "pass":
+        out.append(
+            make_order(
+                stage, "fix-validation", outputs=["paper/"], check="lint-counts",
+                reason="the counts lint fails",
+            )
+        )
+    return out
+
+
+def _verify_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
+    out = []
+    for record in f.claim_records:
+        state = source_claim_state(f, record)
+        if state == "needs-check":
+            out.append(
+                make_order(
+                    stage, "claim-check", nodes=[record["id"]],
+                    outputs=[claims.CACHE_PATH.as_posix()], proc=procedure("claim-check"),
+                    check="claims-quote-check",
+                    reason=f"{record['id']} has no fresh cached verdict",
+                )
+            )
+        elif state not in ("ok", "attested"):
+            out.append(
+                make_order(
+                    stage, "attest-claim", nodes=[record["id"]], tier="script",
+                    needs_human=True, reason=f"{record['id']}: {state}",
+                )
+            )
+    return out
+
+
+def _release_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
+    out = []
+    if f.validation_errors:
+        out.append(
+            make_order(
+                stage, "fix-validation", outputs=["paper/"], check="make-validate",
+                reason=f"{f.validation_errors} validation error(s); run validate",
+            )
+        )
+    elif not _release_plan_clear(f):
+        out.append(
+            make_order(
+                stage, "release-blocked", tier="script", needs_human=True,
+                reason="the release plan has a blocking item; run release --dry-run",
+            )
+        )
+    elif f.layout_script and f.check("layout-check")["status"] != "pass":
+        out.append(
+            make_order(
+                stage, "fix-validation", outputs=["paper/"], check="layout-check",
+                reason="the layout check fails",
+            )
+        )
+    elif not f.attested("bibliography"):
+        out.append(
+            make_order(
+                stage, "verify-bibliography", tier="script", check="release-plan", gated=True,
+                confirm="bibliography",
+                reason="bibliography verification needs a confirmation in the owner's terminal",
+            )
+        )
+    return out
+
+
+def _release_plan_clear(f: Facts) -> bool:
+    from . import release
+
+    plan = release.plan_release(f.root)
+    checks = (plan.get("plan") or {}).get("checks") or {}
+    return bool(plan.get("ok") and checks.get("has_version") and checks.get("tag_absent"))
+
+
+def _record(state: dict[str, Any], order: dict[str, Any]) -> dict[str, Any] | None:
+    entry = state["orders"].get(order["id"])
+    if isinstance(entry, dict) and entry.get("done"):
+        return None  # the condition arose again after a pass: treat as new
+    return entry if isinstance(entry, dict) else None
+
+
+def next_order(root: Path, today: date | None = None) -> dict[str, Any]:
+    """The first open order for the earliest failing gate; re-issuing is idempotent."""
+    state = load_state(root)
+    facts = Facts(root, state)
+    results = evaluate(facts, today or date.today())
+    stage = current_stage(results)
+    if stage is None:
+        return {"ok": True, "command": "flow next", "order": None, "reason": "every gate passes"}
+    candidates = orders_for(stage, facts)
+    if not candidates:
+        entry = next(r for r in results if r["stage"] == stage)
+        candidates = [
+            make_order(
+                stage, "gate-failing", tier="script", needs_human=True,
+                reason=f"{entry['reason']}; run {entry['command']}",
+            )
+        ]
+    order = candidates[0]
+    entry = _record(state, order)
+    order["retries"] = int(entry.get("retries", 0)) if entry else 0
+    order = _apply_limits(order, entry, state)
+    if not order["needs_human"]:
+        _remember(root, state, order)
+    return {"ok": True, "command": "flow next", "order": order}
+
+
+def _apply_limits(order: dict[str, Any], entry: dict | None, state: dict[str, Any]):
+    """Past the retry cap or a spent budget, replace the order with a needs-human one."""
+    if order["needs_human"]:
+        return order
+    over_cap = order["retries"] >= state["retry_cap"]
+    weight = state["weights"][order["tier"]]
+    spent = weight > 0 and state["budget"]["used"] >= state["budget"]["limit"]
+    if not (over_cap or spent):
+        return order
+    why = (
+        f"retry cap {state['retry_cap']} reached" if over_cap
+        else f"round budget spent ({state['budget']['used']}/{state['budget']['limit']} units)"
+    )
+    human = make_order(
+        order["stage"], "needs-human", nodes=order["nodes"], tier="script", needs_human=True,
+        reason=f"{why} for {order['kind']} {order['id']}",
+    )
+    human["retries"] = order["retries"]
+    human["evidence"] = {
+        "order": order["id"],
+        "check": order["check"],
+        "output": (entry or {}).get("last_output", ""),
+    }
+    return human
+
+
+def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
+    """Record the issued order so `flow done` can close it; unchanged state is not rewritten."""
+    old = state["orders"].get(order["id"])
+    entry = {
+        "kind": order["kind"],
+        "stage": order["stage"],
+        "tier": order["tier"],
+        "check": order["check"],
+        "nodes": order["nodes"],
+        "gated": order["gated"],
+        "confirm": order["confirm"],
+        "retries": order["retries"],
+        "done": False,
+    }
+    if isinstance(old, dict) and old.get("last_output"):
+        entry["last_output"] = old["last_output"]
+    if old != entry:
+        state["orders"][order["id"]] = entry
+        save_state(root, state)

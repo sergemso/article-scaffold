@@ -153,6 +153,9 @@ def _flow(args: argparse.Namespace) -> int:
                         print(f"{'':<15} run: {entry['command']}")
                 print(f"current stage: {payload['current_stage']}")
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        if action == "next":
+            _emit_json(flow.next_order(root))
+            return core.ExitCode.OK
     except flow.FlowError as exc:
         _emit_json({"ok": False, "command": f"flow {action}", "error": str(exc)})
         return core.ExitCode.DIAGNOSTICS
@@ -755,7 +758,9 @@ def build_parser() -> argparse.ArgumentParser:
     flow_sub = flow_cmd.add_subparsers(dest="flow_action", required=True)
     f_status = flow_sub.add_parser("status", help="per-stage gate results from the repo")
     _add_common(f_status)
-    for sub in (f_status,):
+    f_next = flow_sub.add_parser("next", help="print the first open work order as JSON")
+    _add_common(f_next)
+    for sub in (f_status, f_next):
         sub.set_defaults(func=_flow, command="flow")
 
     metadata = subparsers.add_parser(

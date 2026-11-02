@@ -220,7 +220,7 @@ Context: Decision 0070: stored state is only round number, attestations and waiv
 Do: Add `schemas/flow.schema.json`, an initial `flow.yaml` in the template, and `flow status` printing per-stage gate results computed from the repo, each with a one-line reason and the failing command. No stored stage pointer.
 Done-when: tests cover a fresh repo, a repo with map gaps, a stale check cache, and a waiver that expires; editing the paper outside the flow changes the output with no state update.
 
-### 8.3 Order emitters per stage — [ ]
+### 8.3 Order emitters per stage — [x]
 Class: implement · Effort: high · Needs: 8.2, 2.3, 2.4 · Check: `cd /home/sergei/projects/sergemso/article-scaffold && .venv/bin/python -m pytest tests/test_flow_orders.py -q`
 Context: Decision 0071. Orders reference node ids and procedure files; they carry no manuscript or source text (they point at slices).
 Do: `flow next` prints the first open order for the earliest failing gate, as JSON validated against `schemas/flow-order.schema.json`. Idempotent: calling it again re-issues the same open order.
