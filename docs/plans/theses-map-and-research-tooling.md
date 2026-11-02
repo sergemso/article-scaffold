@@ -148,11 +148,12 @@ Resolved: `docs/procedures/claim-check.md` and adapter `.claude/skills/claim-che
 
 ## 4. Discovery tools in scholar-mcp
 
-### 4.1 Find the related, cited-by and venue endpoints — [ ] ‖
+### 4.1 Find the related, cited-by and venue endpoints — [x] ‖
 Class: explore · Effort: medium · Needs: none · Check: `test -s /home/sergei/projects/sergemso/scholar-mcp/docs/facts/0005-discovery-endpoints.md`
 Context: `M/docs/decisions/0069` (discovery tools, read-only, candidate-only) and 0059 (egress allowlist, identifiers and search strings only). Registry clients are in `M/packages/core/src/scholar_core/sources.py` and `registries.py`; the allowlist is `egress.py`. OpenAlex, Crossref and arXiv are already allowlisted; no new host may be added without a decision.
 Do: Establish, from recorded responses (add a few to `M/tests/corpus/records/` if none fit), how to get related works, works that cite a given work, and venue candidates from hosts already allowlisted. Record the exact endpoints and fields per source, rate and size limits, and what is authoritative, in fact 0005 (frontmatter as in `M/docs/facts/0004-*.md`).
 Done-when: the fact names an endpoint and field per tool, with one quoted recorded example each.
+Resolved: fact `M/docs/facts/0005-discovery-endpoints.md` (scholar-mcp `feat/discovery-tools`, 63662db). OpenAlex alone answers all three (`related_works`, `filter=cites:`, `group_by=primary_location.source.id`); Crossref gives only a count and a journal-name search; arXiv was not queried live. Four recordings added under `M/tests/corpus/records/discovery-*`. Found: OpenAlex list responses carry a free-text `meta.notice` aimed at agents. Live fetches used a placeholder contact because `SCHOLAR_CONTACT` was unset.
 
 ### 4.2 Implement the discovery tools — [ ]
 Class: implement · Effort: high · Needs: 4.1 · Check: `cd /home/sergei/projects/sergemso/scholar-mcp && .venv/bin/python -m pytest tests/authors tests/core tests/guardrails tests/corpus -q`
