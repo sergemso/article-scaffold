@@ -73,3 +73,9 @@ id,title,tags,status
 0070-article-lifecycle-is-derived-from-the-repo,"Lifecycle stage readiness is computed from the repo; only decisions are stored","orchestration, lifecycle, theses-map",active
 0071-flow-orders-are-host-neutral,"The lifecycle is driven by work orders from the vendored CLI, served over MCP by scholar-authors, and bound to no agent host","orchestration, architecture, scholar-mcp, host-neutral",active
 0072-flow-budgets-are-unit-and-retry-caps,"A round is bounded by tier-weighted units and a per-order retry cap, not by host token counts","orchestration, cost, host-neutral",active
+0073-arguments-are-nodes-with-numbered-premises,"An argument is a node type with numbered premises, a closed inference label and structural lint","theses-map, argument",active
+0074-adversarial-passes-meet-a-checklist-the-linter-enforces,"Red-team and blue-team proposals must meet a checklist, and the linter enforces its form","theses-map, agents, argument",active
+0075-source-claims-record-edition-translation-and-stance,"A source-claim may record its edition, translation, stance and reading, and checks follow them","theses-map, sources, claim-check",active
+0076-defined-terms-are-registered-in-the-map-and-linted,"Defined terms are registered in the map file and linted for use before definition and second definitions","theses-map, terms, lint",active
+0077-formal-checks-are-declared-log-readers-in-flow,"A formal check is a declared log reader in flow.yaml; the run itself is a gated order the flow never executes","orchestration, formal-methods, host-neutral",active
+0078-ai-use-is-logged-without-content,"AI use is logged as an append-only, content-free record that drafts the AI-use statement","provenance, privacy, host-neutral, orchestration",active
