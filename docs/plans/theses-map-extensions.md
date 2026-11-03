@@ -10,11 +10,12 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 
 ## 1. Schema and structural lint
 
-### 1.1 Argument nodes — [ ]
+### 1.1 Argument nodes — [x]
 Class: implement · Effort: medium · Needs: none · Check: `.venv/bin/python -m pytest tests/test_theses_schema.py tests/test_theses_cli.py -q`
 Decision: 0073. Scope: `schemas/theses.schema.json`, `scripts/article/theses.py` (`_check_node`, `_check_edge`), `theses.yaml` template comments.
 Do: Add the `argument` node type with `conclusion`, numbered `premises` (`kind`, `role`, `ref`, `status`), closed `inference` list and optional `steps`. An objection reaches a premise through `premise-ref: {argument, n}`. Implement the structural lint rules of 0073 (conclusion and premises exist, numbers unique and consecutive, `ref` is a `source-claim`, single-premise deductive flagged, `proposed` implicit premise blocks `accepted`, accepted argument over a retired conclusion or required premise flagged).
 Done-when: each lint rule has a failing and a passing test, and an existing map without arguments validates unchanged.
+Resolved: `argument` nodes and `premise-ref` are in the schema and `theses.py` (codes T017 to T028; T026 and T027 are warnings, the rest errors); tests are in `tests/test_theses_arguments.py`. `theses accept` refuses an argument whose implicit premises are not yet accepted. `add_nodes` (the agent write path) still writes flat scalar fields only, so an agent cannot yet append an argument with premises; step 3.1 must cover that.
 
 ### 1.2 Objection and defense fields — [ ]
 Class: implement · Effort: medium · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_theses_schema.py tests/test_theses_cli.py -q`

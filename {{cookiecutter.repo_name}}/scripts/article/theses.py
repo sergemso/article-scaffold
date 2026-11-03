@@ -16,7 +16,7 @@ from .diagnostics import Diagnostics
 from .latex import strip_comments
 
 MAP_FILE = "theses.yaml"
-NODE_TYPES = ("thesis", "hypothesis", "objection", "defense", "source-claim")
+NODE_TYPES = ("thesis", "hypothesis", "objection", "defense", "source-claim", "argument")
 EDGE_TYPES = ("supports", "attacks", "rebuts")
 STATUSES = ("proposed", "accepted", "retired")
 NODE_FIELDS = {
@@ -30,7 +30,29 @@ NODE_FIELDS = {
     "quote",
     "locator",
     "source",
+    "conclusion",
+    "inference",
+    "premises",
+    "steps",
+    "premise-ref",
 }
+ARGUMENT_FIELDS = ("conclusion", "inference", "premises", "steps")
+INFERENCES = (
+    "deduction",
+    "modus-ponens",
+    "modus-tollens",
+    "disjunctive-syllogism",
+    "induction",
+    "abduction",
+    "analogy",
+    "authority",
+)
+# Forms whose validity is a matter of form: one premise is rarely enough.
+DEDUCTIVE = ("deduction", "modus-ponens", "modus-tollens")
+PREMISE_FIELDS = {"n", "text", "kind", "role", "ref", "status"}
+PREMISE_KINDS = ("explicit", "implicit")
+PREMISE_ROLES = ("required", "supports-conclusion")
+STEP_FIELDS = {"from", "to", "rule"}
 EDGE_FIELDS = {"from", "to", "type"}
 LABEL_RE = re.compile(r"\\label\{([^}]+)\}")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
@@ -78,6 +100,9 @@ def validate_map(
     def err(code: str, message: str) -> None:
         diagnostics.error(MAP_FILE, 0, code, message)
 
+    def warn(code: str, message: str) -> None:
+        diagnostics.warning(MAP_FILE, 0, code, message)
+
     if not isinstance(data, dict):
         err("T001", "theses.yaml must be a mapping")
         return
@@ -99,6 +124,7 @@ def validate_map(
         _check_node(index, node, ids, labels, err)
     for index, edge in enumerate(edges):
         _check_edge(index, edge, ids, err)
+    _check_arguments(nodes, err, warn)
 
 
 def _check_node(index, node, ids, labels, err) -> None:
@@ -141,6 +167,12 @@ def _check_node(index, node, ids, labels, err) -> None:
             err("T012", f"{where}: accepted node needs accepted-by")
     if isinstance(by, str) and is_agent_name(by):
         err("T013", f"{where}: accepted-by names an agent role, not a person")
+    if node.get("type") != "argument":
+        for field in ARGUMENT_FIELDS:
+            if field in node:
+                err("T017", f"{where}: {field} belongs to an argument node")
+    if "premise-ref" in node and node.get("type") != "objection":
+        err("T017", f"{where}: premise-ref belongs to an objection node")
     if node.get("type") == "source-claim":
         for field in ("quote", "locator"):
             value = node.get(field)
@@ -160,6 +192,133 @@ def _check_edge(index, edge, ids, err) -> None:
         value = edge.get(end)
         if value not in ids:
             err("T016", f"edges[{index}]: {end} {value!r} is not a node id")
+
+
+def _is_count(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+
+
+def _premises(node: dict, where: str, err) -> list[dict]:
+    """The well-formed premises of an argument; reports the malformed ones."""
+    raw = node.get("premises")
+    if not isinstance(raw, list) or not raw:
+        err("T021", f"{where}: premises must be a non-empty list")
+        return []
+    good: list[dict] = []
+    for position, premise in enumerate(raw, 1):
+        label = f"{where} premise #{position}"
+        if not isinstance(premise, dict):
+            err("T021", f"{label} must be a mapping")
+            continue
+        for key in sorted(set(premise) - PREMISE_FIELDS, key=str):
+            err("T021", f"{label}: unknown field {key!r}")
+        text = premise.get("text")
+        if not isinstance(text, str) or not text.strip() or "\n" in text.strip():
+            err("T021", f"{label}: text must be a non-empty single line")
+        if not _is_count(premise.get("n")):
+            err("T021", f"{label}: n must be a positive integer")
+        choices = (("kind", PREMISE_KINDS), ("role", PREMISE_ROLES), ("status", STATUSES))
+        for field, allowed in choices:
+            if field in premise and premise[field] not in allowed:
+                err("T021", f"{label}: {field} must be one of {', '.join(allowed)}")
+        good.append(premise)
+    return good
+
+
+def _check_argument(node: dict, nodes: dict[str, dict], err, warn) -> None:
+    where = f"node {node['id']!r}"
+    for field in ("conclusion", "inference", "premises"):
+        if field not in node:
+            err("T018", f"{where}: argument requires {field}")
+    conclusion = nodes.get(node.get("conclusion"))
+    if "conclusion" in node:
+        if conclusion is None:
+            err("T019", f"{where}: conclusion {node['conclusion']!r} is not a node id")
+        elif conclusion.get("type") not in ("thesis", "hypothesis"):
+            err("T019", f"{where}: conclusion must be a thesis or hypothesis node")
+    inference = node.get("inference")
+    if "inference" in node and inference not in INFERENCES:
+        err("T020", f"{where}: inference must be one of {', '.join(INFERENCES)}")
+    if "premises" not in node:
+        return
+    premises = _premises(node, where, err)
+    numbers = [p["n"] for p in premises if _is_count(p.get("n"))]
+    if numbers != list(range(1, len(numbers) + 1)):
+        err("T022", f"{where}: premise numbers must be unique and consecutive from 1")
+    for premise in premises:
+        ref = premise.get("ref")
+        if ref is not None and nodes.get(ref, {}).get("type") != "source-claim":
+            err("T024", f"{where}: premise ref {ref!r} is not a source-claim node")
+    steps = node.get("steps")
+    if steps is not None:
+        _check_steps(steps, set(numbers), where, err)
+    if inference in DEDUCTIVE and len(premises) == 1:
+        warn("T026", f"{where}: a {inference} argument with one premise probably hides one")
+    if node.get("status") != "accepted":
+        return
+    for premise in premises:
+        if premise.get("kind") == "implicit" and premise.get("status") != "accepted":
+            err("T025", f"{where}: implicit premise {premise.get('n')} is not accepted yet")
+    stale = conclusion is not None and conclusion.get("status") == "retired"
+    for premise in premises:
+        if premise.get("role", "required") != "required":
+            continue
+        if premise.get("status") == "retired":
+            stale = True
+        elif nodes.get(premise.get("ref"), {}).get("status") == "retired":
+            stale = True
+    if stale:
+        warn("T027", f"{where}: accepted, but its conclusion or a required premise is retired")
+
+
+def _check_steps(steps: object, numbers: set[int], where: str, err) -> None:
+    if not isinstance(steps, list):
+        err("T023", f"{where}: steps must be a list")
+        return
+    for position, step in enumerate(steps, 1):
+        label = f"{where} step #{position}"
+        if not isinstance(step, dict):
+            err("T023", f"{label} must be a mapping")
+            continue
+        for key in sorted(set(step) - STEP_FIELDS, key=str):
+            err("T023", f"{label}: unknown field {key!r}")
+        sources = step.get("from")
+        if not isinstance(sources, list) or not sources or not all(_is_count(n) for n in sources):
+            err("T023", f"{label}: from must be a list of premise numbers")
+        else:
+            for n in sources:
+                if n not in numbers:
+                    err("T023", f"{label}: from names premise {n}, which does not exist")
+        if not isinstance(step.get("to"), str) or not step["to"].strip():
+            err("T023", f"{label}: to must be a non-empty string")
+        if step.get("rule") not in INFERENCES:
+            err("T023", f"{label}: rule must be one of {', '.join(INFERENCES)}")
+
+
+def _check_arguments(raw_nodes: list, err, warn) -> None:
+    """Rules that need every node known: arguments and premise-refs."""
+    nodes = {
+        n["id"]: n
+        for n in raw_nodes
+        if isinstance(n, dict) and isinstance(n.get("id"), str)
+    }
+    for node in nodes.values():
+        if node.get("type") == "argument":
+            _check_argument(node, nodes, err, warn)
+    for node in nodes.values():
+        ref = node.get("premise-ref")
+        if ref is None or node.get("type") != "objection":
+            continue
+        where = f"node {node['id']!r}"
+        target = nodes.get(ref.get("argument")) if isinstance(ref, dict) else None
+        if not isinstance(ref, dict) or set(ref) != {"argument", "n"}:
+            err("T028", f"{where}: premise-ref must be {{argument, n}}")
+        elif target is None or target.get("type") != "argument":
+            err("T028", f"{where}: premise-ref {ref['argument']!r} is not an argument node")
+        elif ref["n"] not in {
+            p.get("n") for p in target.get("premises") or [] if isinstance(p, dict)
+        }:
+            err("T028", f"{where}: premise-ref names premise {ref['n']!r}, which does not exist")
 
 
 # ---------------------------------------------------------------- lint, gaps

@@ -20,7 +20,7 @@
       "properties": {
         "id": { "$ref": "#/definitions/id" },
         "type": {
-          "enum": ["thesis", "hypothesis", "objection", "defense", "source-claim"]
+          "enum": ["thesis", "hypothesis", "objection", "defense", "source-claim", "argument"]
         },
         "text": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
         "status": { "enum": ["proposed", "accepted", "retired"] },
@@ -29,7 +29,20 @@
         "accepted-by": { "type": "string", "minLength": 1 },
         "quote": { "type": "string", "minLength": 1 },
         "locator": { "type": "string", "minLength": 1 },
-        "source": { "type": "string", "minLength": 1 }
+        "source": { "type": "string", "minLength": 1 },
+        "conclusion": { "$ref": "#/definitions/id" },
+        "inference": { "enum": ["deduction", "modus-ponens", "modus-tollens", "disjunctive-syllogism", "induction", "abduction", "analogy", "authority"] },
+        "premises": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/premise" } },
+        "steps": { "type": "array", "items": { "$ref": "#/definitions/step" } },
+        "premise-ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["argument", "n"],
+          "properties": {
+            "argument": { "$ref": "#/definitions/id" },
+            "n": { "type": "integer", "minimum": 1 }
+          }
+        }
       },
       "allOf": [
         {
@@ -39,8 +52,49 @@
         {
           "if": { "properties": { "type": { "const": "source-claim" } } },
           "then": { "required": ["quote", "locator"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "argument" } } },
+          "then": { "required": ["conclusion", "inference", "premises"] },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["conclusion"] },
+                { "required": ["inference"] },
+                { "required": ["premises"] },
+                { "required": ["steps"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "objection" } } },
+          "else": { "not": { "required": ["premise-ref"] } }
         }
       ]
+    },
+    "premise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["n", "text"],
+      "properties": {
+        "n": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
+        "kind": { "enum": ["explicit", "implicit"] },
+        "role": { "enum": ["required", "supports-conclusion"] },
+        "ref": { "$ref": "#/definitions/id" },
+        "status": { "enum": ["proposed", "accepted", "retired"] }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "rule"],
+      "properties": {
+        "from": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 1 } },
+        "to": { "type": "string", "minLength": 1 },
+        "rule": { "enum": ["deduction", "modus-ponens", "modus-tollens", "disjunctive-syllogism", "induction", "abduction", "analogy", "authority"] }
+      }
     },
     "edge": {
       "type": "object",
