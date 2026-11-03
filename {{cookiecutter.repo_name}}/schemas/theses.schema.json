@@ -42,7 +42,46 @@
             "argument": { "$ref": "#/definitions/id" },
             "n": { "type": "integer", "minimum": 1 }
           }
-        }
+        },
+        "author": { "enum": ["agent", "human"] },
+        "target": { "$ref": "#/definitions/id" },
+        "form": { "enum": ["strongest", "standard"] },
+        "strongest-form": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "restated"],
+          "properties": {
+            "source": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
+            "restated": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" }
+          }
+        },
+        "tradition": { "enum": ["internal", "rival", "adjacent", "none"] },
+        "kind": {
+          "enum": ["counterexample", "undercut", "rebuttal", "scope", "hidden-premise", "evidence"]
+        },
+        "counterexample": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["case", "why-it-bites"],
+          "properties": {
+            "case": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
+            "why-it-bites": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" }
+          }
+        },
+        "severity": { "enum": ["fatal", "serious", "minor"] },
+        "answers": { "$ref": "#/definitions/id" },
+        "move": {
+          "enum": [
+            "concede-scope",
+            "distinguish",
+            "deny-premise",
+            "accept-cost",
+            "cite-evidence",
+            "reformulate"
+          ]
+        },
+        "cost": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
+        "needs-rival-objection": { "type": "boolean" }
       },
       "allOf": [
         {
@@ -69,7 +108,54 @@
         },
         {
           "if": { "properties": { "type": { "const": "objection" } } },
-          "else": { "not": { "required": ["premise-ref"] } }
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["target"] },
+                { "required": ["form"] },
+                { "required": ["strongest-form"] },
+                { "required": ["tradition"] },
+                { "required": ["kind"] },
+                { "required": ["counterexample"] },
+                { "required": ["severity"] },
+                { "required": ["premise-ref"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "defense" } } },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["answers"] },
+                { "required": ["move"] },
+                { "required": ["cost"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "thesis" } } },
+          "else": { "not": { "required": ["needs-rival-objection"] } }
+        },
+        {
+          "if": { "properties": { "form": { "const": "strongest" } }, "required": ["form"] },
+          "then": { "required": ["strongest-form"] }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "counterexample" } },
+            "required": ["kind"]
+          },
+          "then": { "required": ["counterexample"] }
+        },
+        {
+          "if": {
+            "properties": { "move": { "enum": ["accept-cost", "concede-scope"] } },
+            "required": ["move"]
+          },
+          "then": { "required": ["cost"] }
         }
       ]
     },

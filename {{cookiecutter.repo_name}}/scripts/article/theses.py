@@ -35,8 +35,60 @@ NODE_FIELDS = {
     "premises",
     "steps",
     "premise-ref",
+    "author",
+    "target",
+    "form",
+    "strongest-form",
+    "tradition",
+    "kind",
+    "counterexample",
+    "severity",
+    "answers",
+    "move",
+    "cost",
+    "needs-rival-objection",
 }
 ARGUMENT_FIELDS = ("conclusion", "inference", "premises", "steps")
+# Fields that only make sense on one node type; anywhere else they are an error.
+OBJECTION_FIELDS = (
+    "target",
+    "form",
+    "strongest-form",
+    "tradition",
+    "kind",
+    "counterexample",
+    "severity",
+    "premise-ref",
+)
+DEFENSE_FIELDS = ("answers", "move", "cost")
+TYPE_FIELDS = {
+    "argument": ARGUMENT_FIELDS,
+    "objection": OBJECTION_FIELDS,
+    "defense": DEFENSE_FIELDS,
+    "thesis": ("needs-rival-objection",),
+}
+AUTHORS = ("agent", "human")
+FORMS = ("strongest", "standard")
+TRADITIONS = ("internal", "rival", "adjacent", "none")
+OBJECTION_KINDS = (
+    "counterexample",
+    "undercut",
+    "rebuttal",
+    "scope",
+    "hidden-premise",
+    "evidence",
+)
+SEVERITIES = ("fatal", "serious", "minor")
+MOVES = (
+    "concede-scope",
+    "distinguish",
+    "deny-premise",
+    "accept-cost",
+    "cite-evidence",
+    "reformulate",
+)
+COSTLY_MOVES = ("accept-cost", "concede-scope")
+BIB_ENTRY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
 INFERENCES = (
     "deduction",
     "modus-ponens",
@@ -77,6 +129,15 @@ def paper_labels(root: Path) -> set[str]:
     return labels
 
 
+def paper_bib_keys(root: Path) -> set[str] | None:
+    """Keys in ``paper/refs.bib`` (comments stripped), or None when there is no file."""
+    refs = root / "paper" / "refs.bib"
+    if not refs.is_file():
+        return None
+    text = strip_comments(refs.read_text(encoding="utf-8"))
+    return {m.group(1) for m in BIB_ENTRY_RE.finditer(text)}
+
+
 def structure_errors(data: object) -> Diagnostics:
     """Schema and graph rules without the anchor check (gaps reports those)."""
     diagnostics = Diagnostics()
@@ -93,9 +154,15 @@ def load_map(root: Path) -> dict | None:
 
 
 def validate_map(
-    data: object, labels: set[str] | None, diagnostics: Diagnostics
+    data: object,
+    labels: set[str] | None,
+    diagnostics: Diagnostics,
+    bib: set[str] | None = None,
 ) -> None:
-    """Check *data* against the map rules; *labels* are the paper's labels."""
+    """Check *data* against the map rules.
+
+    *labels* are the paper's labels and *bib* its bibliography keys; None skips that check.
+    """
 
     def err(code: str, message: str) -> None:
         diagnostics.error(MAP_FILE, 0, code, message)
@@ -125,6 +192,7 @@ def validate_map(
     for index, edge in enumerate(edges):
         _check_edge(index, edge, ids, err)
     _check_arguments(nodes, err, warn)
+    _check_adversarial(nodes, edges, bib, err, warn)
 
 
 def _check_node(index, node, ids, labels, err) -> None:
@@ -167,12 +235,11 @@ def _check_node(index, node, ids, labels, err) -> None:
             err("T012", f"{where}: accepted node needs accepted-by")
     if isinstance(by, str) and is_agent_name(by):
         err("T013", f"{where}: accepted-by names an agent role, not a person")
-    if node.get("type") != "argument":
-        for field in ARGUMENT_FIELDS:
-            if field in node:
-                err("T017", f"{where}: {field} belongs to an argument node")
-    if "premise-ref" in node and node.get("type") != "objection":
-        err("T017", f"{where}: premise-ref belongs to an objection node")
+    for owner, fields in TYPE_FIELDS.items():
+        if node.get("type") != owner:
+            for field in fields:
+                if field in node:
+                    err("T017", f"{where}: {field} belongs to {_article(owner)} node")
     if node.get("type") == "source-claim":
         for field in ("quote", "locator"):
             value = node.get(field)
@@ -192,6 +259,10 @@ def _check_edge(index, edge, ids, err) -> None:
         value = edge.get(end)
         if value not in ids:
             err("T016", f"edges[{index}]: {end} {value!r} is not a node id")
+
+
+def _article(node_type: str) -> str:
+    return ("an " if node_type[0] in "aeiou" else "a ") + node_type
 
 
 def _is_count(value: object) -> bool:
@@ -321,13 +392,133 @@ def _check_arguments(raw_nodes: list, err, warn) -> None:
             err("T028", f"{where}: premise-ref names premise {ref['n']!r}, which does not exist")
 
 
+def _lookup(nodes: dict[str, dict], key: object) -> dict | None:
+    """The node with id *key*, or None (also for an unhashable or non-string *key*)."""
+    return nodes.get(key) if isinstance(key, str) else None
+
+
+def _one_line(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and "\n" not in value.strip()
+
+
+def _check_objection(node, nodes, bib, err) -> None:
+    where = f"node {node['id']!r}"
+    extra = [f for f in OBJECTION_FIELDS if f != "premise-ref" and f in node]
+    if extra and "target" not in node and "premise-ref" not in node:
+        err("T030", f"{where}: an objection with {extra[0]} needs a target")
+    if "target" in node and _lookup(nodes, node["target"]) is None:
+        err("T030", f"{where}: target {node['target']!r} is not a node id")
+    ref = node.get("premise-ref")
+    if "target" in node and isinstance(ref, dict) and ref.get("argument") != node["target"]:
+        err("T038", f"{where}: premise-ref names a different argument than target")
+    for field, allowed in (
+        ("form", FORMS),
+        ("tradition", TRADITIONS),
+        ("kind", OBJECTION_KINDS),
+        ("severity", SEVERITIES),
+    ):
+        if field in node and node[field] not in allowed:
+            err("T029", f"{where}: {field} must be one of {', '.join(allowed)}")
+    strongest = node.get("strongest-form")
+    if node.get("form") == "strongest" and not isinstance(strongest, dict):
+        err("T031", f"{where}: a strongest objection needs strongest-form source and restated")
+    if "strongest-form" in node:
+        _check_strongest_form(strongest, where, nodes, bib, err)
+    example = node.get("counterexample")
+    if node.get("kind") == "counterexample" and not isinstance(example, dict):
+        err("T033", f"{where}: a counterexample needs counterexample case and why-it-bites")
+    if "counterexample" in node:
+        if not isinstance(example, dict) or set(example) - {"case", "why-it-bites"}:
+            err("T029", f"{where}: counterexample must be {{case, why-it-bites}}")
+        else:
+            for field in ("case", "why-it-bites"):
+                if not _one_line(example.get(field)):
+                    err("T033", f"{where}: counterexample needs {field}")
+
+
+def _check_strongest_form(strongest, where, nodes, bib, err) -> None:
+    if not isinstance(strongest, dict) or set(strongest) - {"source", "restated"}:
+        err("T029", f"{where}: strongest-form must be {{source, restated}}")
+        return
+    for field in ("source", "restated"):
+        if not _one_line(strongest.get(field)):
+            err("T031", f"{where}: strongest-form needs {field}")
+    source = strongest.get("source")
+    if not _one_line(source):
+        return
+    if source in nodes:
+        if nodes[source].get("type") != "source-claim":
+            err("T032", f"{where}: strongest-form source {source!r} is not a source-claim")
+    elif bib is not None and source not in bib:
+        err("T032", f"{where}: strongest-form source {source!r} is not a node id or bib key")
+
+
+def _check_defense(node, nodes, supporters, err) -> None:
+    where = f"node {node['id']!r}"
+    if "answers" in node:
+        target = _lookup(nodes, node["answers"])
+        if target is None or target.get("type") != "objection":
+            err("T034", f"{where}: answers {node['answers']!r} is not an objection node")
+    if "move" in node and node["move"] not in MOVES:
+        err("T029", f"{where}: move must be one of {', '.join(MOVES)}")
+    if "cost" in node and not _one_line(node["cost"]):
+        err("T029", f"{where}: cost must be a non-empty single line")
+    if node.get("move") in COSTLY_MOVES and "cost" not in node:
+        err("T035", f"{where}: move {node['move']} needs a cost")
+    if node.get("move") == "cite-evidence":
+        if not any(nodes.get(s, {}).get("type") == "source-claim" for s in supporters):
+            err("T036", f"{where}: cite-evidence needs a source-claim node that supports it")
+
+
+def _check_adversarial(raw_nodes: list, raw_edges: list, bib, err, warn) -> None:
+    """Objection and defense rules that need every node known (decision 0074)."""
+    nodes = {
+        n["id"]: n
+        for n in raw_nodes
+        if isinstance(n, dict) and isinstance(n.get("id"), str)
+    }
+    supporters: dict[str, list[str]] = {}
+    for edge in raw_edges:
+        if isinstance(edge, dict) and edge.get("type") == "supports":
+            supporters.setdefault(edge.get("to"), []).append(edge.get("from"))
+    seen: dict[tuple, str] = {}
+    for node in nodes.values():
+        if "author" in node and node["author"] not in AUTHORS:
+            err("T029", f"node {node['id']!r}: author must be one of {', '.join(AUTHORS)}")
+        if "needs-rival-objection" in node and not isinstance(node["needs-rival-objection"], bool):
+            err("T029", f"node {node['id']!r}: needs-rival-objection must be true or false")
+        if node.get("type") == "objection":
+            _check_objection(node, nodes, bib, err)
+            ref = node.get("premise-ref")
+            ref = ref if isinstance(ref, dict) else {}
+            target = node.get("target") or ref.get("argument")
+            kind = node.get("kind")
+            if (
+                isinstance(target, str)
+                and isinstance(kind, str)
+                and node.get("status") != "retired"
+            ):
+                n = ref.get("n")
+                key = (target, kind, n if isinstance(n, int) else None)
+                if key in seen:
+                    warn("T037", f"node {node['id']!r}: duplicates objection {seen[key]!r}")
+                else:
+                    seen[key] = node["id"]
+        elif node.get("type") == "defense":
+            _check_defense(node, nodes, supporters.get(node["id"], []), err)
+
+
 # ---------------------------------------------------------------- lint, gaps
 
 DEFAULT_GAP_KINDS = (
     "thesis-unsupported",
     "objection-undefended",
+    "objection-fatal-undefended",
     "single-source",
     "anchor-missing",
+    "defense-no-answers",
+    "defense-no-anchor",
+    "thesis-no-rival",
 )
 GAP_KINDS = DEFAULT_GAP_KINDS + ("thesis-unattacked",)
 
@@ -344,7 +535,7 @@ def lint(root: Path) -> Diagnostics:
     except yaml.YAMLError as exc:
         diagnostics.error(MAP_FILE, 0, "T001", f"invalid YAML: {exc}")
         return diagnostics
-    validate_map(data, paper_labels(root), diagnostics)
+    validate_map(data, paper_labels(root), diagnostics, paper_bib_keys(root))
     return diagnostics
 
 
@@ -401,18 +592,51 @@ def gaps(data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS) -> list[d
                     sources.update(keys)
             if len(sources) == 1:
                 add("single-source", node)
+        if kind == "thesis" and node["status"] == "accepted" and node.get("needs-rival-objection"):
+            attackers = {a["id"] for a in _incoming(data, node["id"], "attacks", nodes)}
+            rivals = [
+                o
+                for o in nodes.values()
+                if o["type"] == "objection"
+                and o["status"] != "retired"
+                and o.get("tradition") == "rival"
+                and (o.get("target") == node["id"] or o["id"] in attackers)
+            ]
+            if not rivals:
+                add("thesis-no-rival", node)
         if kind == "objection":
             defenses = [
                 d
                 for d in _incoming(data, node["id"], "rebuts", nodes)
                 if d["type"] == "defense" and d["status"] != "retired"
+            ] + [
+                d
+                for d in nodes.values()
+                if d["type"] == "defense"
+                and d["status"] != "retired"
+                and d.get("answers") == node["id"]
             ]
             if not defenses:
-                add("objection-undefended", node)
+                add(
+                    "objection-fatal-undefended"
+                    if node.get("severity") == "fatal"
+                    else "objection-undefended",
+                    node,
+                )
+        if kind == "defense":
+            used = "move" in node or "cost" in node
+            if used and "answers" not in node:
+                add("defense-no-answers", node)
+            if (used or "answers" in node) and not node.get("anchor"):
+                add("defense-no-anchor", node)
         anchor = node.get("anchor")
         if anchor and labels is not None and anchor not in labels:
             add("anchor-missing", node)
-    return sorted(found, key=lambda g: (g["kind"], g["id"]))
+    # A fatal objection with no answer comes first, then kind and id.
+    return sorted(
+        found,
+        key=lambda g: (g["kind"] != "objection-fatal-undefended", g["kind"], g["id"]),
+    )
 
 
 # --------------------------------------------------------------------- slice

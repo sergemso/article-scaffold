@@ -3,6 +3,9 @@
 # `status: proposed`; only a person sets `accepted` (with `accepted-by`).
 # Node types: thesis, hypothesis, objection, defense, source-claim, argument.
 # An argument ties numbered premises and an inference to one conclusion node.
+# Objections and defenses take optional fields (target, form, tradition, kind, severity,
+# answers, move, cost); see schemas/theses.schema.json. A theses `needs-rival-objection: true`
+# makes `theses gaps` ask for a rival-tradition objection once it is accepted.
 # Edge types: supports, attacks, rebuts (edge goes from -> to).
 version: 1
 nodes: []
