@@ -12,7 +12,7 @@ from .build import is_standalone_tex
 from .diagnostics import Diagnostics
 from .latex import count_unescaped, strip_comments
 from .metadata import validate_metadata
-from .theses import MAP_FILE, paper_labels, validate_map
+from .theses import MAP_FILE, paper_bib_keys, paper_labels, validate_map
 
 MAX_INCLUDE_DEPTH = 20
 
@@ -343,7 +343,7 @@ def _check_theses(root: Path, diagnostics: Diagnostics) -> None:
         diagnostics.error(MAP_FILE, 0, "T001", f"invalid YAML: {exc}")
         return
     labels = paper_labels(root)
-    validate_map(data, labels, diagnostics)
+    validate_map(data, labels, diagnostics, paper_bib_keys(root))
 
 
 def validate_paper(root: Path) -> Diagnostics:

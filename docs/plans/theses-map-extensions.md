@@ -17,11 +17,12 @@ Do: Add the `argument` node type with `conclusion`, numbered `premises` (`kind`,
 Done-when: each lint rule has a failing and a passing test, and an existing map without arguments validates unchanged.
 Resolved: `argument` nodes and `premise-ref` are in the schema and `theses.py` (codes T017 to T028; T026 and T027 are warnings, the rest errors); tests are in `tests/test_theses_arguments.py`. `theses accept` refuses an argument whose implicit premises are not yet accepted. `add_nodes` (the agent write path) still writes flat scalar fields only, so an agent cannot yet append an argument with premises; step 3.1 must cover that.
 
-### 1.2 Objection and defense fields — [ ]
+### 1.2 Objection and defense fields — [x]
 Class: implement · Effort: medium · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_theses_schema.py tests/test_theses_cli.py -q`
 Decision: 0074. Scope: same files as 1.1, and `gaps` in `theses.py`.
 Do: Add the optional objection fields (`author`, `target`, `form` as `strongest` or `standard`, `strongest-form`, `tradition`, `kind`, `counterexample`, `severity`, `premise-ref`) and defense fields (`answers`, `move`, `anchor`, `cost`). Implement the errors, gaps and duplicate warning listed in 0074. An unanswered `fatal` objection sorts first in `theses gaps`. The rival-tradition gap is off unless the thesis opts in.
 Done-when: every lintable item of 0074 has a test; a `weak` form is rejected by the schema.
+Resolved: fields, schema and lint are in (codes T029 to T038; T037 duplicate objection is a warning). Interpretations worth knowing: (1) `target` is required only for an objection that carries another 0074 field, so a legacy bare objection stays valid; (2) the `author: agent` plus `accepted` error in 0074 is already covered by T012 and T013, because a human accepting an agent's node legitimately leaves `author: agent`; (3) `cite-evidence` is satisfied by a `supports` edge from a source-claim to the defense, since 0074 names no field for it; (4) a fatal unanswered objection is the gap kind `objection-fatal-undefended` and sorts first; a defense with `answers` closes an objection's gap without a `rebuts` edge. New gap kinds `defense-no-answers`, `defense-no-anchor` and `thesis-no-rival` only fire for defenses and theses that use the new fields. Tests: `tests/test_theses_objections.py`.
 
 ### 1.3 Terms section — [ ]
 Class: implement · Effort: medium · Needs: none · Check: `.venv/bin/python -m pytest tests/test_terms.py tests/test_section_index.py -q`
