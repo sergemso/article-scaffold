@@ -88,6 +88,27 @@ MOVES = (
     "reformulate",
 )
 COSTLY_MOVES = ("accept-cost", "concede-scope")
+TERM_FIELDS = {
+    "id",
+    "name",
+    "forms",
+    "kind",
+    "anchor",
+    "source",
+    "expansion",
+    "definition",
+    "senses",
+    "children",
+    "status",
+    "author",
+    "accepted-by",
+    "match",
+    "scope",
+}
+TERM_KINDS = ("defined", "external", "acronym")
+# The field each term kind must carry (decision 0076).
+TERM_KIND_FIELD = {"defined": "anchor", "external": "source", "acronym": "expansion"}
+TERM_MATCHES = ("phrase-only", "word")
 BIB_ENTRY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
 INFERENCES = (
     "deduction",
@@ -173,7 +194,7 @@ def validate_map(
     if not isinstance(data, dict):
         err("T001", "theses.yaml must be a mapping")
         return
-    for key in sorted(set(data) - {"version", "nodes", "edges"}, key=str):
+    for key in sorted(set(data) - {"version", "nodes", "edges", "terms"}, key=str):
         err("T002", f"unknown top-level field {key!r}")
     if data.get("version") != 1:
         err("T003", "version must be 1")
@@ -193,6 +214,7 @@ def validate_map(
         _check_edge(index, edge, ids, err)
     _check_arguments(nodes, err, warn)
     _check_adversarial(nodes, edges, bib, err, warn)
+    _check_terms(data.get("terms"), labels, err)
 
 
 def _check_node(index, node, ids, labels, err) -> None:
@@ -508,6 +530,107 @@ def _check_adversarial(raw_nodes: list, raw_edges: list, bib, err, warn) -> None
             _check_defense(node, nodes, supporters.get(node["id"], []), err)
 
 
+# ---------------------------------------------------------------------- terms
+
+
+def _text_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) and v.strip() for v in value)
+
+
+def _check_terms(raw: object, labels, err) -> None:
+    """Structure of the ``terms`` section (decision 0076); the scan is in ``terms.py``."""
+    if raw is None:
+        return
+    if not isinstance(raw, list):
+        err("T001", "terms must be a list")
+        return
+    seen: set[str] = set()
+    for index, term in enumerate(raw):
+        if not isinstance(term, dict):
+            err("T001", f"terms[{index}] must be a mapping")
+            continue
+        term_id = term.get("id")
+        where = f"term {term_id!r}" if isinstance(term_id, str) else f"terms[{index}]"
+        for key in sorted(set(term) - TERM_FIELDS, key=str):
+            err("T002", f"{where}: unknown field {key!r}")
+        if not isinstance(term_id, str) or not ID_RE.match(term_id):
+            err("T004", f"{where}: id must match {ID_RE.pattern}")
+        elif term_id in seen:
+            err("T039", f"duplicate term id {term_id!r}")
+        else:
+            seen.add(term_id)
+        if not _one_line(term.get("name")):
+            err("T040", f"{where}: name must be a non-empty single line")
+        kind = term.get("kind")
+        if kind not in TERM_KINDS:
+            err("T041", f"{where}: kind must be one of {', '.join(TERM_KINDS)}")
+        else:
+            needed = TERM_KIND_FIELD[kind]
+            if not _one_line(term.get(needed)):
+                err("T042", f"{where}: kind {kind} requires {needed}")
+        for field in ("forms", "scope"):
+            if field in term and not _text_list(term[field]):
+                err("T043", f"{where}: {field} must be a list of non-empty strings")
+        if term.get("status") not in STATUSES:
+            err("T008", f"{where}: status must be one of {', '.join(STATUSES)}")
+        if "author" in term and term["author"] not in AUTHORS:
+            err("T044", f"{where}: author must be one of {', '.join(AUTHORS)}")
+        if "match" in term and term["match"] not in TERM_MATCHES:
+            err("T045", f"{where}: match must be one of {', '.join(TERM_MATCHES)}")
+        by = term.get("accepted-by")
+        if term.get("status") == "accepted" and not (isinstance(by, str) and by.strip()):
+            err("T012", f"{where}: accepted term needs accepted-by")
+        if isinstance(by, str) and is_agent_name(by):
+            err("T013", f"{where}: accepted-by names an agent role, not a person")
+        anchors = [("anchor", term.get("anchor"))]
+        senses = term.get("senses", [])
+        if not isinstance(senses, list):
+            err("T046", f"{where}: senses must be a list")
+            senses = []
+        for number, sense in enumerate(senses, start=1):
+            if not isinstance(sense, dict) or not _one_line(sense.get("anchor")):
+                err("T046", f"{where}: senses[{number}] needs an anchor")
+                continue
+            for key in sorted(set(sense) - {"anchor", "definition"}, key=str):
+                err("T002", f"{where}: senses[{number}]: unknown field {key!r}")
+            anchors.append((f"senses[{number}] anchor", sense["anchor"]))
+        for field, value in anchors:
+            if (
+                isinstance(value, str)
+                and value
+                and labels is not None
+                and value not in labels
+            ):
+                err("T047", f"{where}: {field} {value!r} is not a \\label in paper/")
+        _check_term_children(term.get("children"), where, err)
+
+
+def _check_term_children(children: object, where: str, err) -> None:
+    if children is None:
+        return
+    if not isinstance(children, list):
+        err("T048", f"{where}: children must be a list")
+        return
+    seen: set[str] = set()
+    for child in children:
+        if not isinstance(child, dict):
+            err("T048", f"{where}: each child must be a mapping")
+            continue
+        child_id = child.get("id")
+        for key in sorted(set(child) - {"id", "name", "forms", "definition"}, key=str):
+            err("T002", f"{where}: child {child_id!r}: unknown field {key!r}")
+        if not isinstance(child_id, str) or not ID_RE.match(child_id):
+            err("T048", f"{where}: child id must match {ID_RE.pattern}")
+        elif child_id in seen:
+            err("T039", f"{where}: duplicate child id {child_id!r}")
+        else:
+            seen.add(child_id)
+        if not _one_line(child.get("name")):
+            err("T048", f"{where}: child {child_id!r} needs a one-line name")
+        if "forms" in child and not _text_list(child["forms"]):
+            err("T043", f"{where}: child {child_id!r}: forms must be a list of strings")
+
+
 # ---------------------------------------------------------------- lint, gaps
 
 DEFAULT_GAP_KINDS = (
@@ -519,6 +642,7 @@ DEFAULT_GAP_KINDS = (
     "defense-no-answers",
     "defense-no-anchor",
     "thesis-no-rival",
+    "term-unregistered",
 )
 GAP_KINDS = DEFAULT_GAP_KINDS + ("thesis-unattacked",)
 

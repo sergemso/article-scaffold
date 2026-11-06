@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import claims, companion, core, flow, theses
+from . import claims, companion, core, flow, terms, theses
 from . import index as section_index
 
 
@@ -105,6 +105,9 @@ def _theses(args: argparse.Namespace) -> int:
     action = args.theses_action
     if action == "lint":
         diagnostics = theses.lint(root)
+        if diagnostics.ok:
+            data = theses.load_map(root)
+            diagnostics.extend(terms.check(root, data).diagnostics)
         if args.json:
             _emit_json(diagnostics.to_dict())
         else:
@@ -128,8 +131,22 @@ def _theses(args: argparse.Namespace) -> int:
         if action == "slice":
             _emit_json(theses.slice_map(data, args.id, args.depth))
             return core.ExitCode.OK
+        if action == "terms":
+            report = terms.check(root, data)
+            _emit_json(
+                {
+                    "ok": report.diagnostics.ok and not report.gaps,
+                    "command": "theses terms",
+                    "diagnostics": report.diagnostics.to_dict()["diagnostics"],
+                    "gaps": report.gaps,
+                    "notes": report.notes,
+                }
+            )
+            return core.ExitCode.OK if report.diagnostics.ok else core.ExitCode.DIAGNOSTICS
         kinds = tuple(args.kind) if args.kind else theses.DEFAULT_GAP_KINDS
         found = theses.gaps(data, theses.paper_labels(root), kinds)
+        if "term-unregistered" in kinds:
+            found += terms.check(root, data).gaps
         _emit_json({"ok": not found, "command": "theses gaps", "gaps": found})
         return core.ExitCode.DIAGNOSTICS if found else core.ExitCode.OK
     except (theses.AcceptError, KeyError) as exc:
@@ -777,7 +794,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(t_accept)
     t_accept.add_argument("id")
     t_accept.add_argument("--by", required=True, help="name of the accepting person")
-    for sub in (t_lint, t_gaps, t_slice, t_accept):
+    t_terms = theses_sub.add_parser(
+        "terms", help="tier 0 term checks, including the informational notes"
+    )
+    _add_common(t_terms)
+    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept):
         sub.set_defaults(func=_theses, command="theses")
 
     flow_cmd = subparsers.add_parser(
