@@ -167,6 +167,15 @@ python3 -m scripts.article upgrade --finish
 Template changes arrive as a reviewable diff; your `metadata.yaml` is never rewritten, and
 files the template dropped are removed. See [docs/upgrading.md](docs/upgrading.md).
 
+The upgrade also delivers the token-economy tooling: the committed results ledger in
+`docs/ledger/` (verdicts and slow check outcomes keyed by a hash of every input, shared by all
+worktrees), the source store in `paper/sources/` with `sources find` and `sources slice`,
+`index slice` for code symbols, and compiled briefs with a call cap and a resume handoff
+(`flow next --brief`, `flow handoff`). It never edits your `companion.yaml`: add
+`paper/sources/**` and `docs/ledger/**` to its `exclude` list when the plan prints notice
+`N002`, and delete the old `.theses/claims-cache.json` once its verdicts are in the ledger
+(`N003`). See the template's `docs/cli.md`.
+
 ## Driving the scaffold from an agent
 
 An agent never handles the App key; it dispatches scaffold workflows with `gh` and the

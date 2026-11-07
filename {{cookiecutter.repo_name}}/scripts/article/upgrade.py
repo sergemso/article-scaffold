@@ -23,7 +23,7 @@ import yaml
 
 from .diagnostics import Diagnostics
 from .metadata import _metadata_schema, blank_generated_blocks
-from .migrations import migrate_metadata
+from .migrations import deliveries, migrate_metadata
 
 STAMP_NAME = "template.json"
 GIT_TIMEOUT = 30
@@ -165,26 +165,44 @@ def _metadata_is_v1(root: Path) -> bool:
 
 def _notices(root: Path) -> list[dict[str, str]]:
     """Advice that does not block an upgrade (never changes ``ok``)."""
+    notices: list[dict[str, str]] = []
+    if (root / LEGACY_CLAIMS_CACHE).is_file():
+        notices.append({
+            "code": N_LEGACY_CACHE,
+            "message": f"{LEGACY_CLAIMS_CACHE.as_posix()} is the old, untracked claim cache. "
+            "Its verdicts are copied into docs/ledger/ the first time they are read, and the "
+            "file is never read again after that; run `claims quote-check --all`, commit "
+            "docs/ledger/, then delete the file.",
+        })
     path = root / "companion.yaml"
     if not path.is_file():
-        return []
+        return notices
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError:
-        return []
+        return notices
     exclude = data.get("exclude") if isinstance(data, dict) else None
     listed = exclude if isinstance(exclude, list) else []
     missing = [p for p in _COMPANION_DENY if p not in listed]
-    if not missing:
-        return []
-    return [
-        {
+    if missing:
+        notices.append({
             "code": N_COMPANION_DENY,
             "message": "companion.yaml is yours and upgrade does not edit it; add "
             + " and ".join(f'"{p}"' for p in missing)
             + " to its exclude list so the private theses map never reaches the public companion",
-        }
-    ]
+        })
+    private = [p for p in _COMPANION_PRIVATE if p not in listed]
+    if "docs/**" not in listed and "docs/ledger/**" not in listed:
+        private.append("docs/ledger/**")
+    if private:
+        notices.append({
+            "code": N_COMPANION_PRIVATE,
+            "message": "companion.yaml is yours and upgrade does not edit it; add "
+            + " and ".join(f'"{p}"' for p in private)
+            + " to its exclude list: third-party source texts and the results ledger "
+            "must not reach the public companion",
+        })
+    return notices
 
 
 def plan(root: Path, new_ref: str | None = None) -> dict[str, Any]:
@@ -409,6 +427,11 @@ _OWNED_AFTER_ADD = ("companion.yaml", "theses.yaml", "flow.yaml", "AGENTS.md")
 # Deny patterns an existing companion.yaml needs so the private map never ships.
 _COMPANION_DENY = ("theses.yaml", ".theses/**")
 N_COMPANION_DENY = "N001"
+# The ledger and the source store are never public; ``docs/**`` already covers the first.
+_COMPANION_PRIVATE = ("paper/sources/**",)
+N_COMPANION_PRIVATE = "N002"
+N_LEGACY_CACHE = "N003"
+LEGACY_CLAIMS_CACHE = Path(".theses") / "claims-cache.json"
 
 
 def _scope_trees(*trees: Path) -> None:
@@ -651,7 +674,8 @@ def _apply_changes(
             (old_stamp or {}).get("template_version"),
             new_stamp.get("template_version"),
         )
-        if not files and migrated is None:
+        delivered = deliveries(root)
+        if not files and migrated is None and not delivered:
             # The template moved on, but not in anything this repository is generated
             # from: no branch, no stamp change. The stamp stays so the next real change
             # is still diffed from the commit the files actually match.
@@ -695,6 +719,11 @@ def _apply_changes(
 
     if "companion.yaml" in applied:
         _refresh_after_companion(root)
+    late = deliveries(root)  # recomputed: the patch may have added .gitattributes itself
+    for rel, text in sorted(late.items()):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+        applied.append(rel)
     if migrated is not None:
         before = (root / "metadata.yaml").read_text(encoding="utf-8")
         (root / "metadata.yaml").write_text(migrated, encoding="utf-8")
@@ -704,7 +733,9 @@ def _apply_changes(
         "branch": branch, "old": info["old"], "new": info["new"],
         "new_template_version": new_stamp.get("template_version"),
         "new_template_commit": new_stamp.get("template_commit"),
-        "files": [f["path"] for f in files] + (["metadata.yaml"] if migrated is not None else []),
+        "files": [f["path"] for f in files]
+        + (["metadata.yaml"] if migrated is not None else [])
+        + [p for p in late if p not in {f["path"] for f in files}],
     })
     (_git_dir(root) / STATE_NAME).write_text(state, encoding="utf-8")
     if commit:

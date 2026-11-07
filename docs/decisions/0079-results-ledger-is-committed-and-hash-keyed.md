@@ -22,6 +22,12 @@ governed-facts: [0010-virage-is-semantic-and-injects-on-every-prompt]
 
 A review of one fix round of the bridge-contract article (about 17 subagents, in fresh worktrees) found the same mutation, vector, cargo and model-checker runs repeated by six to fifteen agents, and the same large files read by each. An untracked cache starts empty in every worktree, so it cannot prevent that. Exact hash keys give deterministic, auditable lookups; a similarity index (fact 0010) cannot.
 
+Clarified 2026-11-08 (plan token-economy-ledger):
+- Section summaries are a deterministic heuristic (`index.summarize`), not a model result, so they are not ledgered; the "section summary" kind above does not exist.
+- Tier 1 quote matching is ledgered only if a measurement shows a gain after addressed slices; tier 2 verdicts and slow checks are ledgered first. The measurement showed none, so tier 1 is not ledgered.
+- The `cold-run` record is derived from the ledger (a kind written by `check --cold`, keyed on the repo's input hashes), not a cached result kind that a lookup may serve.
+- Eviction is a logged operation (`docs/ledger/evictions.jsonl`), so "append-only" means no silent overwrite, not no deletion.
+
 ## Consequence
 
 The repo gains small files and a merge surface; one file per key keeps conflicts to identical content. An input missing from the key would serve a wrong result silently, which is why the cold gate exists and why guardrail `ledger-keys-cover-every-input` is enforced by a test. A check that is nondeterministic must declare so and is not ledgered.

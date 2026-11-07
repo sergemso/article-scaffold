@@ -12,6 +12,10 @@ budget:
   limit: 20
   used: 0
 retry_cap: 3
+# Optional token-economy settings; the defaults apply while they are absent.
+# max_calls: {small: 40, large: 60}   # advisory cap on tool calls per order
+# brief_bytes: 6000                   # byte cap of `flow next --brief`
+# group_size: 3                       # orders per group that write one file; 1 = off
 attestations: []
 waivers: []
 orders: {}
