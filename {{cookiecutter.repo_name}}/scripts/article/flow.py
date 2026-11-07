@@ -18,6 +18,7 @@ from typing import Any, NamedTuple
 
 import yaml
 
+from . import brief as order_brief
 from . import claims, companion, core, ledger, theses
 from . import index as section_index
 
@@ -38,6 +39,7 @@ TIERS = ("script", "small", "large")
 DEFAULT_WEIGHTS = {"script": 0, "small": 1, "large": 5}
 DEFAULT_BUDGET_LIMIT = 20
 DEFAULT_RETRY_CAP = 3
+DEFAULT_MAX_CALLS = {"small": 40, "large": 60}  # advisory; tune from the cost measurement
 STATE_FIELDS = {
     "version",
     "round",
@@ -49,6 +51,8 @@ STATE_FIELDS = {
     "orders",
     "reviews",
     "closed",
+    "brief_bytes",
+    "max_calls",
 }
 HEADER = (
     "# Flow state: decisions the repo cannot derive (round, attestations, waivers, budget).\n"
@@ -137,6 +141,16 @@ def state_errors(data: object) -> list[str]:
         errors.append("orders must be a mapping")
     if not isinstance(data.get("reviews"), list):
         errors.append("reviews must be a list")
+    if "brief_bytes" in data and not (
+        _nonneg_int(data["brief_bytes"]) and data["brief_bytes"] >= order_brief.MIN_BRIEF_BYTES
+    ):
+        errors.append(f"brief_bytes must be an integer of at least {order_brief.MIN_BRIEF_BYTES}")
+    if "max_calls" in data:
+        calls = data["max_calls"]
+        if not isinstance(calls, dict) or not set(calls) <= {"small", "large"}:
+            errors.append("max_calls must be a mapping with only small and large")
+        elif not all(_nonneg_int(v) and v >= 1 for v in calls.values()):
+            errors.append("max_calls values must be positive integers")
     closed = data.get("closed", [])
     if not isinstance(closed, list) or not all(
         isinstance(c, dict) and set(c) == {"round", "at"} and _nonneg_int(c["round"])
@@ -251,8 +265,12 @@ class Facts:
         return self._once("claims", make)
 
     @property
+    def validation_diagnostics(self) -> list:
+        return self._once("validate", lambda: list(core.validate_paper(self.root).errors))
+
+    @property
     def validation_errors(self) -> int:
-        return self._once("validate", lambda: len(core.validate_paper(self.root).errors))
+        return len(self.validation_diagnostics)
 
     @property
     def index_stale(self) -> list[str]:
@@ -1041,7 +1059,9 @@ def _record(state: dict[str, Any], order: dict[str, Any]) -> dict[str, Any] | No
     return entry if isinstance(entry, dict) else None
 
 
-def next_order(root: Path, today: date | None = None) -> dict[str, Any]:
+def next_order(
+    root: Path, today: date | None = None, with_brief: bool = False
+) -> dict[str, Any]:
     """The first open order for the earliest failing gate; re-issuing is idempotent."""
     state = load_state(root)
     facts = Facts(root, state)
@@ -1064,6 +1084,7 @@ def next_order(root: Path, today: date | None = None) -> dict[str, Any]:
     order = _apply_limits(order, entry, state)
     if not order["needs_human"]:
         _remember(root, state, order)
+    decorate(order, facts, with_brief)
     return {"ok": True, "command": "flow next", "order": order}
 
 
@@ -1112,6 +1133,203 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
     if old != entry:
         state["orders"][order["id"]] = entry
         save_state(root, state)
+
+
+# ------------------------------------------------------------- brief, call cap
+
+# Where the finding or gap row of a brief comes from, per order kind. The row is read from
+# the stage that issued the order, never from a model. Kinds not listed use the gate row.
+ROW_SOURCES = {
+    "fill-gap": "theses gaps",
+    "find-related": "theses gaps",
+    "red-team": "theses gaps",
+    "blue-team": "theses gaps",
+    "triage-objection": "theses.yaml node",
+    "claim-check": "claims quote-check",
+    "attest-claim": "claims quote-check",
+    "write-section": "validate",
+    "fix-validation": "validate",  # only where the order's check is make-validate
+}
+# The gap kinds each gap-driven order answers; the row lists only those.
+ROW_GAP_KINDS = {
+    "fill-gap": MAP_GAP_KINDS,
+    "find-related": ("single-source",),
+    "red-team": ("thesis-unattacked",),
+    "blue-team": ("objection-undefended",),
+}
+GATE_ROW_SOURCE = "flow status"
+ROW_TEXT = 300
+ROW_ERRORS = 5
+MAX_BRIEF_NODES = 5
+
+
+def _row_source(order: dict[str, Any]) -> str:
+    source = ROW_SOURCES.get(order["kind"], GATE_ROW_SOURCE)
+    if source == "validate" and order["check"] != "make-validate":
+        return GATE_ROW_SOURCE
+    return source
+
+
+def _short(value: object) -> object:
+    return value[:ROW_TEXT] if isinstance(value, str) else value
+
+
+def _relative(root: Path, path: str) -> str:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        try:
+            return candidate.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            return path
+    return candidate.as_posix()
+
+
+def finding_row(order: dict[str, Any], f: Facts) -> dict[str, Any]:
+    """The finding or gap row that raised the order, labelled with its source."""
+    source = _row_source(order)
+    nodes = order["nodes"][:MAX_BRIEF_NODES]
+    row: dict[str, Any] = {"source": source}
+    if source == "theses gaps":
+        row["gaps"] = sorted(
+            (
+                {"kind": g["kind"], "id": g["id"], "text": _short(g["text"])}
+                for g in f.gaps
+                if g["id"] in nodes and g["kind"] in ROW_GAP_KINDS[order["kind"]]
+            ),
+            key=lambda g: (g["id"], g["kind"]),
+        )
+    elif source in ("theses.yaml node", "claims quote-check"):
+        row["nodes"] = [
+            {k: _short(f.nodes[n][k]) for k in ("id", "type", "status", "text") if k in f.nodes[n]}
+            for n in nodes
+            if n in f.nodes
+        ]
+        if source == "claims quote-check":
+            row["records"] = sorted(
+                (
+                    {k: _short(v) for k, v in r.items() if isinstance(v, (str, bool, int))}
+                    for r in f.claim_records
+                    if r["id"] in nodes
+                ),
+                key=lambda r: r["id"],
+            )
+    elif source == "validate":
+        diagnostics = f.validation_diagnostics
+        row["count"] = len(diagnostics)
+        row["errors"] = [
+            {
+                "path": _relative(f.root, str(d.path)),
+                "line": d.line,
+                "code": d.code,
+                "message": _short(d.message),
+            }
+            for d in diagnostics[:ROW_ERRORS]
+        ]
+    else:
+        row["reason"] = order["reason"]
+    return row
+
+
+def _order_anchors(order: dict[str, Any], f: Facts, row: dict[str, Any]) -> list[dict]:
+    nodes = [f.nodes[n] for n in order["nodes"] if n in f.nodes]
+    places = [(e["path"], e["line"]) for e in row.get("errors", []) if e["line"] > 0]
+    return order_brief.anchors_for(
+        f.root,
+        labels=[n["anchor"] for n in nodes if isinstance(n.get("anchor"), str)],
+        texts=[n["text"] for n in nodes],
+        places=places,
+    )
+
+
+def _ledger_hits(order: dict[str, Any], f: Facts) -> list[dict[str, Any]]:
+    """Ledger entries already valid for the order's inputs (read only, nothing counted)."""
+    hits: list[dict[str, Any]] = []
+    if not ledger.enabled():
+        return hits
+    name = order["check"]
+    spec = CHECK_SPECS.get(name) if name else None
+    if spec is not None and spec.deterministic:
+        keyed = check_keyed(f.root, name)
+        entry = _safe_get(f.root, keyed)
+        if entry is not None:
+            hits.append(
+                {
+                    "kind": "check-outcome", "name": name, "key": keyed.key,
+                    "status": entry["status"],
+                    "failing": (entry.get("result") or {}).get("failing", []),
+                }
+            )  # fmt: skip
+    if order["kind"] in ("claim-check", "attest-claim"):
+        for node_id in order["nodes"][:MAX_BRIEF_NODES]:
+            try:
+                excerpt = claims.excerpt_for(f.root, node_id)
+            except (ValueError, OSError):
+                continue
+            keyed = claims.verdict_key(f.nodes[node_id]["text"], excerpt)
+            entry = _safe_get(f.root, keyed)
+            if entry is not None:
+                hits.append(
+                    {
+                        "kind": claims.VERDICT_KIND, "name": node_id, "key": keyed.key,
+                        "status": entry["status"],
+                        "verdict": (entry.get("result") or {}).get("verdict"),
+                    }
+                )  # fmt: skip
+    return sorted(hits, key=lambda h: (h["kind"], h["name"]))
+
+
+def _safe_get(root: Path, keyed: ledger.Keyed | None) -> dict[str, Any] | None:
+    if keyed is None:
+        return None
+    try:
+        return ledger.get(root, keyed.kind, keyed.key)
+    except ledger.LedgerError:
+        return None  # a corrupt entry is never served; `ledger verify` reports it
+
+
+def max_calls_for(order: dict[str, Any], state: dict[str, Any]) -> int | None:
+    """The advisory call cap for an order's tier: ``flow.yaml`` ``max_calls`` over the defaults.
+
+    Script orders and orders for a person carry none. The host counts calls; the CLI never
+    enforces this.
+    """
+    if order["needs_human"] or order["tier"] not in DEFAULT_MAX_CALLS:
+        return None
+    table = {**DEFAULT_MAX_CALLS, **(state.get("max_calls") or {})}
+    return int(table[order["tier"]])
+
+
+def decorate(order: dict[str, Any], f: Facts, with_brief: bool = False) -> None:
+    """Add the optional ``anchors`` and ``max_calls``; with *with_brief*, the compiled brief.
+
+    Nothing here is stored in ``flow.yaml``. A brief is rebuilt from the repo on each call.
+    """
+    row = finding_row(order, f)
+    anchors = _order_anchors(order, f, row)
+    if anchors:
+        order["anchors"] = [order_brief.order_anchor(a) for a in anchors]
+    calls = max_calls_for(order, f.state)
+    if calls is not None:
+        order["max_calls"] = calls
+    if not with_brief:
+        return
+    notes = []
+    if not (f.root / section_index.INDEX_PATH).is_file():
+        notes.append("the section index is missing; section anchors are not resolved")
+    name = order["check"]
+    verify = {"check": name, "command": f"{CMD} check record {name}"} if name else None
+    order["brief"] = order_brief.compile_brief(
+        order=order,
+        row=row,
+        anchors=anchors,
+        guardrails=order_brief.guardrail_digest(f.root, order["kind"]),
+        ledger_hits=_ledger_hits(order, f),
+        verify=verify,
+        max_calls=calls,
+        cap=int(f.state.get("brief_bytes", order_brief.DEFAULT_BRIEF_BYTES)),
+        notes=notes,
+    )
+
 
 
 # ---------------------------------------------------------------- done, attest
@@ -1350,7 +1568,9 @@ def mark_parallel(orders: list[dict[str, Any]]) -> None:
         order["parallel_safe"] = safe
 
 
-def open_orders(root: Path, today: date | None = None) -> dict[str, Any]:
+def open_orders(
+    root: Path, today: date | None = None, with_brief: bool = False
+) -> dict[str, Any]:
     """Every open order of the current stage, with `parallel_safe` marks.
 
     Hosts run one working copy per concurrent order and merge the branches.
@@ -1368,6 +1588,7 @@ def open_orders(root: Path, today: date | None = None) -> dict[str, Any]:
         order = _apply_limits(order, entry, state)
         if not order["needs_human"]:
             _remember(root, state, order)
+        decorate(order, facts, with_brief)
         orders.append(order)
     mark_parallel(orders)
     return {"ok": True, "command": "flow next", "orders": orders}

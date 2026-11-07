@@ -34,11 +34,14 @@ Run `python3 -m scripts.article --help` or
 | `flow status` | Per-stage gate results computed from the repo (`flow.yaml` stores only round, attestations, waivers and budget). Exit 1 when a gate fails. |
 | `flow next` | Print the first open work order for the earliest failing gate, as JSON (`schemas/flow-order.schema.json`). Calling it again re-issues the same order. |
 | `flow next --open` | List every open order of the current stage; `parallel_safe` is true only when nodes and output files are disjoint. Give each concurrent order its own working copy and merge the branches. |
+| `flow next --brief` | Add a compiled `brief` to the order (also with `--open`): the finding or gap row (its `source` names the CLI part it came from), the slices of the order's `anchors` from the section and code index, the first line of each active guardrail in `docs/guardrails/` whose tags match the order kind (rule table `GUARDRAIL_RULES` in `scripts/article/brief.py`), ledger entries already valid for the order's inputs, and the one verify command (`check record NAME`). It is built from the repo alone (no model, no network) and is byte-identical for the same repo state. Over the byte cap the slices become `file:start-end@hash` addresses, then the digest lines are dropped. |
 | `flow done <order-id>` | Run the order's named check and record a pass; takes nothing but the id. |
 | `flow round open --review FILE` / `flow round close` | Turn a review file into proposed objection nodes; close the round once the gates pass. |
 | `flow attest`, `flow waive` | A person records an attestation or a waiver; refused without a terminal. |
 | `release` | Reserved for release planning; currently a stub. |
 | `upgrade` | Plan, apply or finish an upgrade to a newer template commit. |
+
+Orders may carry two optional fields, both computed on every `flow next`: `anchors` (up to six places, each a section label from the node's `anchor`, a code symbol or a `path:start-end` range written in backticks in the node text, or the lines of a validation diagnostic, with a 12-hex hash of the slice) and `max_calls` (advisory: hand back state after about that many tool calls; the host counts, nothing enforces it). `flow.yaml` may set `max_calls: {small: N, large: N}` (defaults 40 and 60; script and human orders carry none) and `brief_bytes: N` (default 6000, at least 200). Both are optional, so existing `flow.yaml` files stay valid.
 
 `--root PATH` selects a repository root explicitly. Commands default to the
 current directory.

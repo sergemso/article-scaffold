@@ -312,7 +312,10 @@ def _flow(args: argparse.Namespace) -> int:
                 print(f"current stage: {payload['current_stage']}")
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
         if action == "next":
-            _emit_json(flow.open_orders(root) if args.open else flow.next_order(root))
+            if args.open:
+                _emit_json(flow.open_orders(root, with_brief=args.brief))
+            else:
+                _emit_json(flow.next_order(root, with_brief=args.brief))
             return core.ExitCode.OK
         if action == "done":
             payload = flow.done(root, args.order_id)
@@ -1075,6 +1078,11 @@ def build_parser() -> argparse.ArgumentParser:
     f_next.add_argument(
         "--open", action="store_true",
         help="list every open order of the current stage with parallel_safe marks",
+    )
+    f_next.add_argument(
+        "--brief", action="store_true",
+        help="add the compiled brief (finding row, anchor slices, guardrail digest, ledger "
+        "hits, verify command) to each order",
     )
     f_done = flow_sub.add_parser(
         "done", help="close an issued order by running its named check (takes the id only)"

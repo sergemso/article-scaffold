@@ -113,6 +113,26 @@
           }
         }
       }
+    },
+    "brief_bytes": {
+      "type": "integer",
+      "minimum": 200,
+      "description": "Optional byte cap of a compiled brief (`flow next --brief`); the default is 6000. Over the cap the slices are replaced by their addresses."
+    },
+    "max_calls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "small": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "large": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Optional advisory tool-call cap per tier, shown in the order; the host counts, nothing enforces it. Defaults: small 40, large 60."
     }
   },
   "definitions": {

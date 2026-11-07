@@ -10,7 +10,7 @@ from conftest import ROOT
 LIB = ROOT / "{{cookiecutter.repo_name}}" / "scripts" / "article"
 GUARDED = (
     "theses.py", "index.py", "claims.py", "flow.py", "terms.py", "address.py", "ledger.py",
-    "sources.py", "code_index.py",
+    "sources.py", "code_index.py", "brief.py",
 )  # fmt: skip
 FORBIDDEN_MODULES = {"socket", "http", "urllib", "requests", "ssl", "ftplib", "smtplib"}
 FETCHERS = {"curl", "wget"}
