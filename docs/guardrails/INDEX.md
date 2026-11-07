@@ -34,3 +34,5 @@ claim-check-input-stays-local,"Manuscript and source text are never an argument 
 article-tooling-is-host-neutral,"Nothing the template ships names go-getter or requires one agent host","template, host-neutral, guardrail",active
 flow-checks-are-named-not-supplied,"flow done runs only checks from a fixed table, never a command from the caller","orchestration, security, guardrail",active
 flow-gated-stages-need-out-of-band-confirm,"Release-gate and publish orders are closed only by a confirmation in the owner's terminal","orchestration, release, guardrail",active
+ledger-keys-cover-every-input,"A ledger key hashes every input that can change the result","cost, ledger, guardrail",active
+retrieval-returns-locators-not-verdicts,"A retrieval layer returns source addresses, never verdicts or summaries stored as fact","sources, retrieval, guardrail",active

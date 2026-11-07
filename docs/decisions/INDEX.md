@@ -68,7 +68,7 @@ id,title,tags,status
 0065-theses-map-is-a-yaml-graph,"An article's argument is kept as one YAML graph with a JSON schema, read in slices","theses-map, argument, cost",active
 0066-argument-agents-are-gap-driven-and-propose-only,"Argument agents work on gaps found by a linter and only propose; a human promotes","theses-map, agents, cost, review",active
 0067-claim-checks-are-tiered-and-local,"Claim-versus-source checks run as script, then small-model excerpt judgment, then human attestation, all on local text","theses-map, sources, cost, privacy",active
-0068-research-tooling-split,"Map, index, quote-match and cache ship in the vendored CLI; discovery extends scholar-authors; agent procedures are skills","theses-map, architecture, scholar-mcp, upgrade",active
+0068-research-tooling-split,"Map, index, quote-match and cache ship in the vendored CLI; discovery extends scholar-authors; agent procedures are skills","theses-map, architecture, scholar-mcp, upgrade",superseded
 0069-token-economy-for-article-repos,"Article repos use a section index, a hash-keyed check cache, tiered routing and verdict-only noisy work","cost, practice-packs, theses-map",active
 0070-article-lifecycle-is-derived-from-the-repo,"Lifecycle stage readiness is computed from the repo; only decisions are stored","orchestration, lifecycle, theses-map",active
 0071-flow-orders-are-host-neutral,"The lifecycle is driven by work orders from the vendored CLI, served over MCP by scholar-authors, and bound to no agent host","orchestration, architecture, scholar-mcp, host-neutral",active
@@ -79,3 +79,7 @@ id,title,tags,status
 0076-defined-terms-are-registered-in-the-map-and-linted,"Defined terms are registered in the map file and linted for use before definition and second definitions","theses-map, terms, lint",active
 0077-formal-checks-are-declared-log-readers-in-flow,"A formal check is a declared log reader in flow.yaml; the run itself is a gated order the flow never executes","orchestration, formal-methods, host-neutral",active
 0078-ai-use-is-logged-without-content,"AI use is logged as an append-only, content-free record that drafts the AI-use statement","provenance, privacy, host-neutral, orchestration",active
+0079-results-ledger-is-committed-and-hash-keyed,"Every inference and costly check result is recorded in a committed, append-only ledger keyed by a hash of all its inputs","cost, cache, ledger, sources, orchestration",active
+0080-sources-are-fetched-once-normalized-and-addressed,"An external source is fetched once into a store, normalized and indexed, and agents read only addressed excerpts","sources, cost, retrieval, scholar-mcp, theses-map",active
+0081-flow-orders-carry-a-compiled-brief-and-a-call-cap,"Each flow order is handed over with a deterministic brief and a tool-call cap","cost, orchestration, flow, host-neutral",active
+0082-research-tooling-split-redrawn,"The vendored CLI owns everything derived and cached; scholar-mcp owns only what leaves the machine","architecture, scholar-mcp, theses-map, cost",active
