@@ -14,11 +14,11 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
-from . import claims, core, theses
+from . import claims, companion, core, ledger, theses
 from . import index as section_index
 
 STATE_FILE = "flow.yaml"
@@ -449,7 +449,11 @@ def argv_for(name: str) -> list[str]:
 
 
 def run_check(root: Path, name: str) -> dict[str, Any]:
-    """Run a check from the fixed table: status is pass, fail or unavailable."""
+    """Run a check from the fixed table: status is pass, fail, unavailable or error.
+
+    A timeout or a process that cannot start is an ``error``, never a ``fail``: it says
+    nothing about the paper, so it must not be stored or counted as a verdict.
+    """
     if name not in CHECKS:
         raise FlowError(f"unknown check name {name!r}")
     script = CHECK_SCRIPTS.get(name)
@@ -460,9 +464,144 @@ def run_check(root: Path, name: str) -> dict[str, Any]:
             argv_for(name), cwd=root, capture_output=True, text=True, timeout=300, check=False
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return {"status": "fail", "output": str(exc)[:OUTPUT_LIMIT]}
+        return {"status": "error", "output": str(exc)[:OUTPUT_LIMIT]}
     text = " ".join((proc.stdout + proc.stderr).split())
-    return {"status": "pass" if proc.returncode == 0 else "fail", "output": text[:OUTPUT_LIMIT]}
+    return {
+        "status": "pass" if proc.returncode == 0 else "fail",
+        "output": text[:OUTPUT_LIMIT],
+        "lines": (proc.stdout + proc.stderr).splitlines(),
+    }
+
+
+# ---------------------------------------------------------- ledgered checks
+
+_ARTICLE_INPUTS = (
+    "scripts/article/*.py", "schemas/*.json", "theses.yaml", "metadata.yaml",
+    "paper/**/*.tex", "paper/**/*.bib", "paper/sources/**/*",
+)  # fmt: skip
+
+
+class CheckSpec(NamedTuple):
+    """What a named check reads. ``inputs`` are repo-relative globs; ``tools`` are declared
+    version strings, never found by running a tool. A check that is not ``deterministic``
+    is never stored."""
+
+    inputs: tuple[str, ...]
+    version: str = "1"
+    tools: dict[str, str] = {}
+    deterministic: bool = True
+
+
+# Over-inclusive on purpose: an extra input costs a miss, a missing one serves a wrong hit.
+CHECK_SPECS: dict[str, CheckSpec] = {
+    "theses-lint": CheckSpec(_ARTICLE_INPUTS),
+    "theses-gaps": CheckSpec(_ARTICLE_INPUTS),
+    "index-check": CheckSpec(_ARTICLE_INPUTS),
+    "claims-quote-check": CheckSpec(_ARTICLE_INPUTS),
+    "make-validate": CheckSpec(
+        _ARTICLE_INPUTS + ("scripts/validate-paper.py", "paper/figures/**/*")
+    ),
+    "release-plan": CheckSpec(_ARTICLE_INPUTS, deterministic=False),  # reads git state
+    "layout-check": CheckSpec(("scripts/check_pdf_layout.py", "paper/article.pdf")),
+    "lint-counts": CheckSpec(("scripts/lint-counts.py", "paper/**/*.tex", "data/**/*")),
+}
+CHECK_TIER = "script"
+FAILING_LINES = 5
+FAILING_WIDTH = 200
+_LABELLED_SECRET = re.compile(rb"(?i)\b(password|passwd|secret|token|api[_-]?key)\b\s*[:=]\s*\S+")
+
+
+def redact(line: str) -> str:
+    """Mask the secret patterns the commit guardrail uses (`companion.SECRET_PATTERNS`)."""
+    raw = line.encode("utf-8", "replace")
+    for pattern in (*companion.SECRET_PATTERNS, _LABELLED_SECRET):
+        raw = pattern.sub(b"[redacted]", raw)
+    return raw.decode("utf-8", "replace")
+
+
+def failing_lines(lines: list[str]) -> list[str]:
+    """The first few non-empty output lines, redacted and cut to a fixed width."""
+    kept = [" ".join(line.split()) for line in lines if line.strip()]
+    return [redact(line)[:FAILING_WIDTH] for line in kept[:FAILING_LINES]]
+
+
+def check_keyed(root: Path, name: str) -> ledger.Keyed | None:
+    """The ledger key of a named check, or None when none of its inputs exists."""
+    if name not in CHECKS:
+        raise FlowError(f"unknown check name {name!r}")
+    spec = CHECK_SPECS[name]
+    found: dict[str, Path] = {}
+    for pattern in spec.inputs:
+        for path in sorted(root.glob(pattern)):
+            if path.is_file() and not path.is_symlink():
+                found[path.relative_to(root).as_posix()] = path
+    if not found:
+        return None
+    return ledger.key(
+        "check-outcome", found, f"{name}@{spec.version}", CHECK_TIER, spec.tools
+    )
+
+
+def check_read(root: Path, name: str) -> dict[str, Any]:
+    """A pure read: ``hit`` with the stored verdict, ``stale`` (an older entry of this check
+    exists for other inputs), ``miss`` or ``uncacheable``. Nothing runs and nothing is written."""
+    if name not in CHECKS:
+        raise FlowError(f"unknown check name {name!r}")
+    base = {"ok": True, "command": "check", "name": name}
+    if not CHECK_SPECS[name].deterministic:
+        return {**base, "state": "uncacheable"}
+    keyed = check_keyed(root, name)
+    if keyed is None:
+        return {**base, "state": "miss", "reason": "no input file exists"}
+    entry = ledger.lookup(root, keyed)
+    if entry is not None:
+        return {
+            **base, "state": "hit", "verdict": entry["status"], "key": keyed.key,
+            "failing": entry.get("result", {}).get("failing", []),
+        }
+    nearest = ledger.explain(root, keyed, f"{name}@")
+    if nearest["nearest"] is None:
+        return {**base, "state": "miss", "key": keyed.key}
+    return {**base, "state": "stale", "key": keyed.key, "changed": nearest["changed"],
+            "added": nearest["added"], "removed": nearest["removed"]}  # fmt: skip
+
+
+def check_record(root: Path, name: str) -> dict[str, Any]:
+    """Run a check from the fixed table and store a pass or fail.
+
+    The key is computed first, so an unchanged input is a hit and nothing runs. An
+    ``error`` or ``unavailable`` outcome and a non-deterministic check are never stored.
+    """
+    if name not in CHECKS:
+        raise FlowError(f"unknown check name {name!r}")
+    base = {"command": "check record", "name": name}
+    spec = CHECK_SPECS[name]
+    keyed = check_keyed(root, name) if spec.deterministic else None
+    if keyed is not None:
+        entry = ledger.lookup(root, keyed)
+        if entry is not None:
+            return {
+                **base, "ok": entry["status"] == "pass", "state": "hit", "stored": False,
+                "verdict": entry["status"],
+                "failing": entry.get("result", {}).get("failing", []),
+            }
+    ran = run_check(root, name)
+    status = ran["status"]
+    if status not in ("pass", "fail"):
+        return {**base, "ok": False, "state": status, "stored": False,
+                "failing": failing_lines([ran["output"]])}  # fmt: skip
+    failing = failing_lines(ran.get("lines", [])) if status == "fail" else []
+    stored = False
+    if keyed is not None:
+        try:
+            stored = ledger.put(
+                root, keyed, status, {"check": name, "failing": failing},
+                {"author": "script"},
+            ) == "created"
+        except ledger.LedgerConflict as exc:
+            raise FlowError(str(exc)) from exc
+    return {**base, "ok": status == "pass", "state": "ran", "stored": stored,
+            "verdict": status, "failing": failing}  # fmt: skip
 
 
 # -------------------------------------------------------------------- status
@@ -883,9 +1022,11 @@ def done(root: Path, order_id: str, today: date | None = None) -> dict[str, Any]
             f"`flow attest {entry.get('confirm')}` in a terminal"
         )
     if check is not None:
-        ran = run_check(root, check)
-        if ran["status"] != "pass":
-            return _fail(root, state, order_id, f"check {check}: {ran['status']}: {ran['output']}")
+        ran = check_record(root, check)
+        if not ran["ok"]:
+            detail = "; ".join(ran["failing"]) or ran["state"]
+            outcome = ran.get("verdict", ran["state"])
+            return _fail(root, state, order_id, f"check {check}: {outcome}: {detail}")
     facts = Facts(root, state)
     if order_id in {o["id"] for o in orders_for(entry["stage"], facts)}:
         return _fail(root, state, order_id, "the condition behind this order still holds")

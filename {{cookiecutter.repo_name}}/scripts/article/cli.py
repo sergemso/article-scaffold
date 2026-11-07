@@ -276,6 +276,27 @@ def _flow(args: argparse.Namespace) -> int:
     raise AssertionError(action)  # pragma: no cover
 
 
+def _check(args: argparse.Namespace) -> int:
+    root = _root(args)
+    words = args.words
+    record = len(words) == 2 and words[0] == "record"
+    if not record and len(words) != 1:
+        print("usage error: check takes a name, or `record` and a name", file=sys.stderr)
+        return core.ExitCode.USAGE
+    name = words[-1]
+    command = "check record" if record else "check"
+    try:
+        payload = flow.check_record(root, name) if record else flow.check_read(root, name)
+    except (flow.FlowError, ledger.LedgerError) as exc:
+        _emit_json({"ok": False, "command": command, "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
+    _emit_json(payload)
+    if record:
+        return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+    hit_pass = payload["state"] == "hit" and payload["verdict"] == "pass"
+    return core.ExitCode.OK if hit_pass else core.ExitCode.DIAGNOSTICS
+
+
 def _metadata(args: argparse.Namespace) -> int:
     root = _root(args)
     try:
@@ -907,6 +928,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(t_terms)
     for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept):
         sub.set_defaults(func=_theses, command="theses")
+
+    check_cmd = subparsers.add_parser(
+        "check",
+        help="read a named check's stored result, or `check record NAME` to run and store it",
+    )
+    _add_common(check_cmd)
+    check_cmd.add_argument("words", nargs="+", metavar="[record] NAME")
+    check_cmd.set_defaults(func=_check, command="check")
 
     flow_cmd = subparsers.add_parser(
         "flow", help="lifecycle gates, work orders and review rounds"

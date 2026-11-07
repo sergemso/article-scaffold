@@ -387,14 +387,20 @@ def verify(root: Path) -> list[str]:
     return problems
 
 
-def explain(root: Path, keyed: Keyed) -> dict[str, Any]:
-    """Why a lookup missed: the nearest stored entry of the kind and what differs from it."""
+def explain(root: Path, keyed: Keyed, version_prefix: str | None = None) -> dict[str, Any]:
+    """Why a lookup missed: the nearest stored entry of the kind and what differs from it.
+
+    ``version_prefix`` limits the comparison to entries whose version starts with it, so one
+    named check is not compared with another.
+    """
     best: tuple[int, str, dict[str, Any]] | None = None
     for path in _entry_files(root, keyed.kind):
         try:
             entry = json.loads(path.read_text(encoding="utf-8"))
             _check_entry(entry, keyed.kind, path.stem)
         except (OSError, json.JSONDecodeError, LedgerError):
+            continue
+        if version_prefix is not None and not entry["version"].startswith(version_prefix):
             continue
         stored = entry["inputs"]
         changed = sorted(n for n in keyed.inputs if n in stored and stored[n] != keyed.inputs[n])
