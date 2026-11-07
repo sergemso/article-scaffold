@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
-from . import claims, companion, core, flow, terms, theses
+from . import claims, companion, core, flow, ledger, terms, theses
 from . import index as section_index
 
 
@@ -76,6 +77,74 @@ def _index(args: argparse.Namespace) -> int:
             f"({payload['sections']} sections, {payload['labels']} labels)."
         )
     return core.ExitCode.OK
+
+
+def _ledger_keyed(args: argparse.Namespace, root: Path) -> ledger.Keyed:
+    """Key from ``--input name=PATH`` (file content) and ``--text name=VALUE`` (literal)."""
+    values: dict[str, Any] = {}
+    for item in args.input or []:
+        name, sep, path = item.partition("=")
+        if not sep or not name:
+            raise ledger.LedgerError(f"--input wants name=PATH, got {item!r}")
+        values[name] = (root / path).resolve()
+    for item in args.text or []:
+        name, sep, value = item.partition("=")
+        if not sep or not name:
+            raise ledger.LedgerError(f"--text wants name=VALUE, got {item!r}")
+        values[name] = value
+    tools = {}
+    for item in args.tool or []:
+        name, sep, version = item.partition("=")
+        if not sep or not name:
+            raise ledger.LedgerError(f"--tool wants name=VERSION, got {item!r}")
+        tools[name] = version
+    if not args.version or not args.tier:
+        raise ledger.LedgerError("give --version and --tier")
+    return ledger.key(args.kind, values, args.version, args.tier, tools)
+
+
+def _ledger(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.ledger_action
+    command = f"ledger {action}"
+    try:
+        if action in ("get", "explain"):
+            if getattr(args, "no_ledger", False):
+                os.environ["ARTICLE_LEDGER"] = "off"
+            if action == "get" and args.key:
+                entry = ledger.get(root, args.kind, args.key)
+                digest = args.key
+            else:
+                keyed = _ledger_keyed(args, root)
+                digest = keyed.key
+                entry = ledger.lookup(root, keyed) if action == "get" else None
+            payload: dict[str, Any] = {"ok": True, "command": command, "key": digest}
+            if action == "get":
+                payload["hit"] = entry is not None
+                if entry is not None:
+                    payload["entry"] = entry
+                    payload["provenance"] = ledger.provenance(root, args.kind, digest)
+                payload["bypassed"] = not ledger.enabled()
+                _emit_json(payload)
+                return core.ExitCode.OK if entry is not None else core.ExitCode.DIAGNOSTICS
+            _emit_json({**payload, **ledger.explain(root, keyed)})
+            return core.ExitCode.OK
+        if action == "verify":
+            problems = ledger.verify(root)
+            _emit_json({"ok": not problems, "command": command, "problems": problems})
+            return core.ExitCode.DIAGNOSTICS if problems else core.ExitCode.OK
+        if action == "evict":
+            ledger.evict(root, args.kind, args.key, args.reason)
+            _emit_json({"ok": True, "command": command, "key": args.key, "evicted": True})
+            return core.ExitCode.OK
+        if action == "gc":
+            _emit_json({"ok": True, "command": command, **ledger.gc(root, args.apply)})
+            return core.ExitCode.OK
+        _emit_json({"ok": True, "command": command, "stats": ledger.stats(root, args.reset)})
+        return core.ExitCode.OK
+    except ledger.LedgerError as exc:
+        _emit_json({"ok": False, "command": command, "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
 
 
 def _claims(args: argparse.Namespace) -> int:
@@ -769,6 +838,38 @@ def build_parser() -> argparse.ArgumentParser:
     c_cache.add_argument("--set", choices=claims.VERDICTS, help="record a verdict")
     for sub in (c_check, c_excerpt, c_cache):
         sub.set_defaults(func=_claims)
+
+    ledger_cmd = subparsers.add_parser(
+        "ledger", help="read, verify and maintain the committed results ledger"
+    )
+    ledger_sub = ledger_cmd.add_subparsers(dest="ledger_action", required=True)
+    l_get = ledger_sub.add_parser("get", help="look a result up (exit 1 on a miss)")
+    l_explain = ledger_sub.add_parser("explain", help="why a lookup misses: the nearest entry")
+    for sub in (l_get, l_explain):
+        _add_common(sub)
+        sub.add_argument("kind", choices=sorted(ledger.KINDS))
+        sub.add_argument("--input", action="append", metavar="NAME=PATH", help="a file input")
+        sub.add_argument("--text", action="append", metavar="NAME=VALUE", help="a literal input")
+        sub.add_argument("--version", help="procedure or check version")
+        sub.add_argument("--tier", help="tier of the result")
+        sub.add_argument("--tool", action="append", metavar="NAME=VERSION", help="declared tool")
+        sub.add_argument("--no-ledger", action="store_true", help="bypass the lookup")
+    l_get.add_argument("--key", help="read this exact key instead of computing one")
+    l_verify = ledger_sub.add_parser(
+        "verify", help="recompute every stored key (exit 1 on a problem)"
+    )
+    l_evict = ledger_sub.add_parser("evict", help="remove one entry; the only delete, logged")
+    l_evict.add_argument("kind", choices=sorted(ledger.KINDS))
+    l_evict.add_argument("key")
+    l_evict.add_argument("--reason", required=True)
+    l_gc = ledger_sub.add_parser("gc", help="report entries whose input files changed or are gone")
+    l_gc.add_argument("--apply", action="store_true", help="evict and log them")
+    l_stats = ledger_sub.add_parser("stats", help="local hit and miss counters, no content")
+    l_stats.add_argument("--reset", action="store_true")
+    for sub in (l_verify, l_evict, l_gc, l_stats):
+        _add_common(sub)
+    for sub in (l_get, l_explain, l_verify, l_evict, l_gc, l_stats):
+        sub.set_defaults(func=_ledger)
 
     theses_cmd = subparsers.add_parser(
         "theses", help="lint, inspect and promote nodes of the theses map"

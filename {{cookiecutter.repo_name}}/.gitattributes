@@ -1,0 +1,2 @@
+# Generated results; keep them out of diffs and language stats.
+docs/ledger/** linguist-generated=true

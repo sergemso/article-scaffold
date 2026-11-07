@@ -26,6 +26,7 @@ Run `python3 -m scripts.article --help` or
 | `build <kind> --dry-run` | Print the build plan without running it or writing any file. |
 | `build <kind> --no-regenerate` | Build without refreshing the derived files first. |
 | `companion` | Plan, build or gate the public companion snapshot (`--plan`, `--build DIR`, `--gate TAG`). See [companion.md](companion.md). |
+| `ledger get\|explain\|verify\|evict\|gc\|stats` | Read and maintain the committed results ledger in `docs/ledger/`. `get` exits 1 on a miss; `explain` names the input that differs from the nearest entry; `evict` is the only delete and is logged. There is no command that writes a result by hand. |
 | `flow status` | Per-stage gate results computed from the repo (`flow.yaml` stores only round, attestations, waivers and budget). Exit 1 when a gate fails. |
 | `flow next` | Print the first open work order for the earliest failing gate, as JSON (`schemas/flow-order.schema.json`). Calling it again re-issues the same order. |
 | `flow next --open` | List every open order of the current stage; `parallel_safe` is true only when nodes and output files are disjoint. Give each concurrent order its own working copy and merge the branches. |

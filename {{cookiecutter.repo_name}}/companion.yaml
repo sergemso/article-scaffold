@@ -32,6 +32,8 @@ exclude:
   - "template.json"
   - "scripts/**"
   - "docs/**"
+  - "docs/ledger/**"
+  - "paper/sources/**"
   - "paper/build/**"
   - "**/__pycache__/**"
   - "**/.env"

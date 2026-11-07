@@ -46,7 +46,9 @@ def test_ledger_entry_fixture_validates():
     jsonschema.validate(_fixture("ledger-entry.json"), LEDGER)
 
 
-@pytest.mark.parametrize("field", ["kind", "key", "key_version", "inputs", "status"])
+@pytest.mark.parametrize(
+    "field", ["kind", "key", "key_version", "version", "tier", "tools", "inputs", "status"]
+)
 def test_ledger_entry_requires_field(field):
     entry = _fixture("ledger-entry.json")
     del entry[field]

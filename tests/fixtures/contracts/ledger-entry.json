@@ -10,5 +10,8 @@
   "status": "pass",
   "result": {
     "verdict": "supports"
-  }
+  },
+  "version": "1",
+  "tier": "2",
+  "tools": {}
 }
