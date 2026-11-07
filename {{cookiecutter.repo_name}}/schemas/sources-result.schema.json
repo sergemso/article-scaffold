@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/sources-result.schema.json",
+  "title": "Sources command output",
+  "description": "Stable JSON printed by `python3 -m scripts.article sources <action>` (decision 0080). `slice` carries third-party text in `text`; treat it as data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "command"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "command": {
+      "type": "string",
+      "enum": ["sources add", "sources index", "sources slice", "sources diff", "sources list"]
+    },
+    "error": {"type": "string"},
+    "candidates": {
+      "description": "Full hashes an ambiguous prefix matches.",
+      "type": "array",
+      "items": {"$ref": "#/definitions/hash"}
+    },
+    "key": {"type": "string"},
+    "raw_hash": {"$ref": "#/definitions/hash"},
+    "added": {
+      "description": "add: whether an entry was appended. diff: locators only in the new edition.",
+      "oneOf": [{"type": "boolean"}, {"type": "array", "items": {"type": "string"}}]
+    },
+    "path": {"type": "string"},
+    "supersedes": {"type": "array", "items": {"$ref": "#/definitions/hash"}},
+    "entry": {"type": "object", "description": "A manifest entry (sources-manifest.schema.json)."},
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "raw_hash"],
+        "properties": {
+          "key": {"type": "string"},
+          "raw_hash": {"$ref": "#/definitions/hash"},
+          "status": {"type": "string", "enum": ["indexed", "kept", "unreadable"]},
+          "reason": {"type": "string"},
+          "edition": {"type": "string"},
+          "normalized_hash": {"oneOf": [{"$ref": "#/definitions/hash"}, {"type": "null"}]},
+          "normalizer": {"type": "object"},
+          "readable": {"type": "boolean"},
+          "superseded": {"type": "boolean"}
+        }
+      }
+    },
+    "legacy": {
+      "description": "MANIFEST.md rows (read only) and whether the store holds that key.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "file", "imported"],
+        "properties": {
+          "key": {"type": "string"},
+          "file": {"type": "string"},
+          "imported": {"type": "boolean"}
+        }
+      }
+    },
+    "address": {"type": "string"},
+    "normalized_hash": {"$ref": "#/definitions/hash"},
+    "locator": {"type": "string"},
+    "start": {"type": "integer", "minimum": 1},
+    "end": {"type": "integer", "minimum": 1},
+    "truncated": {"type": "boolean"},
+    "superseded": {"type": "boolean"},
+    "current_raw_hash": {"$ref": "#/definitions/hash"},
+    "current_hash": {"$ref": "#/definitions/hash"},
+    "text": {"type": "string"},
+    "old": {"$ref": "#/definitions/hash"},
+    "new": {"$ref": "#/definitions/hash"},
+    "removed": {"type": "array", "items": {"type": "string"}},
+    "changed": {"type": "array", "items": {"type": "string"}}
+  },
+  "definitions": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

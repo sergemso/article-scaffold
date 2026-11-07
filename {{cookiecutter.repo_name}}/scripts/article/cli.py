@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import claims, companion, core, flow, ledger, terms, theses
+from . import claims, companion, core, flow, ledger, sources, terms, theses
 from . import index as section_index
 
 
@@ -145,6 +145,38 @@ def _ledger(args: argparse.Namespace) -> int:
     except ledger.LedgerError as exc:
         _emit_json({"ok": False, "command": command, "error": str(exc)})
         return core.ExitCode.DIAGNOSTICS
+
+
+def _sources(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.sources_action
+    command = f"sources {action}"
+    try:
+        if action == "add":
+            result = sources.add(
+                root,
+                Path(args.file),
+                origin=args.origin,
+                edition=args.edition,
+                key=args.key,
+                terms=args.terms,
+                retrieved=args.retrieved,
+                media_type=args.media_type,
+            )
+        elif action == "index":
+            result = sources.index(root, args.key, args.force)
+        elif action == "slice":
+            result = sources.slice_passage(root, args.address, args.window)
+        elif action == "diff":
+            result = sources.diff(root, args.key, args.old, args.new)
+        else:
+            result = sources.list_sources(root)
+    except sources.SourcesError as exc:
+        _emit_json({"ok": False, "command": command, "error": str(exc), **exc.extra})
+        return core.ExitCode.DIAGNOSTICS
+    unreadable = action == "index" and any(r["status"] == "unreadable" for r in result["sources"])
+    _emit_json({"ok": True, "command": command, **result})
+    return core.ExitCode.DIAGNOSTICS if unreadable else core.ExitCode.OK
 
 
 def _claims(args: argparse.Namespace) -> int:
@@ -908,6 +940,35 @@ def build_parser() -> argparse.ArgumentParser:
         _add_common(sub)
     for sub in (l_get, l_explain, l_verify, l_evict, l_gc, l_stats):
         sub.set_defaults(func=_ledger)
+
+    sources_cmd = subparsers.add_parser(
+        "sources", help="add, normalize, index and slice third-party sources (offline)"
+    )
+    sources_sub = sources_cmd.add_subparsers(dest="sources_action", required=True)
+    s_add = sources_sub.add_parser("add", help="copy a file into paper/sources/ and record it")
+    s_add.add_argument("file")
+    s_add.add_argument("--origin", required=True, help="where the file came from (URL or note)")
+    s_add.add_argument("--edition", required=True, help="edition key, e.g. a draft revision")
+    s_add.add_argument("--key", help="source key (default: from MANIFEST.md or the file name)")
+    s_add.add_argument("--terms", help="a note on the source's terms of use")
+    s_add.add_argument("--retrieved", help="retrieval time, UTC ISO 8601 (default: now)")
+    s_add.add_argument("--media-type", help="override the media type guessed from the suffix")
+    s_index = sources_sub.add_parser(
+        "index", help="normalize text and build the locator index (exit 1 if one is unreadable)"
+    )
+    s_index.add_argument("key", nargs="?", help="only this source")
+    s_index.add_argument("--force", action="store_true", help="regenerate normalized text")
+    s_slice = sources_sub.add_parser("slice", help="print the passage an address names")
+    s_slice.add_argument("address", help="source-key@hash#locator")
+    s_slice.add_argument("--window", type=int, default=sources.DEFAULT_WINDOW, help="context lines")
+    s_diff = sources_sub.add_parser("diff", help="locators added, removed and changed")
+    s_diff.add_argument("key")
+    s_diff.add_argument("old", help="old normalized hash (prefix)")
+    s_diff.add_argument("new", help="new normalized hash (prefix)")
+    s_list = sources_sub.add_parser("list", help="stored sources and MANIFEST.md rows not imported")
+    for sub in (s_add, s_index, s_slice, s_diff, s_list):
+        _add_common(sub)
+        sub.set_defaults(func=_sources)
 
     theses_cmd = subparsers.add_parser(
         "theses", help="lint, inspect and promote nodes of the theses map"

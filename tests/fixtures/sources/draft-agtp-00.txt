@@ -1,0 +1,31 @@
+Internet-Draft                                         Agent Transport
+Expires: 2027                                             November 2026
+
+Abstract
+
+   This draft defines the example transport.
+
+Table of Contents
+
+   1.  Introduction  ........................................  2
+   2.  Requirements  ........................................  3
+
+1.  Introduction
+
+   The transport carries agent messages.  It is not a replacement
+   for HTTP.
+
+2.  Requirements
+
+2.1.  Framing
+
+   A sender MUST NOT send a frame larger than 64 KiB.  A receiver
+   SHOULD close the stream on a violation.
+
+2.2.  Security Considerations
+
+   Implementations MAY log frame headers.
+
+Appendix A.  Examples
+
+   None yet.
