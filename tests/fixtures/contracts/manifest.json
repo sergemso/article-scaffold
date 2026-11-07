@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "key": "draft-example-agtp-00",
+      "origin": "https://datatracker.ietf.org/doc/draft-example-agtp/00/",
+      "retrieved": "2026-11-07T09:30:00Z",
+      "raw_hash": "f208659f46960eb8e64ceae91c08426baaafb636d5fa890c7b93df2abb7bfcfc",
+      "media_type": "text/plain",
+      "edition": "00",
+      "normalized_hash": "ac6a184e5f0e3c1a1f736fd66f4eb1c837d460e3ba003e7c86f7a8234eadf365",
+      "normalizer": {
+        "name": "plain-text",
+        "version": "1"
+      }
+    },
+    {
+      "key": "pace-notes",
+      "origin": "https://example.org/pace.pdf",
+      "retrieved": "2026-11-07T09:31:00Z",
+      "raw_hash": "62557dedda97b5c699841e63ff4c42c90ea2416560f49729280f9bf3d4c173fc",
+      "media_type": "application/pdf",
+      "edition": "2026-03",
+      "terms": "See NOTICE.md"
+    }
+  ]
+}

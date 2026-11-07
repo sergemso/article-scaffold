@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/ledger-entry.schema.json",
+  "title": "Ledger entry",
+  "description": "One file at docs/ledger/<kind>/<key[:2]>/<key>.json (decision 0079). It holds no timestamp, so equal results are byte-identical; provenance lives in a separate .prov.json file. Only pass and fail are stored: an error or an unavailable check is never a ledger result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "key", "key_version", "inputs", "status"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "key": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "key_version": {
+      "description": "Version of the key scheme hashed into the key; a new scheme is a miss, never a stale hit.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "inputs": {
+      "description": "Declared input name to content hash, so verify can recompute the key and explain can name the input that differs.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"minLength": 1},
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "status": {"type": "string", "enum": ["pass", "fail"]},
+    "result": {
+      "description": "Kind-specific payload: a verdict, or the capped and redacted failing lines of a check. Never source or manuscript text.",
+      "type": "object"
+    }
+  }
+}

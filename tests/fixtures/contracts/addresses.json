@@ -1,0 +1,35 @@
+{
+  "valid": [
+    {
+      "text": "draft-example-agtp-00@0123456789ab#sec:Security Considerations/Threats",
+      "kind": "sec"
+    },
+    {
+      "text": "rfc9110@0123456789abcdef#para:14",
+      "kind": "para"
+    },
+    {
+      "text": "rfc9110@2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881#req:MUST_NOT:3",
+      "kind": "req"
+    }
+  ],
+  "invalid": [
+    "key@0123456789ab#line:10",
+    "key@0123#para:1",
+    "key@0123456789ab#para:0",
+    "key@0123456789ab#req:SHOULDISH:1",
+    "key0123456789ab#para:1",
+    "@0123456789ab#para:1",
+    "key@0123456789ab#sec:/x"
+  ],
+  "prefixes": {
+    "stored": [
+      "0123456789abcdef0000",
+      "0123456789abcdef1111",
+      "ffffffffffff0000"
+    ],
+    "ok": "ffffffffffff",
+    "ambiguous": "0123456789ab",
+    "unknown": "aaaaaaaaaaaa"
+  }
+}

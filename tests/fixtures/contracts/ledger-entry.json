@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "kind": "claim-verdict",
+  "key": "be2974546978e3739e6d6da85c4be9f334ce32df2b9fd4b6ff1b55c0d57e9d44",
+  "key_version": 1,
+  "inputs": {
+    "claim": "dd1b3c312cf7d816130354452e9629ce39355b0c534129dd26a08cd9a4502ede",
+    "excerpt": "df50f680326679347d5591b14f5f18b409e3f08948ad0641ed3e6d75612efce0"
+  },
+  "status": "pass",
+  "result": {
+    "verdict": "supports"
+  }
+}
