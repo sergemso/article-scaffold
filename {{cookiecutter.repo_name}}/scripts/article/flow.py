@@ -20,6 +20,7 @@ import yaml
 
 from . import brief as order_brief
 from . import claims, companion, core, group, ledger, theses
+from . import handoff as order_handoff
 from . import index as section_index
 
 STATE_FILE = "flow.yaml"
@@ -1161,6 +1162,8 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
     }
     if isinstance(old, dict) and old.get("last_output"):
         entry["last_output"] = old["last_output"]
+    if isinstance(old, dict) and old.get("handoff"):
+        entry["handoff"] = old["handoff"]
     if old != entry:
         state["orders"][order["id"]] = entry
         save_state(root, state)
@@ -1337,9 +1340,22 @@ def _anchored(order: dict[str, Any], f: Facts) -> tuple[dict[str, Any], list[dic
     """
     row = finding_row(order, f)
     anchors = _order_anchors(order, f, row)
+    finished = order_handoff.done_ids(_handoff_of(f.state, order["id"]))
+    anchors = [a for a in anchors if (a["file"], a["name"]) not in finished]
     for anchor in anchors:
         anchor["mode"] = group.anchor_mode(order["outputs"], anchor["file"])
     return row, anchors
+
+
+def _handoff_of(state: dict[str, Any], order_id: str) -> dict[str, Any] | None:
+    entry = state["orders"].get(order_id)
+    found = entry.get("handoff") if isinstance(entry, dict) else None
+    return found if isinstance(found, dict) else None
+
+
+def _handoffs(state: dict[str, Any], ids: list[str]) -> list[dict[str, Any]]:
+    """The recorded handoffs of the given orders, sorted by order id."""
+    return [h for i in sorted(ids) if (h := _handoff_of(state, i))]
 
 
 def _verify_for(order: dict[str, Any]) -> dict[str, str] | None:
@@ -1381,6 +1397,7 @@ def decorate(order: dict[str, Any], f: Facts, with_brief: bool = False) -> None:
         max_calls=calls,
         cap=_brief_cap(f),
         notes=_index_notes(f),
+        handoffs=_handoffs(f.state, [order["id"]]),
     )
 
 
@@ -1439,8 +1456,46 @@ def group_unit(batch: list[dict[str, Any]], f: Facts, with_brief: bool) -> dict[
         max_calls=unit.get("max_calls"),
         cap=_brief_cap(f),
         notes=notes,
+        handoffs=_handoffs(f.state, ids),
     )
     return unit
+
+
+# ------------------------------------------------------------------- handoff
+
+
+def handoff(root: Path, order_id: str, data: object) -> dict[str, Any]:
+    """Record the handoff of an issued, open order (decision 0081).
+
+    The handoff is validated, normalized and stored in the order's entry in ``flow.yaml``.
+    The next ``flow next`` rebuilds the brief from the repo and this record, leaving out the
+    anchors reported done. Recording again replaces the earlier handoff.
+    """
+    state = load_state(root)
+    entry = state["orders"].get(order_id)
+    if not isinstance(entry, dict):
+        raise FlowError(f"unknown order {order_id!r}; run `flow next`")
+    if entry.get("done"):
+        raise FlowError(f"order {order_id!r} is already done; nothing to hand off")
+    problems = order_handoff.errors(data)
+    if not problems and data["order"] != order_id:  # type: ignore[index]
+        problems.append(f"order {data['order']!r} does not match {order_id!r}")  # type: ignore[index]
+    if not problems:
+        check = data["verify"]["check"]  # type: ignore[index]
+        if check is not None and check not in CHECKS:
+            problems.append(f"verify check {check!r} is not a named check")
+    if problems:
+        raise FlowError("invalid handoff: " + "; ".join(problems))
+    record = order_handoff.normalize(data)  # type: ignore[arg-type]
+    entry["handoff"] = record
+    save_state(root, state)
+    return {
+        "ok": True,
+        "command": "flow handoff",
+        "id": order_id,
+        "handoff": record,
+        "remaining": len(record["remaining"]),
+    }
 
 
 # ---------------------------------------------------------------- done, attest

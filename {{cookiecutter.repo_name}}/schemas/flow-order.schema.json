@@ -343,6 +343,13 @@
             }
           }
         },
+        "handoffs": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Optional. Handoffs recorded by `flow handoff` for the order (or its group's members), sorted by order id; each validates against flow-handoff.schema.json. Anchors reported done are left out of `anchors`."
+        },
         "max_calls": {
           "type": "integer",
           "minimum": 1

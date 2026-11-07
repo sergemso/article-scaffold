@@ -280,6 +280,7 @@ def compile_brief(
     max_calls: int | None,
     cap: int,
     notes: list[str],
+    handoffs: list[dict] = (),  # type: ignore[assignment]
 ) -> dict:
     """Assemble the brief and keep it within *cap* bytes.
 
@@ -297,6 +298,8 @@ def compile_brief(
         "notes": sorted(notes),
         "degraded": [],
     }
+    if handoffs:
+        brief["handoffs"] = [dict(h) for h in handoffs]
     if max_calls is not None:
         brief["max_calls"] = max_calls
         brief["max_calls_note"] = (

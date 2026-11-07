@@ -321,6 +321,17 @@ def _flow(args: argparse.Namespace) -> int:
             payload = flow.done(root, args.order_id)
             _emit_json(payload)
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        if action == "handoff":
+            try:
+                raw = sys.stdin.read() if args.file == "-" else Path(args.file).read_text("utf-8")
+            except OSError as exc:
+                raise flow.FlowError(f"cannot read the handoff file: {exc}") from exc
+            try:
+                data = json.loads(raw)
+            except ValueError as exc:
+                raise flow.FlowError(f"handoff is not valid JSON: {exc}") from exc
+            _emit_json(flow.handoff(root, args.order_id, data))
+            return core.ExitCode.OK
         if action == "round":
             if args.round_action == "open":
                 payload = flow.round_open(root, args.review)
@@ -1089,6 +1100,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common(f_done)
     f_done.add_argument("order_id")
+    f_handoff = flow_sub.add_parser(
+        "handoff", help="record the state an agent hands back at its call cap"
+    )
+    _add_common(f_handoff)
+    f_handoff.add_argument("order_id")
+    f_handoff.add_argument(
+        "--file", required=True, help="handoff JSON (schemas/flow-handoff.schema.json); - is stdin"
+    )
     f_attest = flow_sub.add_parser("attest", help="record a human attestation (terminal only)")
     _add_common(f_attest)
     f_attest.add_argument("name", help="for example bibliography or claim:<node id>")
@@ -1107,7 +1126,7 @@ def build_parser() -> argparse.ArgumentParser:
     r_open.add_argument("--review", required=True, help="local review file in this repository")
     r_close = round_sub.add_parser("close", help="record the round once the gates pass")
     _add_common(r_close)
-    for sub in (f_status, f_next, f_done, f_attest, f_waive, r_open, r_close):
+    for sub in (f_status, f_next, f_done, f_handoff, f_attest, f_waive, r_open, r_close):
         sub.set_defaults(func=_flow, command="flow")
 
     metadata = subparsers.add_parser(
