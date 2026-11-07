@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import yaml
-from flow_helpers import THESIS_MAP, cli, jcli, write_map
+from flow_helpers import THESIS_MAP, cli, jcli, record_cold_run, write_map
 
 NUMBERED = """\
 Referee report
@@ -139,6 +139,9 @@ def test_round_close_needs_the_gates(flow_project: Path) -> None:
         {"name": "bibliography", "by": "Ada", "at": "2026-01-01", "why": "ok"}
     ]
     (flow_project / "flow.yaml").write_text(yaml.safe_dump(state, sort_keys=False))
+    no_cold = cli(flow_project, "flow", "round", "close")
+    assert no_cold.returncode == 1 and "release-gate" in no_cold.stdout
+    record_cold_run(flow_project)
     closed = jcli(flow_project, "flow", "round", "close")
     assert closed["ok"] is True
     state = yaml.safe_load((flow_project / "flow.yaml").read_text())

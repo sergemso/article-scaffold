@@ -397,7 +397,15 @@ def _gate_release(f: Facts) -> dict[str, Any]:
         return _verdict(False, "the layout check fails", "python3 scripts/check_pdf_layout.py")
     if not f.attested("bibliography"):
         return _verdict(False, "no recorded bibliography verification", f"{CMD} flow attest")
-    return _verdict(True, "release plan clear and bibliography attested", command)
+    if not cold_run_recorded(f.root):
+        return _verdict(
+            False, "no cold run matches the current inputs", f"{CMD} check --cold"
+        )
+    verdict = _verdict(
+        True, "release plan clear, bibliography attested, cold run current", command
+    )
+    verdict["relied_on"] = relied_on(f.root)
+    return verdict
 
 
 def _gate_publish(f: Facts) -> dict[str, Any]:
@@ -525,16 +533,21 @@ def failing_lines(lines: list[str]) -> list[str]:
     return [redact(line)[:FAILING_WIDTH] for line in kept[:FAILING_LINES]]
 
 
+def _expand(root: Path, patterns: tuple[str, ...]) -> dict[str, Path]:
+    found: dict[str, Path] = {}
+    for pattern in patterns:
+        for path in sorted(root.glob(pattern)):
+            if path.is_file() and not path.is_symlink():
+                found[path.relative_to(root).as_posix()] = path
+    return found
+
+
 def check_keyed(root: Path, name: str) -> ledger.Keyed | None:
     """The ledger key of a named check, or None when none of its inputs exists."""
     if name not in CHECKS:
         raise FlowError(f"unknown check name {name!r}")
+    found = _expand(root, CHECK_SPECS[name].inputs)
     spec = CHECK_SPECS[name]
-    found: dict[str, Path] = {}
-    for pattern in spec.inputs:
-        for path in sorted(root.glob(pattern)):
-            if path.is_file() and not path.is_symlink():
-                found[path.relative_to(root).as_posix()] = path
     if not found:
         return None
     return ledger.key(
@@ -604,6 +617,109 @@ def check_record(root: Path, name: str) -> dict[str, Any]:
             "verdict": status, "failing": failing}  # fmt: skip
 
 
+# ----------------------------------------------------------------- cold run
+
+COLD_KIND = "cold-run"
+COLD_TIER = "cold"
+RELIED_ON_CAP = 50
+
+
+def cold_keyed(root: Path) -> ledger.Keyed | None:
+    """Key over the inputs of every deterministic table check and their versions.
+
+    Any change to a file a check reads makes the key differ, so a cold run never carries
+    over to changed inputs and there is no time window.
+    """
+    found: dict[str, Path] = {}
+    versions = []
+    for name in sorted(CHECKS):
+        spec = CHECK_SPECS[name]
+        if not spec.deterministic:
+            continue
+        versions.append(f"{name}@{spec.version}")
+        found.update(_expand(root, spec.inputs))
+    if not found:
+        return None
+    return ledger.key(COLD_KIND, found, "cold-run@1;" + ";".join(versions), COLD_TIER)
+
+
+def cold_run_recorded(root: Path) -> bool:
+    """True when a passing cold-run record matches the current inputs. A pure file read.
+
+    It uses ``ledger.get`` and not ``lookup``, so ``ARTICLE_LEDGER=off`` cannot satisfy it
+    and only ``cold_run`` can write the record.
+    """
+    keyed = cold_keyed(root)
+    if keyed is None:
+        return False
+    entry = ledger.get(root, COLD_KIND, keyed.key)
+    return entry is not None and entry["status"] == "pass"
+
+
+def relied_on(root: Path) -> dict[str, Any]:
+    """Tier 2 verdicts a gate rests on, with provenance: no cold run can re-judge them."""
+    digests = ledger.keys(root, "claim-verdict")
+    entries = []
+    for digest in digests[:RELIED_ON_CAP]:
+        prov = (ledger.provenance(root, "claim-verdict", digest) or [{}])[0]
+        item = {"key": digest[:12], "author": str(prov.get("author", "unknown"))}
+        if "recorded" in prov:
+            item["recorded"] = str(prov["recorded"])
+        entries.append(item)
+    return {"count": len(digests), "entries": entries}
+
+
+def cold_run(root: Path) -> dict[str, Any]:
+    """Run every deterministic table check ignoring lookups, then compare with the ledger.
+
+    A stored outcome that differs from the cold one is evicted (logged) and replaced, and
+    the run fails: the ledger had served a wrong answer. Only a clean run writes the
+    ``cold-run`` record the release gate reads. It is run by CI or the parent session,
+    never from ``next_order``.
+    """
+    if not ledger.enabled():
+        error = "the ledger is switched off; a cold run could not be recorded"
+        return {"ok": False, "command": "check --cold", "error": error}
+    outcomes: dict[str, str] = {}
+    differences: list[dict[str, str]] = []
+    problems: list[str] = []
+    for name in sorted(CHECKS):
+        if not CHECK_SPECS[name].deterministic:
+            outcomes[name] = "skipped"
+            continue
+        ran = run_check(root, name)
+        status = ran["status"]
+        outcomes[name] = status
+        if status not in ("pass", "fail"):
+            if status == "error":
+                problems.append(f"{name}: {ran['output']}")
+            continue
+        failing = failing_lines(ran.get("lines", [])) if status == "fail" else []
+        keyed = check_keyed(root, name)
+        if keyed is None:
+            continue
+        stored = ledger.get(root, "check-outcome", keyed.key)
+        result = {"check": name, "failing": failing}
+        if stored is not None and (stored["status"], stored.get("result")) != (status, result):
+            ledger.evict(
+                root, "check-outcome", keyed.key,
+                f"cold run differs: ledger said {stored['status']}, cold run says {status}",
+            )
+            differences.append({"check": name, "ledger": stored["status"], "cold": status})
+            stored = None
+        if stored is None:
+            ledger.put(root, keyed, status, result, {"author": "script", "cold": True})
+    failed = sorted(n for n, s in outcomes.items() if s == "fail")
+    ok = not (differences or problems or failed)
+    recorded = False
+    keyed = cold_keyed(root)
+    if ok and keyed is not None:
+        ledger.put(root, keyed, "pass", {"checks": outcomes}, {"author": "script"})
+        recorded = True
+    return {"ok": ok, "command": "check --cold", "recorded": recorded, "checks": outcomes,
+            "differences": differences, "failed": failed, "errors": problems}  # fmt: skip
+
+
 # -------------------------------------------------------------------- status
 
 
@@ -628,6 +744,8 @@ def evaluate(facts: Facts, today: date) -> list[dict[str, Any]]:
         status = "pass" if verdict["ok"] else "fail"
         reason = verdict["reason"]
         entry = {"stage": stage, "status": status, "reason": reason, "command": verdict["command"]}
+        if "relied_on" in verdict:
+            entry["relied_on"] = verdict["relied_on"]
         waiver = None if verdict["ok"] else active_waiver(facts.state, stage, today)
         if waiver is not None:
             entry["status"] = "waived"
@@ -887,6 +1005,17 @@ def _release_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
                 stage, "verify-bibliography", tier="script", check="release-plan", gated=True,
                 confirm="bibliography",
                 reason="bibliography verification needs a confirmation in the owner's terminal",
+            )
+        )
+    elif not cold_run_recorded(f.root):
+        out.append(
+            make_order(
+                stage, "run-cold", tier="script", gated=True, confirm="cold-run",
+                outputs=["docs/ledger/cold-run"],
+                reason=(
+                    "no cold run matches the current inputs; CI or a person runs "
+                    f"`{CMD} check --cold`, then records `flow attest cold-run`"
+                ),
             )
         )
     return out

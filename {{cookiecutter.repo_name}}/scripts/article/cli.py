@@ -279,8 +279,19 @@ def _flow(args: argparse.Namespace) -> int:
 def _check(args: argparse.Namespace) -> int:
     root = _root(args)
     words = args.words
+    if args.cold:
+        if words:
+            print("usage error: check --cold takes no name", file=sys.stderr)
+            return core.ExitCode.USAGE
+        try:
+            payload = flow.cold_run(root)
+        except (flow.FlowError, ledger.LedgerError) as exc:
+            _emit_json({"ok": False, "command": "check --cold", "error": str(exc)})
+            return core.ExitCode.DIAGNOSTICS
+        _emit_json(payload)
+        return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
     record = len(words) == 2 and words[0] == "record"
-    if not record and len(words) != 1:
+    if not record and len(words) != 1:  # also covers no name at all
         print("usage error: check takes a name, or `record` and a name", file=sys.stderr)
         return core.ExitCode.USAGE
     name = words[-1]
@@ -934,7 +945,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="read a named check's stored result, or `check record NAME` to run and store it",
     )
     _add_common(check_cmd)
-    check_cmd.add_argument("words", nargs="+", metavar="[record] NAME")
+    check_cmd.add_argument("words", nargs="*", metavar="[record] NAME")
+    check_cmd.add_argument(
+        "--cold", action="store_true",
+        help="run every deterministic check ignoring lookups and record the cold run",
+    )
     check_cmd.set_defaults(func=_check, command="check")
 
     flow_cmd = subparsers.add_parser(

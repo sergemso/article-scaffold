@@ -31,7 +31,28 @@
           "stage": { "type": "string" },
           "status": { "enum": ["pass", "fail", "waived", "human"] },
           "reason": { "type": "string", "minLength": 1 },
-          "command": { "type": "string", "minLength": 1 }
+          "command": { "type": "string", "minLength": 1 },
+          "relied_on": {
+            "type": "object",
+            "description": "Tier 2 ledger entries the gate rests on; they cannot be re-run cold.",
+            "additionalProperties": false,
+            "required": ["count", "entries"],
+            "properties": {
+              "count": { "type": "integer", "minimum": 0 },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["key", "author"],
+                  "properties": {
+                    "key": { "type": "string" },
+                    "author": { "type": "string" },
+                    "recorded": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

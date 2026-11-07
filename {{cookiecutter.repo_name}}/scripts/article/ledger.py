@@ -59,6 +59,7 @@ KINDS: dict[str, Kind] = {
     for kind in (
         Kind("claim-verdict", inputs=("claim", "excerpt")),
         Kind("check-outcome", open_inputs=True, paths=True),
+        Kind("cold-run", open_inputs=True, paths=True),
     )
 }
 
@@ -208,6 +209,11 @@ def get(root: Path, kind: str, digest: str) -> dict[str, Any] | None:
         raise LedgerError(f"{path.name}: unreadable entry ({exc})") from exc
     _check_entry(entry, kind, digest)
     return entry
+
+
+def keys(root: Path, kind: str) -> list[str]:
+    """The keys of the entries stored for a kind, sorted."""
+    return [path.stem for path in _entry_files(root, kind)]
 
 
 def provenance(root: Path, kind: str, digest: str) -> list[dict[str, Any]]:
