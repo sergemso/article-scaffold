@@ -146,6 +146,115 @@
       "description": "Optional. Advisory: hand back state after about this many tool calls. The host counts; nothing enforces it. Set from flow.yaml max_calls by tier."
     },
     "brief": {
+      "$ref": "#/definitions/brief"
+    },
+    "group": {
+      "type": "string",
+      "pattern": "^g-[0-9a-f]{12}$",
+      "description": "Optional. Id of the group this order belongs to; its members go to one agent with the group's combined brief."
+    }
+  },
+  "definitions": {
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "file",
+        "lines",
+        "hash"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "section",
+            "symbol",
+            "lines"
+          ]
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{12}$",
+          "description": "First 12 hex characters of the hash of the slice's lines; a changed slice has a different hash."
+        },
+        "address": {
+          "type": "string",
+          "description": "file:start-end@hash; present in a brief."
+        },
+        "text": {
+          "type": "string",
+          "description": "The slice; present in a brief unless it was replaced by its address to fit the cap."
+        },
+        "mode": {
+          "enum": [
+            "write",
+            "read"
+          ],
+          "description": "Optional. `write` when the order's outputs cover the file, else `read`. Orders whose write anchors share a file are grouped; a shared read anchor does not group."
+        }
+      }
+    },
+    "ledgerHit": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "key",
+        "status"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "check-outcome",
+            "claim-verdict"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "verdict": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "brief": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -166,7 +275,8 @@
         },
         "order": {
           "type": "string",
-          "pattern": "^o-[0-9a-f]{12}$"
+          "pattern": "^[og]-[0-9a-f]{12}$",
+          "description": "The order id, or the group id for the combined brief of a group."
         },
         "row": {
           "type": "object",
@@ -188,7 +298,6 @@
         },
         "anchors": {
           "type": "array",
-          "maxItems": 6,
           "items": {
             "$ref": "#/definitions/anchor"
           }
@@ -263,98 +372,51 @@
           "description": "Size of the brief without this field, in bytes of its canonical JSON."
         }
       }
-    }
-  },
-  "definitions": {
-    "anchor": {
+    },
+    "group": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "name",
-        "kind",
-        "file",
-        "lines",
-        "hash"
+        "id",
+        "orders",
+        "files",
+        "anchors"
       ],
+      "description": "Orders whose write anchors share a file, for one agent. Listed by `flow next` as `group` and by `flow next --open` as `groups`.",
       "properties": {
-        "name": {
+        "id": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^g-[0-9a-f]{12}$"
         },
-        "kind": {
-          "enum": [
-            "section",
-            "symbol",
-            "lines"
-          ]
-        },
-        "file": {
-          "type": "string",
-          "minLength": 1
-        },
-        "lines": {
+        "orders": {
           "type": "array",
           "minItems": 2,
-          "maxItems": 2,
           "items": {
-            "type": "integer",
-            "minimum": 1
-          }
+            "type": "string",
+            "pattern": "^o-[0-9a-f]{12}$"
+          },
+          "description": "Member order ids, in issue order, at most `group_size` of them."
         },
-        "hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{12}$",
-          "description": "First 12 hex characters of the hash of the slice's lines; a changed slice has a different hash."
-        },
-        "address": {
-          "type": "string",
-          "description": "file:start-end@hash; present in a brief."
-        },
-        "text": {
-          "type": "string",
-          "description": "The slice; present in a brief unless it was replaced by its address to fit the cap."
-        }
-      }
-    },
-    "ledgerHit": {
-      "type": "object",
-      "required": [
-        "kind",
-        "name",
-        "key",
-        "status"
-      ],
-      "properties": {
-        "kind": {
-          "enum": [
-            "check-outcome",
-            "claim-verdict"
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "key": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "status": {
-          "enum": [
-            "pass",
-            "fail"
-          ]
-        },
-        "verdict": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "failing": {
+        "files": {
           "type": "array",
           "items": {
             "type": "string"
+          },
+          "description": "Files written by more than one member."
+        },
+        "max_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sum of the members' advisory caps."
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchor"
           }
+        },
+        "brief": {
+          "$ref": "#/definitions/brief"
         }
       }
     }

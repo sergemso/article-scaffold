@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 import yaml
 
 from . import brief as order_brief
-from . import claims, companion, core, ledger, theses
+from . import claims, companion, core, group, ledger, theses
 from . import index as section_index
 
 STATE_FILE = "flow.yaml"
@@ -53,6 +53,7 @@ STATE_FIELDS = {
     "closed",
     "brief_bytes",
     "max_calls",
+    "group_size",
 }
 HEADER = (
     "# Flow state: decisions the repo cannot derive (round, attestations, waivers, budget).\n"
@@ -151,6 +152,10 @@ def state_errors(data: object) -> list[str]:
             errors.append("max_calls must be a mapping with only small and large")
         elif not all(_nonneg_int(v) and v >= 1 for v in calls.values()):
             errors.append("max_calls values must be positive integers")
+    if "group_size" in data and not (
+        _nonneg_int(data["group_size"]) and data["group_size"] >= group.MIN_GROUP_SIZE
+    ):
+        errors.append("group_size must be a positive integer (1 turns grouping off)")
     closed = data.get("closed", [])
     if not isinstance(closed, list) or not all(
         isinstance(c, dict) and set(c) == {"round", "at"} and _nonneg_int(c["round"])
@@ -1078,14 +1083,40 @@ def next_order(
                 reason=f"{entry['reason']}; run {entry['command']}",
             )
         ]
-    order = candidates[0]
-    entry = _record(state, order)
-    order["retries"] = int(entry.get("retries", 0)) if entry else 0
-    order = _apply_limits(order, entry, state)
-    if not order["needs_human"]:
-        _remember(root, state, order)
-    decorate(order, facts, with_brief)
-    return {"ok": True, "command": "flow next", "order": order}
+    ready = _ready(candidates, state)
+    for item in ready:
+        decorate(item, facts)
+    groups, _ = group.plan(ready, group_size(state))
+    members = next((g for g in groups if g[0] == 0), None)
+    if members is None:
+        order = ready[0]
+        if not order["needs_human"]:
+            _remember(root, state, order)
+        decorate(order, facts, with_brief)
+        return {"ok": True, "command": "flow next", "order": order}
+    batch = [ready[i] for i in members]
+    for item in batch:
+        _remember(root, state, item)
+    unit = group_unit(batch, facts, with_brief)
+    for item in batch:
+        item["group"] = unit["id"]
+    return {
+        "ok": True, "command": "flow next", "order": batch[0], "group": unit, "orders": batch,
+    }
+
+
+def _ready(candidates: list[dict[str, Any]], state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Candidates with their retry count and the retry or budget limits applied."""
+    ready = []
+    for order in candidates:
+        entry = _record(state, order)
+        order["retries"] = int(entry.get("retries", 0)) if entry else 0
+        ready.append(_apply_limits(order, entry, state))
+    return ready
+
+
+def group_size(state: dict[str, Any]) -> int:
+    return int(state.get("group_size", group.DEFAULT_GROUP_SIZE))
 
 
 def _apply_limits(order: dict[str, Any], entry: dict | None, state: dict[str, Any]):
@@ -1299,13 +1330,40 @@ def max_calls_for(order: dict[str, Any], state: dict[str, Any]) -> int | None:
     return int(table[order["tier"]])
 
 
+def _anchored(order: dict[str, Any], f: Facts) -> tuple[dict[str, Any], list[dict]]:
+    """The finding row and the anchors of an order, each anchor marked ``write`` or ``read``.
+
+    An anchor is a write anchor when the order's outputs cover its file (see ``group``).
+    """
+    row = finding_row(order, f)
+    anchors = _order_anchors(order, f, row)
+    for anchor in anchors:
+        anchor["mode"] = group.anchor_mode(order["outputs"], anchor["file"])
+    return row, anchors
+
+
+def _verify_for(order: dict[str, Any]) -> dict[str, str] | None:
+    name = order["check"]
+    return {"check": name, "command": f"{CMD} check record {name}"} if name else None
+
+
+def _brief_cap(f: Facts) -> int:
+    return int(f.state.get("brief_bytes", order_brief.DEFAULT_BRIEF_BYTES))
+
+
+def _index_notes(f: Facts) -> list[str]:
+    if (f.root / section_index.INDEX_PATH).is_file():
+        return []
+    return ["the section index is missing; section anchors are not resolved"]
+
+
 def decorate(order: dict[str, Any], f: Facts, with_brief: bool = False) -> None:
     """Add the optional ``anchors`` and ``max_calls``; with *with_brief*, the compiled brief.
 
     Nothing here is stored in ``flow.yaml``. A brief is rebuilt from the repo on each call.
     """
-    row = finding_row(order, f)
-    anchors = _order_anchors(order, f, row)
+    row, anchors = _anchored(order, f)
+    order.pop("anchors", None)
     if anchors:
         order["anchors"] = [order_brief.order_anchor(a) for a in anchors]
     calls = max_calls_for(order, f.state)
@@ -1313,23 +1371,76 @@ def decorate(order: dict[str, Any], f: Facts, with_brief: bool = False) -> None:
         order["max_calls"] = calls
     if not with_brief:
         return
-    notes = []
-    if not (f.root / section_index.INDEX_PATH).is_file():
-        notes.append("the section index is missing; section anchors are not resolved")
-    name = order["check"]
-    verify = {"check": name, "command": f"{CMD} check record {name}"} if name else None
     order["brief"] = order_brief.compile_brief(
         order=order,
         row=row,
         anchors=anchors,
         guardrails=order_brief.guardrail_digest(f.root, order["kind"]),
         ledger_hits=_ledger_hits(order, f),
-        verify=verify,
+        verify=_verify_for(order),
         max_calls=calls,
-        cap=int(f.state.get("brief_bytes", order_brief.DEFAULT_BRIEF_BYTES)),
-        notes=notes,
+        cap=_brief_cap(f),
+        notes=_index_notes(f),
     )
 
+
+def group_unit(batch: list[dict[str, Any]], f: Facts, with_brief: bool) -> dict[str, Any]:
+    """One unit for one agent: the member ids, the shared files, a combined cap and brief.
+
+    The members keep their own fields but carry no brief of their own.
+    """
+    ids = [o["id"] for o in batch]
+    gid = group.group_id(ids)
+    counts: dict[str, int] = {}
+    for order in batch:
+        for file in group.write_files(order):
+            counts[file] = counts.get(file, 0) + 1
+    unit: dict[str, Any] = {
+        "id": gid,
+        "orders": ids,
+        "files": sorted(file for file, n in counts.items() if n > 1),
+    }
+    calls = [o["max_calls"] for o in batch if "max_calls" in o]
+    if calls:
+        unit["max_calls"] = sum(calls)
+    seen: dict[tuple, dict] = {}
+    parts = [_anchored(o, f) for o in batch]
+    for _, anchors in parts:
+        for a in anchors:
+            seen.setdefault((a["file"], tuple(a["lines"]), a["name"]), a)
+    merged = [seen[k] for k in sorted(seen)]
+    unit["anchors"] = [order_brief.order_anchor(a) for a in merged]
+    if not with_brief:
+        return unit
+    guardrails: dict[str, dict] = {}
+    hits: dict[tuple, dict] = {}
+    verifies: dict[str, dict] = {}
+    for order in batch:
+        for item in order_brief.guardrail_digest(f.root, order["kind"]):
+            guardrails.setdefault(item["id"], item)
+        for hit in _ledger_hits(order, f):
+            hits.setdefault((hit["kind"], hit["name"]), hit)
+        verify = _verify_for(order)
+        if verify:
+            verifies.setdefault(verify["command"], verify)
+    commands = sorted(verifies)
+    notes = _index_notes(f)
+    notes += [f"also verify: {c}" for c in commands[1:]]
+    notes.append(f"{len(batch)} orders share {', '.join(unit['files']) or 'files'}")
+    row = dict(parts[0][0])
+    row["members"] = [{"order": o["id"], "row": p[0]} for o, p in zip(batch, parts, strict=True)]
+    unit["brief"] = order_brief.compile_brief(
+        order={"id": gid},
+        row=row,
+        anchors=merged,
+        guardrails=[guardrails[k] for k in sorted(guardrails)],
+        ledger_hits=[hits[k] for k in sorted(hits)],
+        verify=verifies[commands[0]] if commands else None,
+        max_calls=unit.get("max_calls"),
+        cap=_brief_cap(f),
+        notes=notes,
+    )
+    return unit
 
 
 # ---------------------------------------------------------------- done, attest
@@ -1543,10 +1654,7 @@ def round_close(root: Path, today: date | None = None) -> dict[str, Any]:
 # ------------------------------------------------------------ parallel orders
 
 
-def _paths_overlap(a: str, b: str) -> bool:
-    if a == b:
-        return True
-    return (a.endswith("/") and b.startswith(a)) or (b.endswith("/") and a.startswith(b))
+_paths_overlap = group.paths_overlap
 
 
 def mark_parallel(orders: list[dict[str, Any]]) -> None:
@@ -1581,14 +1689,34 @@ def open_orders(
     stage = current_stage(results)
     if stage is None:
         return {"ok": True, "command": "flow next", "orders": []}
-    orders = []
-    for order in orders_for(stage, facts):
-        entry = _record(state, order)
-        order["retries"] = int(entry.get("retries", 0)) if entry else 0
-        order = _apply_limits(order, entry, state)
+    ready = _ready(orders_for(stage, facts), state)
+    for order in ready:
+        decorate(order, facts)
+    plans, deferred = group.plan(ready, group_size(state))
+    grouped = {i for g in plans for i in g}
+    offered = [(i, o) for i, o in enumerate(ready) if i not in deferred]
+    for _, order in offered:
         if not order["needs_human"]:
             _remember(root, state, order)
-        decorate(order, facts, with_brief)
-        orders.append(order)
+    units = []
+    for g in plans:
+        batch = [ready[i] for i in g]
+        unit = group_unit(batch, facts, with_brief)
+        for order in batch:
+            order["group"] = unit["id"]
+        units.append(unit)
+    orders = [o for _, o in offered]
+    if with_brief:
+        for i, order in offered:
+            if i not in grouped:
+                decorate(order, facts, True)
     mark_parallel(orders)
-    return {"ok": True, "command": "flow next", "orders": orders}
+    for order in orders:
+        if "group" in order:
+            order["parallel_safe"] = False
+    payload: dict[str, Any] = {"ok": True, "command": "flow next", "orders": orders}
+    if units:
+        payload["groups"] = units
+    if deferred:
+        payload["deferred"] = [ready[i]["id"] for i in deferred]
+    return payload

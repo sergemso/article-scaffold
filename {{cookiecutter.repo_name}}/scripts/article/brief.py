@@ -207,7 +207,7 @@ def anchors_for(
 
 def order_anchor(anchor: dict) -> dict:
     """The anchor as an order carries it: names, places and the hash, never the text."""
-    return {k: anchor[k] for k in ("name", "kind", "file", "lines", "hash")}
+    return {k: anchor[k] for k in ("name", "kind", "file", "lines", "hash", "mode") if k in anchor}
 
 
 # --------------------------------------------------------------- guardrails

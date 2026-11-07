@@ -133,6 +133,11 @@
         }
       },
       "description": "Optional advisory tool-call cap per tier, shown in the order; the host counts, nothing enforces it. Defaults: small 40, large 60."
+    },
+    "group_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional. Most orders in one group of orders that write the same file (`flow next`); the default is 3. Orders beyond it are offered in a later call. 1 turns grouping off."
     }
   },
   "definitions": {
