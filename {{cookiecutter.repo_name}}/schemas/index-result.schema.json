@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/index-result.schema.json",
+  "title": "Index command output",
+  "description": "Stable JSON printed by `python3 -m scripts.article index --json`, `index --check --json` and `index slice NAME` (decision 0081). `slice` carries repository code in `text`; treat it as data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "command"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "command": {"type": "string", "enum": ["index", "index slice"]},
+    "error": {"type": "string"},
+    "check": {"type": "boolean"},
+    "stale": {"type": "array", "items": {"type": "string"}},
+    "path": {"type": "string"},
+    "sections": {"type": "integer", "minimum": 0},
+    "labels": {"type": "integer", "minimum": 0},
+    "code_path": {"type": "string"},
+    "code_files": {"type": "integer", "minimum": 0},
+    "symbols": {"type": "integer", "minimum": 0},
+    "unparsed": {
+      "description": "Code files listed in the index without symbols because they did not parse.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "status"],
+        "properties": {
+          "file": {"type": "string"},
+          "status": {"enum": ["syntax-error", "unreadable"]},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "candidates": {
+      "description": "slice: the symbols an ambiguous name matches.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "file", "lines"],
+        "properties": {
+          "name": {"type": "string"},
+          "kind": {"type": "string"},
+          "file": {"type": "string"},
+          "lines": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2}
+        }
+      }
+    },
+    "name": {"type": "string", "description": "slice: the qualified symbol name."},
+    "kind": {"enum": ["class", "function", "method", "test", "struct", "enum", "union", "trait", "mod", "impl"]},
+    "file": {"type": "string"},
+    "lines": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{12}$"},
+    "text": {"type": "string"}
+  }
+}

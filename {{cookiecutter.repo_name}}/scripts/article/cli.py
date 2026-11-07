@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import claims, companion, core, flow, ledger, sources, terms, theses
+from . import claims, code_index, companion, core, flow, ledger, sources, terms, theses
 from . import index as section_index
 
 
@@ -51,8 +51,16 @@ def _validate(args: argparse.Namespace) -> int:
 
 def _index(args: argparse.Namespace) -> int:
     root = _root(args)
+    if getattr(args, "index_action", None) == "slice":
+        try:
+            result = code_index.slice_symbol(root, args.name, args.file)
+        except code_index.CodeIndexError as exc:
+            _emit_json({"ok": False, "command": "index slice", "error": str(exc), **exc.extra})
+            return core.ExitCode.DIAGNOSTICS
+        _emit_json({"ok": True, "command": "index slice", **result})
+        return core.ExitCode.OK
     if args.check:
-        stale = section_index.check_index(root)
+        stale = section_index.check_index(root) + code_index.check_index(root)
         if args.json:
             _emit_json({"ok": not stale, "command": "index", "check": True, "stale": stale})
         else:
@@ -62,6 +70,7 @@ def _index(args: argparse.Namespace) -> int:
                 print("Section index is current.")
         return core.ExitCode.DIAGNOSTICS if stale else core.ExitCode.OK
     index = section_index.write_index(root)
+    code = code_index.write_index(root)
     payload = {
         "ok": True,
         "command": "index",
@@ -69,6 +78,15 @@ def _index(args: argparse.Namespace) -> int:
         "sections": len(index["sections"]),
         "labels": len(index["labels"]),
     }
+    broken = []
+    if code is not None:
+        payload["code_path"] = code_index.INDEX_PATH.as_posix()
+        payload["code_files"] = len(code["files"])
+        payload["symbols"] = len(code["symbols"])
+        broken = [f for f in code["files"] if f["status"] != "ok"]
+        payload["unparsed"] = [
+            {"file": f["file"], "status": f["status"], "error": f.get("error", "")} for f in broken
+        ]
     if args.json:
         _emit_json(payload)
     else:
@@ -76,6 +94,13 @@ def _index(args: argparse.Namespace) -> int:
             f"Wrote {payload['path']} "
             f"({payload['sections']} sections, {payload['labels']} labels)."
         )
+        if code is not None:
+            print(
+                f"Wrote {payload['code_path']} "
+                f"({payload['code_files']} files, {payload['symbols']} symbols)."
+            )
+            for f in broken:
+                print(f"WARNING: {f['file']} not indexed: {f['status']}", file=sys.stderr)
     return core.ExitCode.OK
 
 
@@ -878,7 +903,8 @@ def build_parser() -> argparse.ArgumentParser:
     validate.set_defaults(func=_validate)
 
     index_cmd = subparsers.add_parser(
-        "index", help="write paper/build/section-index.json (labels, line ranges, summaries)"
+        "index",
+        help="write the section index and the code index (paper/build/); `index slice NAME`",
     )
     _add_common(index_cmd)
     index_cmd.add_argument(
@@ -887,6 +913,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail when the index is missing or older than a section; write nothing",
     )
     index_cmd.set_defaults(func=_index)
+    index_sub = index_cmd.add_subparsers(dest="index_action")
+    i_slice = index_sub.add_parser("slice", help="print one code symbol's lines (JSON)")
+    i_slice.add_argument("name", help="qualified symbol name, e.g. Class.method or Type::method")
+    i_slice.add_argument("--file", help="only symbols in this file (resolves an ambiguous name)")
+    _add_common(i_slice)
+    i_slice.set_defaults(func=_index, check=False)
 
     claims_cmd = subparsers.add_parser(
         "claims", help="check source-claim quotes against local source text"
