@@ -187,12 +187,17 @@ def _claims(args: argparse.Namespace) -> int:
             if args.id is None and not args.all:
                 raise ValueError("give a node id or --all")
             results = claims.quote_check(root, None if args.all else args.id)
-            bad = [r["id"] for r in results if r["verdict"] == "not-found"]
+            bad = [r["id"] for r in results if r["verdict"] == "not-found" or r.get("stale")]
             _emit_json({"ok": not bad, "command": "claims quote-check", "results": results})
             return core.ExitCode.DIAGNOSTICS if bad else core.ExitCode.OK
         if action == "excerpt":
             print(claims.excerpt_for(root, args.id))
             return core.ExitCode.OK
+        if action == "rebase":
+            proposal = claims.rebase(root, args.id)
+            good = proposal["status"] in ("current", "proposed")
+            _emit_json({"ok": good, "command": "claims rebase", **proposal})
+            return core.ExitCode.OK if good else core.ExitCode.DIAGNOSTICS
         entry = claims.verdict_for_node(root, args.id, args.set)
         _emit_json({"ok": True, "command": f"claims {action}", **entry})
         return core.ExitCode.OK
@@ -906,7 +911,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(c_record)
     c_record.add_argument("id")
     c_record.add_argument("--set", choices=claims.VERDICTS, required=True, help="the verdict")
-    for sub in (c_check, c_excerpt, c_cache, c_record):
+    c_rebase = claims_sub.add_parser(
+        "rebase",
+        help="propose the address of a node's quote in the current edition (the map is not edited)",
+    )
+    _add_common(c_rebase)
+    c_rebase.add_argument("id")
+    for sub in (c_check, c_excerpt, c_cache, c_record, c_rebase):
         sub.set_defaults(func=_claims)
 
     ledger_cmd = subparsers.add_parser(

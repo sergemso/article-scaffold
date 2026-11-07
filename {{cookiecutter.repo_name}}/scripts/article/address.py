@@ -21,6 +21,14 @@ _PARA = re.compile(r"^para:(?P<n>[1-9][0-9]*)$")
 _REQ = re.compile(r"^req:(?P<keyword>[A-Z_]+):(?P<n>[1-9][0-9]*)$")
 
 
+_LOOKS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-fA-F]+#")
+
+
+def looks_like(text: str) -> bool:
+    """True when *text* is written in the address form (it may still be malformed)."""
+    return bool(_LOOKS.match(text.strip()))
+
+
 class Address(NamedTuple):
     key: str
     hash: str

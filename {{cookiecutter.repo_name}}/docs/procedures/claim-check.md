@@ -12,7 +12,7 @@ Nothing else. Do not open the source file, the section, or any other part of the
 ## Steps
 
 1. Run `python3 -m scripts.article claims quote-check --all`.
-2. List the nodes with verdict `not-found` or `no-local-text`. Do not judge them: a quote that is not in the text, or a source with no local text, cannot be checked here. Report them for the author.
+2. List the nodes with verdict `not-found` or `no-local-text`, and those marked `stale` (their source address names a superseded edition; `claims rebase <id>` proposes a new address for the author, you do not apply it). Do not judge them: a quote that is not in the text, or a source with no local text, cannot be checked here. Report them for the author.
 3. For each node with verdict `found` and `cached` empty (a recorded verdict is fresh only while the claim wording and the excerpt are unchanged), do:
    1. Run `python3 -m scripts.article claims excerpt <id>`.
    2. Compare the excerpt with the claim wording and answer with exactly one of:

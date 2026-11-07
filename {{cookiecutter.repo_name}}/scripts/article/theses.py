@@ -12,6 +12,7 @@ from pathlib import Path
 
 import yaml
 
+from . import address
 from .diagnostics import Diagnostics
 from .latex import strip_comments
 
@@ -267,6 +268,12 @@ def _check_node(index, node, ids, labels, err) -> None:
             value = node.get(field)
             if not isinstance(value, str) or not value.strip():
                 err("T014", f"{where}: source-claim requires {field}")
+        locator = node.get("locator")
+        if isinstance(locator, str) and address.looks_like(locator):
+            try:
+                address.parse(locator.strip())
+            except address.AddressError as exc:
+                err("T049", f"{where}: locator is not a valid source address: {exc}")
 
 
 def _check_edge(index, edge, ids, err) -> None:

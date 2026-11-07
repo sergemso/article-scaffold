@@ -11,6 +11,12 @@ Source text lives under ``paper/sources/``. A node names its text with
 looked up in ``paper/sources/MANIFEST.md`` (a table row ``| key | file |`` or
 a bullet ``- key: file``), then as ``paper/sources/<key>.txt``. Only ``.txt``
 and ``.md`` files are read; extract PDFs to text first.
+
+A node whose ``locator`` is a source address (``key@hash#locator``, decision 0080)
+is checked against that passage of the source store only: the quote is matched in
+the slice, the tier 2 ledger key is built from the slice, and a node whose hash
+is no longer the current edition is reported ``stale``. ``rebase`` proposes the
+address of the quote in the current edition; it never edits the map.
 """
 
 from __future__ import annotations
@@ -21,11 +27,11 @@ import re
 import unicodedata
 from pathlib import Path
 
-from . import ledger
+from . import address, ledger, sources
 from .theses import load_map, structure_errors
 
-SOURCES_DIR = Path("paper") / "sources"
-MANIFEST = "MANIFEST.md"
+SOURCES_DIR = sources.SOURCES_DIR
+MANIFEST = sources.LEGACY_MANIFEST
 LEGACY_CACHE_PATH = Path(".theses") / "claims-cache.json"
 VERDICT_KIND = "claim-verdict"
 VERDICT_OUTPUT = (ledger.LEDGER_DIR / VERDICT_KIND).as_posix()
@@ -87,22 +93,12 @@ def find_quote(source: str, quote: str) -> tuple[int, int] | None:
 
 
 def _manifest_map(root: Path) -> dict[str, str]:
-    path = root / SOURCES_DIR / MANIFEST
-    mapping: dict[str, str] = {}
-    if not path.is_file():
-        return mapping
-    for line in path.read_text(encoding="utf-8").splitlines():
-        cells = [c.strip().strip("`") for c in line.strip().strip("|").split("|")]
-        if line.lstrip().startswith("|") and len(cells) >= 2:
-            key, name = cells[0], cells[1]
-        else:
-            bullet = re.match(r"\s*[-*]\s+`?([^`:\s]+)`?\s*:\s*`?([^`\s]+)`?", line)
-            if not bullet:
-                continue
-            key, name = bullet.group(1), bullet.group(2)
-        if name.lower().endswith(TEXT_SUFFIXES):
-            mapping.setdefault(key, name)
-    return mapping
+    """Bib key to text file from ``MANIFEST.md``; the parser is the store's (``sources``)."""
+    return {
+        key: name
+        for key, name in sources.legacy_entries(root).items()
+        if name.lower().endswith(TEXT_SUFFIXES)
+    }
 
 
 def source_path(root: Path, node: dict) -> Path | None:
@@ -126,9 +122,28 @@ def source_path(root: Path, node: dict) -> Path | None:
     return None
 
 
+def address_of(node: dict) -> str | None:
+    """The node's locator when it is written as a source address, else None."""
+    locator = node.get("locator")
+    if isinstance(locator, str) and address.looks_like(locator):
+        return locator.strip()
+    return None
+
+
+def _addressed(root: Path, text: str) -> tuple[str, dict]:
+    """(source path, passage payload) for an address; only the slice is matched later."""
+    addr, entry, superseded, current = sources.resolve(root, text)
+    payload = sources.passage_for(root, text, addr, entry, superseded, current, cap=False)
+    where = sources.store_dir(root, entry["key"], entry["raw_hash"]) / "normalized.txt"
+    return where.relative_to(root).as_posix(), payload
+
+
 def check_node(root: Path, node: dict) -> dict:
     """Verdict record for one source-claim node (no text)."""
     record = {"id": node["id"], "locator": node["locator"], "verdict": "no-local-text"}
+    text_address = address_of(node)
+    if text_address is not None:
+        return _check_addressed(root, node, text_address, record)
     path = source_path(root, node)
     if path is None:
         return record
@@ -140,12 +155,35 @@ def check_node(root: Path, node: dict) -> dict:
     return record
 
 
-def excerpt_text(path: Path, span: tuple[int, int]) -> str:
-    """The matched passage with a little context, from the original text."""
-    text = path.read_text(encoding="utf-8", errors="replace")
+def _check_addressed(root: Path, node: dict, text_address: str, record: dict) -> dict:
+    try:
+        source, payload = _addressed(root, text_address)
+    except sources.SourcesError as exc:
+        record["reason"] = str(exc)
+        return record
+    record["source"] = source
+    passage = payload["text"]
+    span = find_quote(passage, node["quote"])
+    record["verdict"] = "found" if span else "not-found"
+    if payload["superseded"]:
+        record["stale"] = True
+        if "current_hash" in payload:
+            record["current_hash"] = payload["current_hash"]
+    if span:
+        record["cached"] = cached_verdict(root, node["text"], excerpt_in(passage, span))
+    return record
+
+
+def excerpt_in(text: str, span: tuple[int, int]) -> str:
+    """The matched passage with a little context, cut from *text*."""
     start = max(0, span[0] - EXCERPT_CONTEXT)
     end = min(len(text), span[1] + EXCERPT_CONTEXT)
     return text[start:end]
+
+
+def excerpt_text(path: Path, span: tuple[int, int]) -> str:
+    """The matched passage with a little context, from the original text."""
+    return excerpt_in(path.read_text(encoding="utf-8", errors="replace"), span)
 
 
 def source_claims(root: Path) -> list[dict]:
@@ -171,6 +209,16 @@ def quote_check(root: Path, node_id: str | None = None) -> list[dict]:
 def excerpt_for(root: Path, node_id: str) -> str:
     """Excerpt for tier 2; raises when the quote is not found locally."""
     node = _one(root, node_id)
+    text_address = address_of(node)
+    if text_address is not None:
+        try:
+            passage = _addressed(root, text_address)[1]["text"]
+        except sources.SourcesError as exc:
+            raise ValueError(f"{node_id!r}: {exc}") from exc
+        span = find_quote(passage, node["quote"])
+        if span is None:
+            raise ValueError(f"quote of {node_id!r} is not found in local text")
+        return excerpt_in(passage, span)
     path = source_path(root, node)
     span = None
     if path is not None:
@@ -276,3 +324,90 @@ def verdict_for_node(root: Path, node_id: str, verdict: str | None = None) -> di
     else:
         key = verdict_key(node["text"], excerpt).key
     return {"id": node_id, "key": key, "verdict": cached_verdict(root, node["text"], excerpt)}
+
+
+# ------------------------------------------------------------------- rebase
+
+
+def _rebase_key(root: Path, node: dict, old: address.Address | None) -> str:
+    if old is not None:
+        return old.key
+    for bib_key in node.get("bib_keys") or []:
+        if sources.current_edition(root, bib_key) is not None:
+            return bib_key
+    raise ValueError(
+        f"{node['id']!r} names no source in the store; run `sources add` and `sources index` first"
+    )
+
+
+def _innermost(items: list[dict], first: int, last: int) -> str | None:
+    best = None
+    for item in items:
+        if item["start"] <= first and last <= item["end"]:
+            if best is None or item["end"] - item["start"] < best["end"] - best["start"]:
+                best = item
+    return best["locator"] if best else None
+
+
+def rebase(root: Path, node_id: str) -> dict:
+    """Propose the address of a node's quote in the current edition; the map is not edited.
+
+    ``status`` is ``current`` (the node already names the current edition and the quote is
+    in its passage), ``proposed`` (a new address for a human to accept), ``quote-missing``
+    (the quote does not survive in the current edition) or ``no-locator`` (the quote is
+    there, but no section or paragraph holds it whole).
+    """
+    node = _one(root, node_id)
+    old_text = address_of(node)
+    try:
+        old = address.parse(old_text) if old_text else None
+    except address.AddressError as exc:
+        raise ValueError(f"{node_id!r}: {exc}") from exc
+    key = _rebase_key(root, node, old)
+    entry = sources.current_edition(root, key)
+    if entry is None or "normalized_hash" not in entry:
+        raise ValueError(
+            f"the current edition of {key!r} has no normalized text; run `sources index`"
+        )
+    try:
+        lines, index_data = sources.load_locators(root, entry)
+    except sources.SourcesError as exc:
+        raise ValueError(str(exc)) from exc
+    full = "\n".join(lines) + "\n"
+    result: dict = {
+        "id": node_id,
+        "status": "quote-missing",
+        "current_hash": entry["normalized_hash"],
+    }
+    if old_text:
+        result["address"] = old_text
+    span = find_quote(full, node["quote"])
+    if span is None:
+        return result
+    first = full.count("\n", 0, span[0]) + 1
+    last = full.count("\n", 0, max(span[0], span[1] - 1)) + 1
+    groups = {
+        "sec": index_data["sections"],
+        "para": index_data["paragraphs"],
+        "req": index_data["requirements"],
+    }
+    order = ["para", "sec"]
+    if old is not None and old.kind == "sec":
+        order = ["sec", "para"]
+    elif old is not None and old.kind == "req":
+        order = ["req", "para", "sec"]
+    locator = next(
+        (found for kind in order if (found := _innermost(groups[kind], first, last))), None
+    )
+    if locator is None:
+        result["status"] = "no-locator"
+        return result
+    proposed = f"{key}@{entry['normalized_hash'][:address.MIN_HASH]}#{locator}"
+    result["proposed"] = proposed
+    same = (
+        old is not None
+        and entry["normalized_hash"].startswith(old.hash)
+        and old.locator == locator
+    )
+    result["status"] = "current" if same else "proposed"
+    return result

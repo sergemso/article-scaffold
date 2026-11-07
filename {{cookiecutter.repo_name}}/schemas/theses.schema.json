@@ -29,7 +29,7 @@
         "bib_keys": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "accepted-by": { "type": "string", "minLength": 1 },
         "quote": { "type": "string", "minLength": 1 },
-        "locator": { "type": "string", "minLength": 1 },
+        "locator": { "type": "string", "minLength": 1, "description": "Free text such as `p. 3`, or a source address `key@hash#locator` (decision 0080) that the claim check resolves in the source store." },
         "source": { "type": "string", "minLength": 1 },
         "conclusion": { "$ref": "#/definitions/id" },
         "inference": { "enum": ["deduction", "modus-ponens", "modus-tollens", "disjunctive-syllogism", "induction", "abduction", "analogy", "authority"] },

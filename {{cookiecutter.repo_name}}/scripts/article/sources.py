@@ -587,11 +587,31 @@ def _locator_table(index_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return table
 
 
-def slice_passage(root: Path, text: str, window: int = DEFAULT_WINDOW) -> dict[str, Any]:
-    """The passage an address names, with *window* lines of context (paragraph, requirement)."""
+def slice_passage(
+    root: Path, text: str, window: int = DEFAULT_WINDOW, cap: bool = True
+) -> dict[str, Any]:
+    """The passage an address names, with *window* lines of context (paragraph, requirement).
+
+    ``cap=False`` returns the whole passage (the claim check matches a quote in it);
+    the CLI always caps.
+    """
     if window < 0:
         raise SourcesError("--window must not be negative")
     addr, entry, superseded, current = resolve(root, text)
+    return passage_for(root, text, addr, entry, superseded, current, window, cap)
+
+
+def passage_for(
+    root: Path,
+    text: str,
+    addr: address.Address,
+    entry: dict[str, Any],
+    superseded: bool,
+    current: dict[str, Any] | None,
+    window: int = DEFAULT_WINDOW,
+    cap: bool = True,
+) -> dict[str, Any]:
+    """``slice_passage`` for an address already resolved with :func:`resolve`."""
     lines, index_data = load_locators(root, entry)
     item = _locator_table(index_data).get(addr.locator)
     if item is None:
@@ -600,10 +620,10 @@ def slice_passage(root: Path, text: str, window: int = DEFAULT_WINDOW) -> dict[s
     if addr.kind != "sec":
         start, end = max(1, start - window), min(len(lines), end + window)
     shown_end, truncated = end, False
-    if end - start + 1 > MAX_SLICE_LINES:
+    if cap and end - start + 1 > MAX_SLICE_LINES:
         shown_end, truncated = start + MAX_SLICE_LINES - 1, True
     body = "\n".join(lines[start - 1 : shown_end])
-    if len(body.encode("utf-8")) > MAX_SLICE_BYTES:
+    if cap and len(body.encode("utf-8")) > MAX_SLICE_BYTES:
         body = body.encode("utf-8")[:MAX_SLICE_BYTES].decode("utf-8", errors="ignore")
         shown_end = start + body.count("\n")
         truncated = True
@@ -623,6 +643,11 @@ def slice_passage(root: Path, text: str, window: int = DEFAULT_WINDOW) -> dict[s
         if "normalized_hash" in current:
             payload["current_hash"] = current["normalized_hash"]
     return payload
+
+
+def current_edition(root: Path, key: str) -> dict[str, Any] | None:
+    """The newest manifest entry of *key* (None when the key is unknown)."""
+    return _current(_entries_for(root, key))
 
 
 def diff(root: Path, key: str, old: str, new: str) -> dict[str, Any]:

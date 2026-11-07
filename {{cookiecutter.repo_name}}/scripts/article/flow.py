@@ -344,11 +344,16 @@ def _gate_draft(f: Facts) -> dict[str, Any]:
 
 
 def source_claim_state(f: Facts, record: dict) -> str:
-    """One of: ok, attested, needs-check, not-found, no-local-text, overstates, contradicts."""
+    """One of: ok, attested, needs-check, not-found, no-local-text, stale, overstates, contradicts.
+
+    ``stale``: the node's source address names a superseded edition (``claims rebase``).
+    """
     if f.attested(f"claim:{record['id']}"):
         return "attested"
     if record["verdict"] in ("not-found", "no-local-text"):
         return record["verdict"]
+    if record.get("stale"):
+        return "stale"  # the pinned edition was superseded; `claims rebase` proposes an address
     cached = record.get("cached")
     if cached == "supports":
         return "ok"
