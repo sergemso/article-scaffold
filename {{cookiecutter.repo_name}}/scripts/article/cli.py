@@ -169,6 +169,8 @@ def _sources(args: argparse.Namespace) -> int:
             result = sources.slice_passage(root, args.address, args.window)
         elif action == "diff":
             result = sources.diff(root, args.key, args.old, args.new)
+        elif action == "find":
+            result = sources.find(root, " ".join(args.query), args.key, args.limit)
         else:
             result = sources.list_sources(root)
     except sources.SourcesError as exc:
@@ -976,8 +978,14 @@ def build_parser() -> argparse.ArgumentParser:
     s_diff.add_argument("key")
     s_diff.add_argument("old", help="old normalized hash (prefix)")
     s_diff.add_argument("new", help="new normalized hash (prefix)")
+    s_find = sources_sub.add_parser(
+        "find", help="keyword and phrase search; prints addresses with one-line context"
+    )
+    s_find.add_argument("query", nargs="+", help="terms that must all occur in a passage")
+    s_find.add_argument("--key", help="only this source")
+    s_find.add_argument("--limit", type=int, default=sources.DEFAULT_FIND_LIMIT)
     s_list = sources_sub.add_parser("list", help="stored sources and MANIFEST.md rows not imported")
-    for sub in (s_add, s_index, s_slice, s_diff, s_list):
+    for sub in (s_add, s_index, s_slice, s_diff, s_find, s_list):
         _add_common(sub)
         sub.set_defaults(func=_sources)
 

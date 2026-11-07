@@ -10,7 +10,7 @@
     "ok": {"type": "boolean"},
     "command": {
       "type": "string",
-      "enum": ["sources add", "sources index", "sources slice", "sources diff", "sources list"]
+      "enum": ["sources add", "sources index", "sources slice", "sources diff", "sources find", "sources list"]
     },
     "error": {"type": "string"},
     "candidates": {
@@ -70,6 +70,37 @@
     "text": {"type": "string"},
     "old": {"$ref": "#/definitions/hash"},
     "new": {"$ref": "#/definitions/hash"},
+    "query": {"type": "string"},
+    "total": {"type": "integer", "minimum": 0, "description": "find: matches before --limit."},
+    "searched": {"type": "array", "items": {"type": "string"}},
+    "skipped": {
+      "description": "find: sources not searched (unreadable or not indexed).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "reason"],
+        "properties": {"key": {"type": "string"}, "reason": {"type": "string"}}
+      }
+    },
+    "results": {
+      "description": "find: addresses only, never verdicts; each resolves through `sources slice`.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["address", "key", "normalized_hash", "locator", "start", "end", "score", "context"],
+        "properties": {
+          "address": {"type": "string"},
+          "key": {"type": "string"},
+          "normalized_hash": {"$ref": "#/definitions/hash"},
+          "locator": {"type": "string"},
+          "start": {"type": "integer", "minimum": 1},
+          "end": {"type": "integer", "minimum": 1},
+          "score": {"type": "integer", "minimum": 1},
+          "context": {"type": "string"}
+        }
+      }
+    },
     "removed": {"type": "array", "items": {"type": "string"}},
     "changed": {"type": "array", "items": {"type": "string"}}
   },

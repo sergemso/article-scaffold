@@ -672,3 +672,108 @@ def diff(root: Path, key: str, old: str, new: str) -> dict[str, Any]:
             if before[loc]["text_hash"] != after[loc]["text_hash"]
         ),
     }
+
+
+# ---------------------------------------------------------------------- find
+
+DEFAULT_FIND_LIMIT = 20
+CONTEXT_CHARS = 160
+ADDRESS_HASH = address.MIN_HASH
+
+
+def _fold(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def _context(lines: list[str], tokens: list[str], phrase: str) -> str:
+    """The first line holding the phrase (else any token), trimmed to one short line."""
+    folded = [_fold(line) for line in lines]
+    pick = next((i for i, f in enumerate(folded) if phrase in f), None)
+    if pick is None:
+        pick = next((i for i, f in enumerate(folded) if any(t in f for t in tokens)), 0)
+    line = " ".join(lines[pick].split())
+    if len(line) <= CONTEXT_CHARS:
+        return line
+    at = max(0, _fold(line).find(phrase if phrase in _fold(line) else tokens[0]))
+    start = max(0, min(at - CONTEXT_CHARS // 4, len(line) - CONTEXT_CHARS))
+    return line[start : start + CONTEXT_CHARS].strip()
+
+
+def find(
+    root: Path, query: str, key: str | None = None, limit: int = DEFAULT_FIND_LIMIT
+) -> dict[str, Any]:
+    """Keyword and phrase search of the current edition of each indexed source.
+
+    Every term must occur in a paragraph (or a section title); a paragraph holding the
+    whole phrase ranks first, then more occurrences, then store order. Results are
+    addresses with a one-line context and are never verdicts (guardrail
+    ``retrieval-returns-locators-not-verdicts``); each resolves through ``slice``.
+    Nothing is written.
+    """
+    tokens = _fold(query).split()
+    if not tokens:
+        raise SourcesError("give a non-empty query")
+    if limit < 1:
+        raise SourcesError("--limit must be at least 1")
+    phrase = " ".join(tokens)
+    entries = load_manifest(root)
+    keys = sorted({e["key"] for e in entries})
+    if key is not None:
+        if key not in keys:
+            raise SourcesError(f"no source with key {key}")
+        keys = [key]
+    hits: list[tuple[int, int, str, int, dict[str, Any]]] = []
+    searched: list[str] = []
+    skipped: list[dict[str, str]] = []
+    for name in keys:
+        entry = _current([e for e in entries if e["key"] == name])
+        if entry is None or "normalized_hash" not in entry:
+            skipped.append({"key": name, "reason": "unreadable"})
+            continue
+        try:
+            lines, index_data = load_locators(root, entry)
+        except SourcesError as exc:
+            skipped.append({"key": name, "reason": str(exc)})
+            continue
+        searched.append(name)
+        prefix = f"{name}@{entry['normalized_hash'][:ADDRESS_HASH]}#"
+        for group, rank_base in (("sections", 0), ("paragraphs", 1)):
+            for order, item in enumerate(index_data[group]):
+                if group == "sections":
+                    haystack_lines = [item["title"]]
+                else:
+                    haystack_lines = lines[item["start"] - 1 : item["end"]]
+                text = _fold(" ".join(haystack_lines))
+                if not all(t in text for t in tokens):
+                    continue
+                score = text.count(phrase) * 3 + sum(text.count(t) for t in tokens)
+                if group == "sections":
+                    score += 2  # a heading that names the terms is a good place to start
+                hits.append(
+                    (
+                        -(phrase in text) * 1000 - score,
+                        rank_base,
+                        name,
+                        order,
+                        {
+                            "address": prefix + item["locator"],
+                            "key": name,
+                            "normalized_hash": entry["normalized_hash"],
+                            "locator": item["locator"],
+                            "start": item["start"],
+                            "end": item["end"],
+                            "score": score,
+                            "context": _context(haystack_lines, tokens, phrase),
+                        },
+                    )
+                )
+    hits.sort(key=lambda h: h[:4])
+    results = [h[4] for h in hits[:limit]]
+    return {
+        "query": query,
+        "total": len(hits),
+        "truncated": len(hits) > limit,
+        "searched": searched,
+        "skipped": skipped,
+        "results": results,
+    }
