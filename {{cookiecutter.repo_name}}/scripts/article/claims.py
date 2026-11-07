@@ -1,7 +1,8 @@
 """Tier 1 claim checks: does a source-claim quote occur in the local source text?
 
-Also the check cache that tier 2 (a small-model judgment of excerpt versus
-claim wording) reads and writes. Everything here is local and deterministic;
+Also the tier 2 verdicts (a small-model judgment of excerpt versus claim
+wording), which are results in the committed ledger (``ledger.py``, decision
+0079). Everything here is local and deterministic;
 the CLI reports verdicts and locators, never source text, except
 ``excerpt``, which exists so a local judge can read the matched passage.
 
@@ -20,12 +21,18 @@ import re
 import unicodedata
 from pathlib import Path
 
+from . import ledger
 from .theses import load_map, structure_errors
 
 SOURCES_DIR = Path("paper") / "sources"
 MANIFEST = "MANIFEST.md"
-CACHE_PATH = Path(".theses") / "claims-cache.json"
+LEGACY_CACHE_PATH = Path(".theses") / "claims-cache.json"
+VERDICT_KIND = "claim-verdict"
+VERDICT_OUTPUT = (ledger.LEDGER_DIR / VERDICT_KIND).as_posix()
+PROCEDURE_VERSION = "1"  # docs/procedures/claim-check.md; a new judging rule is a new version
+TIER = "2"
 VERDICTS = ("supports", "overstates", "contradicts")
+STATUS = {"supports": "pass", "overstates": "fail", "contradicts": "fail"}
 TEXT_SUFFIXES = (".txt", ".md")
 EXCERPT_CONTEXT = 200
 ELLIPSIS_RE = re.compile(r"\[\s*(?:\.\.\.|…)\s*\]|\.\.\.|…")
@@ -181,11 +188,18 @@ def _one(root: Path, node_id: str) -> dict:
     raise ValueError(f"no active source-claim node {node_id!r}")
 
 
-# ------------------------------------------------------------------- cache
+# ----------------------------------------------------------------- verdicts
 
 
-def cache_key(claim_text: str, excerpt: str) -> str:
-    """SHA-256 of claim wording plus excerpt."""
+def verdict_key(claim_text: str, excerpt: str) -> ledger.Keyed:
+    """Ledger key over the claim wording, the excerpt, the procedure version and the tier."""
+    return ledger.key(
+        VERDICT_KIND, {"claim": claim_text, "excerpt": excerpt}, PROCEDURE_VERSION, TIER
+    )
+
+
+def _legacy_key(claim_text: str, excerpt: str) -> str:
+    """Key of the untracked cache this ledger replaced: SHA-256 of wording plus excerpt."""
     digest = hashlib.sha256()
     digest.update(claim_text.encode("utf-8"))
     digest.update(b"\0")
@@ -193,41 +207,72 @@ def cache_key(claim_text: str, excerpt: str) -> str:
     return digest.hexdigest()
 
 
-def _read_cache(root: Path) -> dict:
-    path = root / CACHE_PATH
-    if not path.is_file():
-        return {}
+def _legacy_verdict(root: Path, claim_text: str, excerpt: str) -> str | None:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+        data = json.loads((root / LEGACY_CACHE_PATH).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    entry = data.get(_legacy_key(claim_text, excerpt)) if isinstance(data, dict) else None
+    verdict = entry.get("verdict") if isinstance(entry, dict) else None
+    return verdict if verdict in VERDICTS else None
+
+
+def _provenance(**extra: str) -> dict[str, str]:
+    procedure = f"claim-check/{PROCEDURE_VERSION}"
+    return {"tier": TIER, "author": "agent", "procedure": procedure, **extra}
 
 
 def cached_verdict(root: Path, claim_text: str, excerpt: str) -> str | None:
-    entry = _read_cache(root).get(cache_key(claim_text, excerpt))
-    return entry.get("verdict") if isinstance(entry, dict) else None
+    """The recorded tier 2 verdict for exactly these inputs, or None.
+
+    A verdict found only in the old untracked cache is moved into the ledger on the
+    way (its hash key cannot be converted without the texts, which are in hand here).
+    A corrupt ledger entry is a miss; ``ledger verify`` reports it.
+    """
+    keyed = verdict_key(claim_text, excerpt)
+    try:
+        entry = ledger.lookup(root, keyed)
+    except ledger.LedgerError:
+        return None
+    if entry is not None:
+        verdict = (entry.get("result") or {}).get("verdict")
+        return verdict if verdict in VERDICTS else None
+    legacy = _legacy_verdict(root, claim_text, excerpt) if ledger.enabled() else None
+    if legacy is None:
+        return None
+    try:
+        ledger.put(
+            root, keyed, STATUS[legacy], {"verdict": legacy},
+            _provenance(imported=LEGACY_CACHE_PATH.as_posix()),
+        )  # fmt: skip
+    except ledger.LedgerError:
+        return None
+    return legacy
 
 
-def cache_put(root: Path, claim_text: str, excerpt: str, verdict: str) -> str:
-    """Store a tier-2 verdict under the hash; only the hash and verdict are kept."""
+def record_verdict(root: Path, claim_text: str, excerpt: str, verdict: str) -> str:
+    """Store a tier 2 verdict in the ledger and return its key; only the verdict is kept."""
     if verdict not in VERDICTS:
         raise ValueError(f"verdict must be one of {', '.join(VERDICTS)}")
-    key = cache_key(claim_text, excerpt)
-    data = _read_cache(root)
-    data[key] = {"verdict": verdict}
-    path = root / CACHE_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    return key
+    if not ledger.enabled():
+        raise ValueError("the ledger is switched off (ARTICLE_LEDGER=off); verdict not recorded")
+    keyed = verdict_key(claim_text, excerpt)
+    try:
+        ledger.put(root, keyed, STATUS[verdict], {"verdict": verdict}, _provenance())
+    except ledger.LedgerConflict:
+        raise ValueError(
+            "a different verdict is already recorded for these inputs; to re-judge, run "
+            f"`ledger evict {VERDICT_KIND} {keyed.key} --reason ...` first"
+        ) from None
+    return keyed.key
 
 
-def cache_for_node(root: Path, node_id: str, verdict: str | None = None) -> dict:
-    """Read, or with *verdict* write, the cache entry for a node's current inputs."""
+def verdict_for_node(root: Path, node_id: str, verdict: str | None = None) -> dict:
+    """Read, or with *verdict* record, the tier 2 verdict for a node's current inputs."""
     node = _one(root, node_id)
     excerpt = excerpt_for(root, node_id)
     if verdict is not None:
-        key = cache_put(root, node["text"], excerpt, verdict)
+        key = record_verdict(root, node["text"], excerpt, verdict)
     else:
-        key = cache_key(node["text"], excerpt)
+        key = verdict_key(node["text"], excerpt).key
     return {"id": node_id, "key": key, "verdict": cached_verdict(root, node["text"], excerpt)}

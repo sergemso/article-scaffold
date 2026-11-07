@@ -74,8 +74,8 @@ def test_claim_check_procedure_and_adapter(project: Path) -> None:
     text = _procedure(project, "claim-check")
     assert "scripts.article claims quote-check --all" in text
     assert "scripts.article claims excerpt" in text
-    assert "scripts.article claims cache" in text and "--set" in text
-    assert ".theses/claims-cache.json" in text
+    assert "scripts.article claims record" in text and "--set" in text
+    assert "docs/ledger/claim-verdict" in text
     for verdict in ("supports", "overstates", "contradicts"):
         assert f"`{verdict}`" in text
     assert "small, cheap model" in text

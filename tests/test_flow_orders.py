@@ -99,7 +99,7 @@ def test_verify_sources_stage_claim_check_and_attest(flow_project: Path) -> None
     order = _order(flow_project)
     assert (order["kind"], order["tier"], order["nodes"]) == ("claim-check", "small", ["s1"])
     assert order["procedure"] == "docs/procedures/claim-check.md"
-    assert order["outputs"] == [".theses/claims-cache.json"]
+    assert order["outputs"] == ["docs/ledger/claim-verdict"]
 
 
 def test_adversarial_stage_red_team_and_blue_team(flow_project: Path) -> None:

@@ -13,14 +13,14 @@ Nothing else. Do not open the source file, the section, or any other part of the
 
 1. Run `python3 -m scripts.article claims quote-check --all`.
 2. List the nodes with verdict `not-found` or `no-local-text`. Do not judge them: a quote that is not in the text, or a source with no local text, cannot be checked here. Report them for the author.
-3. For each node with verdict `found` and `cached` empty (a cache entry is fresh only while the claim wording and the excerpt are unchanged), do:
+3. For each node with verdict `found` and `cached` empty (a recorded verdict is fresh only while the claim wording and the excerpt are unchanged), do:
    1. Run `python3 -m scripts.article claims excerpt <id>`.
    2. Compare the excerpt with the claim wording and answer with exactly one of:
       - `supports`: the excerpt says what the claim says, no more;
       - `overstates`: the claim is stronger, broader or more certain than the excerpt;
       - `contradicts`: the excerpt says the opposite or rules the claim out.
-   3. Record it: `python3 -m scripts.article claims cache <id> --set <verdict>`. The cache is `.theses/claims-cache.json`, keyed by a hash of the claim wording and the excerpt; it stores the verdict and the hash, never text.
-4. Skip nodes whose `cached` verdict is present; the cache already holds an answer for exactly these inputs.
+   3. Record it: `python3 -m scripts.article claims record <id> --set <verdict>`. The verdict is stored in the committed ledger (`docs/ledger/claim-verdict/`), keyed by a hash of the claim wording, the excerpt and the procedure version; it holds the verdict and the hashes, never text. A different verdict for the same inputs is refused; to re-judge, a person runs the `ledger evict` command that the error names. (`claims cache <id> --set <verdict>` still works as the same command.)
+4. Skip nodes whose `cached` verdict is present; the ledger already holds an answer for exactly these inputs.
 5. Report, as ids with one line each: every `overstates` and `contradicts`, then every `not-found` and `no-local-text`. The author decides what to change.
 
 ## Judging

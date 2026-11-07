@@ -161,8 +161,8 @@ def _claims(args: argparse.Namespace) -> int:
         if action == "excerpt":
             print(claims.excerpt_for(root, args.id))
             return core.ExitCode.OK
-        entry = claims.cache_for_node(root, args.id, args.set)
-        _emit_json({"ok": True, "command": "claims cache", **entry})
+        entry = claims.verdict_for_node(root, args.id, args.set)
+        _emit_json({"ok": True, "command": f"claims {action}", **entry})
         return core.ExitCode.OK
     except ValueError as exc:
         _emit_json({"ok": False, "command": f"claims {action}", "error": str(exc)})
@@ -836,7 +836,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(c_cache)
     c_cache.add_argument("id")
     c_cache.add_argument("--set", choices=claims.VERDICTS, help="record a verdict")
-    for sub in (c_check, c_excerpt, c_cache):
+    c_record = claims_sub.add_parser(
+        "record", help="record the tier-2 verdict of a node in the ledger (same as cache --set)"
+    )
+    _add_common(c_record)
+    c_record.add_argument("id")
+    c_record.add_argument("--set", choices=claims.VERDICTS, required=True, help="the verdict")
+    for sub in (c_check, c_excerpt, c_cache, c_record):
         sub.set_defaults(func=_claims)
 
     ledger_cmd = subparsers.add_parser(

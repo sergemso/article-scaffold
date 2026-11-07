@@ -704,7 +704,7 @@ def _verify_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
             out.append(
                 make_order(
                     stage, "claim-check", nodes=[record["id"]],
-                    outputs=[claims.CACHE_PATH.as_posix()], proc=procedure("claim-check"),
+                    outputs=[claims.VERDICT_OUTPUT], proc=procedure("claim-check"),
                     check="claims-quote-check",
                     reason=f"{record['id']} has no fresh cached verdict",
                 )
