@@ -179,10 +179,11 @@ Done-when: a note in the article repo states the decision and the evidence, and 
 
 Found by running the whole flow on a synthetic article and on `articles.deterministic-edge` (adoption committed on its branch `adopt/token-economy-ledger`). Repros: `bug-repros.md` in the session scratchpad (may be gone); each item below is self-contained.
 
-### F.1 Cold run must not open the gate on unavailable checks — [ ]
+### F.1 Cold run must not open the gate on unavailable checks — [x]
 Class: implement · Effort: medium · Needs: A.4 · Check: `.venv/bin/python -m pytest tests/test_cold_gate.py -q`
 Do: `check --cold` returns `ok: true` and writes a `cold-run` record when `layout-check` and `lint-counts` are `unavailable` (scripts absent), so a repo lacking them can open the release gate. The plan says `unavailable` never passes. Decide per check whether a missing script means "not applicable" (declared in `CHECK_SPECS`) or a failure, and make an undeclared unavailable check fail the cold run.
 Done-when: a fixture repo without those scripts fails or reports them as not applicable by declaration, and the gate stays closed in the failing case.
+Resolved: `CheckSpec` gained `optional` (default false). `layout-check` and `lint-counts` are declared `optional=True`: the template ships neither script, so a repo without them has nothing to check, and `cold_run` reports them as `not-applicable` (the record is still keyed on the script glob, so adding the script later closes the gate). Any other `unavailable` outcome, including a table check with a script in `CHECK_SCRIPTS` that is not declared optional, goes into `errors`, fails the run and writes no record. `unavailable` is still never stored in the ledger. Output change: `checks[name]` can now be `not-applicable`; `check --cold` has no JSON schema, and `docs/cli.md` is updated. Tests in `tests/test_cold_gate.py` cover declared-optional, undeclared, a script added later, and that only those two checks are optional.
 
 ### F.2 `sources add` default key and diff quality — [ ]
 Class: implement · Effort: medium · Needs: B.1 · Check: `.venv/bin/python -m pytest tests/test_sources_store.py -q`

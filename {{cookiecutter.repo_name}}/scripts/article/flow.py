@@ -527,6 +527,9 @@ class CheckSpec(NamedTuple):
     version: str = "1"
     tools: dict[str, str] = {}
     deterministic: bool = True
+    # The repo may legitimately ship no script for this check (the template does not). A cold
+    # run then reports "not-applicable". Anything else that is unavailable fails the run.
+    optional: bool = False
 
 
 # Over-inclusive on purpose: an extra input costs a miss, a missing one serves a wrong hit.
@@ -539,8 +542,12 @@ CHECK_SPECS: dict[str, CheckSpec] = {
         _ARTICLE_INPUTS + ("scripts/validate-paper.py", "paper/figures/**/*")
     ),
     "release-plan": CheckSpec(_ARTICLE_INPUTS, deterministic=False),  # reads git state
-    "layout-check": CheckSpec(("scripts/check_pdf_layout.py", "paper/article.pdf")),
-    "lint-counts": CheckSpec(("scripts/lint-counts.py", "paper/**/*.tex", "data/**/*")),
+    "layout-check": CheckSpec(
+        ("scripts/check_pdf_layout.py", "paper/article.pdf"), optional=True
+    ),
+    "lint-counts": CheckSpec(
+        ("scripts/lint-counts.py", "paper/**/*.tex", "data/**/*"), optional=True
+    ),
 }
 CHECK_TIER = "script"
 FAILING_LINES = 5
@@ -720,7 +727,9 @@ def cold_run(root: Path) -> dict[str, Any]:
         status = ran["status"]
         outcomes[name] = status
         if status not in ("pass", "fail"):
-            if status == "error":
+            if status == "unavailable" and CHECK_SPECS[name].optional:
+                outcomes[name] = "not-applicable"
+            else:
                 problems.append(f"{name}: {ran['output']}")
             continue
         failing = failing_lines(ran.get("lines", [])) if status == "fail" else []
