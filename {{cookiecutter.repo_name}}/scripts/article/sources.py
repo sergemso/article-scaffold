@@ -15,6 +15,7 @@ text hash (see ``address.py``).
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -33,7 +34,7 @@ SOURCES_DIR = Path("paper") / "sources"
 MANIFEST_JSON = "manifest.json"
 LEGACY_MANIFEST = "MANIFEST.md"
 SCHEMA_VERSION = "1.0"
-INDEX_VERSION = "1"
+INDEX_VERSION = "2"
 MAX_SLICE_LINES = 80
 MAX_SLICE_BYTES = 8000
 DEFAULT_WINDOW = 2
@@ -158,6 +159,21 @@ def _is_superseded(entry: dict[str, Any], current: dict[str, Any] | None) -> boo
 
 # ----------------------------------------------------------------------- add
 
+# A trailing edition marker: ``-01``, ``_02``, ``-v2``, ``-v1.2``, ``-rev3``. A bare number
+# of four digits or more is part of the name (``rfc-9110``) and stays.
+_EDITION_SUFFIX = re.compile(r"[-_](?:(?:v|rev)\d+(?:\.\d+)*|\d{1,3}(?:\.\d{1,3})*)$", re.I)
+
+
+def default_key(stem: str) -> str:
+    """Key for a file stem: unsafe characters become ``-`` and a trailing edition or version
+    suffix is dropped, so ``draft-x-01`` and ``draft-x-02`` are editions of one source.
+
+    A name that would be left empty keeps its suffix. Pass ``--key`` to override.
+    """
+    clean = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-._")
+    stripped = _EDITION_SUFFIX.sub("", clean).strip("-._")
+    return stripped if stripped and _KEY.match(stripped) else clean
+
 
 def add(
     root: Path,
@@ -178,7 +194,7 @@ def add(
     legacy = legacy_entries(root)
     if key is None:
         by_name = {name: k for k, name in legacy.items()}
-        key = by_name.get(file.name) or re.sub(r"[^A-Za-z0-9._-]+", "-", file.stem).strip("-._")
+        key = by_name.get(file.name) or default_key(file.stem)
     _check_key(key)
     data = file.read_bytes()
     raw_hash = _sha256(data)
@@ -348,6 +364,13 @@ _REQ = re.compile(
     r"\b(MUST NOT|SHALL NOT|SHOULD NOT|NOT RECOMMENDED|MUST|REQUIRED|SHALL|SHOULD"
     r"|RECOMMENDED|MAY|OPTIONAL)\b"
 )
+# The BCP 14 boilerplate ("The key words "MUST", ... are to be interpreted as described in
+# BCP 14 ... as shown here.") names every keyword without requiring anything.
+_BOILERPLATE = re.compile(
+    r"key\s+words\b.{0,600}?to\s+be\s+interpreted\s+as\s+described\s+in\b"
+    r".{0,300}?(?:as\s+shown\s+here\.|\.(?=\s|$))",
+    re.S | re.I,
+)
 _MD_HEADING = re.compile(r"^(#{1,6})\s+(\S.*)$")
 _NUMBERED = re.compile(r"^((?:[A-Z]\.)?\d+(?:\.\d+)*)\.?\s+(\S.*)$")
 _APPENDIX = re.compile(r"^Appendix\s+([A-Z](?:\.\d+)*)\.?\s+(\S.*)$")
@@ -385,6 +408,22 @@ def _heading(line: str) -> tuple[int, str] | None:
     if line.strip().lower() in _UNNUMBERED:
         return 1, line.strip().rstrip(".")
     return None
+
+
+def _boilerplate_lines(lines: list[str]) -> set[int]:
+    """1-based numbers of lines inside the RFC 2119 boilerplate sentence (never requirements)."""
+    skip: set[int] = set()
+    offsets = []
+    position = 0
+    for line in lines:
+        offsets.append(position)
+        position += len(line) + 1
+    joined = "\n".join(lines)
+    for match in _BOILERPLATE.finditer(joined):
+        first = max(i for i, o in enumerate(offsets) if o <= match.start())
+        last = max(i for i, o in enumerate(offsets) if o <= max(match.start(), match.end() - 1))
+        skip.update(range(first + 1, last + 2))
+    return skip
 
 
 def _text_hash(lines: list[str]) -> str:
@@ -452,7 +491,10 @@ def build_locators(text: str) -> dict[str, Any]:
             start = None
     counters: dict[str, int] = {}
     requirements: list[dict[str, Any]] = []
+    boilerplate = _boilerplate_lines(lines)
     for number, line in enumerate(lines, 1):
+        if number in boilerplate:
+            continue
         for match in _REQ.finditer(line):
             keyword = match.group(1).replace(" ", "_")
             counters[keyword] = counters.get(keyword, 0) + 1
@@ -650,27 +692,93 @@ def current_edition(root: Path, key: str) -> dict[str, Any] | None:
     return _current(_entries_for(root, key))
 
 
+def _align(
+    before: list[dict[str, Any]], after: list[dict[str, Any]]
+) -> tuple[list[str], list[str], list[str]]:
+    """(added, removed, changed) locators between two ordered passage lists.
+
+    Passages match by content hash first, so an insertion or deletion does not renumber the
+    rest into "changed": the lists are aligned on their hashes, a passage that only moved
+    cancels out, and what is left inside a replaced run pairs up in order as changed (named
+    by its new locator). Removed passages are named by their old locator.
+    """
+    old_hashes = [p["text_hash"] for p in before]
+    new_hashes = [p["text_hash"] for p in after]
+    matcher = difflib.SequenceMatcher(None, old_hashes, new_hashes, autojunk=False)
+    ops = [op for op in matcher.get_opcodes() if op[0] != "equal"]
+    loose_old = {i for _, a, b, _, _ in ops for i in range(a, b)}
+    loose_new = {j for _, _, _, c, d in ops for j in range(c, d)}
+    by_hash: dict[str, list[int]] = {}
+    for i in sorted(loose_old):
+        by_hash.setdefault(old_hashes[i], []).append(i)
+    for j in sorted(loose_new):
+        if by_hash.get(new_hashes[j]):
+            loose_old.discard(by_hash[new_hashes[j]].pop(0))  # moved, not changed
+            loose_new.discard(j)
+    added: list[str] = []
+    removed: list[str] = []
+    changed: list[str] = []
+    for tag, a, b, c, d in ops:
+        olds = [i for i in range(a, b) if i in loose_old]
+        news = [j for j in range(c, d) if j in loose_new]
+        paired = min(len(olds), len(news)) if tag == "replace" else 0
+        changed.extend(after[j]["locator"] for j in news[:paired])
+        removed.extend(before[i]["locator"] for i in olds[paired:])
+        added.extend(after[j]["locator"] for j in news[paired:])
+    return added, removed, changed
+
+
 def diff(root: Path, key: str, old: str, new: str) -> dict[str, Any]:
-    """Locators added, removed and changed (by passage text hash) between two editions."""
+    """Locators added, removed and changed between two editions.
+
+    Sections compare by locator and passage hash; paragraphs and requirements (per keyword)
+    match by content hash first (:func:`_align`), so one inserted paragraph is one added
+    locator and not a shift of every number after it.
+    """
     tables = []
     for prefix in (old, new):
         if len(prefix) < address.MIN_HASH:
             raise SourcesError(f"hash prefix must have at least {address.MIN_HASH} characters")
         entry, _, _ = _entry_by_hash(root, key, prefix)
         _, index_data = load_locators(root, entry)
-        tables.append((entry["normalized_hash"], _locator_table(index_data)))
+        tables.append((entry["normalized_hash"], index_data))
     (old_hash, before), (new_hash, after) = tables
+    old_sections = {s["locator"]: s for s in before["sections"]}
+    new_sections = {s["locator"]: s for s in after["sections"]}
+    added = set(new_sections) - set(old_sections)
+    removed = set(old_sections) - set(new_sections)
+    changed = {
+        loc
+        for loc in set(old_sections) & set(new_sections)
+        if old_sections[loc]["text_hash"] != new_sections[loc]["text_hash"]
+    }
+
+    def keyword(item: dict[str, Any]) -> str:
+        return item["locator"].split(":")[1]
+
+    groups: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = [
+        (before["paragraphs"], after["paragraphs"])
+    ]
+    keywords = sorted({keyword(r) for r in before["requirements"] + after["requirements"]})
+    for word in keywords:
+        groups.append(
+            (
+                [r for r in before["requirements"] if keyword(r) == word],
+                [r for r in after["requirements"] if keyword(r) == word],
+            )
+        )
+    for old_items, new_items in groups:
+        a, r, c = _align(old_items, new_items)
+        added.update(a)
+        removed.update(r)
+        changed.update(c)
     return {
         "key": key,
         "old": old_hash,
         "new": new_hash,
-        "added": sorted(set(after) - set(before)),
-        "removed": sorted(set(before) - set(after)),
-        "changed": sorted(
-            loc
-            for loc in set(before) & set(after)
-            if before[loc]["text_hash"] != after[loc]["text_hash"]
-        ),
+        "added": sorted(added),
+        "removed": sorted(removed),
+        "changed": sorted(changed),
     }
 
 
