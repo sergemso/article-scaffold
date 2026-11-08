@@ -250,10 +250,11 @@ Defect (plausible): `sources.load_locators` serves an older `locators.json` with
 Recommend: refuse with "run `sources index`" when the version differs. Alternative: rebuild in memory on every load (slow on 5 MB files).
 Resolved: took the Recommend option. `sources.load_locators` raises `SourcesError` naming both versions and "run `sources index`" when `index_version` differs from `INDEX_VERSION`; `slice`, `find` and `claims` all go through it, so `quote-check` reports `no-local-text` with that reason instead of `not-found`. Tests: `test_an_older_locator_index_is_refused_with_a_reindex_hint`, `test_old_locator_index_is_reported_not_called_not_found`. `docs/cli.md` names the refusal.
 
-### G.7 Result schemas missing for `check` and `claims record` — [ ]
+### G.7 Result schemas missing for `check` and `claims record` — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_schemas.py tests/test_docs.py -q`
 Defect: plan constraint 4 says every new command's output validates against a schema. `check`, `check record` and `check --cold` have none; `claims record` and `claims cache` emit a `command` outside the enum of `claims-result.schema.json` (which forbids extra properties), and `docs/cli.md` cites that schema for them.
 Recommend: add `schemas/check-result.schema.json` and a record variant in `claims-result`, each loaded by a test. Alternative: narrow the docs claim (leaves the constraint broken).
+Resolved: took the Recommend option. `schemas/check-result.schema.json` is a `oneOf` of four strict shapes (`check`, `check record`, `check --cold`, and a failure `{ok: false, command, error}`), written from real output of a fixture repo. `claims-result.schema.json` gained `claims record` and `claims cache` in the `command` enum and the optional `key` and `verdict` properties, still without extra properties allowed. Tests: `tests/test_check_result_schema.py` (read states hit, stale, miss and uncacheable; record hit, ran, fail and unavailable; cold clean, failed and ledger off; the schema rejects an extra field) and `test_record_and_cache_output_validate_against_the_schema` in `tests/test_sources_claims.py`. `docs/cli.md` cites both schemas. A bad `--set` value is an argparse usage error (exit 2, no JSON), so it has no schema case.
 
 ### G.8 Smaller scaffold points — [ ]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_ledger.py tests/test_flow_checks_ledger.py tests/test_sources_claims.py tests/test_flow_brief.py -q`

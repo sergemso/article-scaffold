@@ -2,13 +2,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/sergemso/article-scaffold/schemas/claims-result.schema.json",
   "title": "Claims command output",
-  "description": "Stable JSON printed by `python3 -m scripts.article claims quote-check` and `claims rebase` (decisions 0075 and 0080). Neither prints source text.",
+  "description": "Stable JSON printed by `python3 -m scripts.article claims quote-check`, `claims rebase` (decisions 0075 and 0080) and `claims record` / `claims cache` (the tier 2 verdict). None prints source text.",
   "type": "object",
   "additionalProperties": false,
   "required": ["ok", "command"],
   "properties": {
     "ok": {"type": "boolean"},
-    "command": {"enum": ["claims quote-check", "claims rebase"]},
+    "command": {"enum": ["claims quote-check", "claims rebase", "claims record", "claims cache"]},
     "error": {"type": "string"},
     "results": {
       "description": "quote-check: one record per source-claim node.",
@@ -30,6 +30,8 @@
       }
     },
     "id": {"type": "string"},
+    "key": {"$ref": "#/definitions/hash", "description": "record, cache: the ledger key of the claim wording and excerpt."},
+    "verdict": {"enum": ["supports", "overstates", "contradicts", null], "description": "record, cache: the tier 2 verdict stored for these inputs (null when none)."},
     "status": {
       "description": "rebase: current (nothing to change), proposed (a human accepts or rejects), quote-missing (the quote is not in the current edition), no-locator (the quote is there, but no section or paragraph holds it whole).",
       "enum": ["current", "proposed", "quote-missing", "no-locator"]

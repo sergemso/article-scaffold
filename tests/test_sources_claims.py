@@ -215,3 +215,14 @@ def test_old_locator_index_is_reported_not_called_not_found(tmp_path, capsys):
     _, out = _run(capsys, tmp_path, "quote-check", "c1")
     record = out["results"][0]
     assert record["verdict"] == "no-local-text" and "run `sources index`" in record["reason"]
+
+
+def test_record_and_cache_output_validate_against_the_schema(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ARTICLE_LEDGER", raising=False)
+    digest = _store(tmp_path)
+    _map(tmp_path, f"agtp@{digest[:12]}#sec:Requirements/Framing")
+    code, recorded = _run(capsys, tmp_path, "record", "c1", "--set", "supports")
+    assert (code, recorded["command"], recorded["verdict"]) == (0, "claims record", "supports")
+    code, read = _run(capsys, tmp_path, "cache", "c1")
+    assert (code, read["command"], read["verdict"]) == (0, "claims cache", "supports")
+    assert read["key"] == recorded["key"]
