@@ -127,6 +127,51 @@ ran no `index slice`, and ran more slow checks (41 against 26) because the ledge
 was empty. Order 1 and order 2 together: the new arm used fewer calls and less
 context in both, with outcomes intact, but only order 1 involved a handoff.
 
+## Order 3: G-B2, G-M3, G-M5 and minor items of review 3 (with a handoff)
+
+Baseline: `agent-a86c5a470c782b78e` (174 calls, the largest of the round), base
+`61f7781` (the order 1 base, so the order 1 overlay commit `5aeec5f` was used).
+The concurrency and push instructions were removed as before. This time the
+agent's own handoff reply was saved and passed to segment 2 unchanged by the
+wrapper. Fix committed in its worktree as `1a60645`.
+
+| Proxy | old (174 calls) | new, segment 1 (62) | new, segment 2 (13) |
+|---|---|---|---|
+| Cache-read tokens, whole run | 33.22M | 4.83M | 0.14M (4.96M total, 85.1% lower) |
+| Cache-read tokens, first 61 or 62 calls | 6.60M | 4.83M (26.8% lower) | |
+| Mean cache-read per call, first 61 or 62 | 108.1K | 77.8K | 10.6K |
+| Context at call 61 or 62 / maximum | 167K / 288K | 139K / 139K | 17K / 17K |
+| `sed -n` range reads | 60 | 30 | 2 |
+| `cat`/`head`/`tail` of a source file | 17 | 13 | 5 |
+| `index slice` calls | 0 | **0** | **0** |
+| Calls running a slow check or suite | 58 | 28 | 10 |
+
+Segment 1 stopped at the 60-turn limit (61 turns); segment 2 finished in 14 turns
+and reported the work committed. Cost by the CLI: segment 1 1.32 USD, handoff
+reply 1.37 USD, segment 2 0.15 USD (assumed prices). The handoff reply costs as
+much as the segment, as in order 1 (a `--resume` re-sends the context).
+
+Handoff content: the agent's reply was JSON with `done` and `remaining`, but
+long prose strings rather than anchor names. `remaining` listed eleven items
+(commit, re-run suites, regenerate the vector table, mark the plan, a
+limitations row, and so on). Segment 2 opened with `git status` and a grep of the
+plan section, then worked through them; it did not redo the done items.
+
+Outcomes (`outcome_check.sh`): pytest, both mutant sets, the three vector modes,
+cargo test, `measure_faults.py --check-paper`, `lint-counts` and `validate` all
+pass; 11 test, vector or mutant files changed. The agent reports B1 and B3 still
+open (they were separate tasks) and G-min partly open: attach domain tag, grant
+replay across bridges and the empty image digest. Same limits on parity as the
+other orders.
+
+Reading: this is the first order where the cap and handoff were both exercised
+and outcomes held. Over the first 61 calls the new arm is 26.8% lower, so a
+reset is not the only source; after the reset the second segment ran at 17K
+context. Together the three orders give a whole-run reduction of 65% to 85% and
+a like-for-like (first 61 calls) reduction of 15% to 27%, with all outcome checks
+green. `index slice` was never used in any order, and the ledger was empty in
+all of them.
+
 ## Decision for stage 3
 
 Stop rule: cache-read at least 15% lower with parity. The whole-run figure
