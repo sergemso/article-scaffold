@@ -226,3 +226,14 @@ def test_record_and_cache_output_validate_against_the_schema(tmp_path, monkeypat
     code, read = _run(capsys, tmp_path, "cache", "c1")
     assert (code, read["command"], read["verdict"]) == (0, "claims cache", "supports")
     assert read["key"] == recorded["key"]
+
+
+def test_a_quote_from_a_neighbouring_paragraph_is_not_found(tmp_path, capsys):
+    digest = _store(tmp_path, "First paragraph says alpha.\n\nSecond paragraph says beta.\n")
+    _map(tmp_path, f"agtp@{digest[:12]}#para:1", quote="Second paragraph says beta.")
+    code, out = _run(capsys, tmp_path, "quote-check", "c1")
+    assert code == 1 and out["results"][0]["verdict"] == "not-found"  # window is excerpt only
+    _map(tmp_path, f"agtp@{digest[:12]}#para:1", quote="First paragraph says alpha.")
+    code, out = _run(capsys, tmp_path, "quote-check", "c1")
+    assert code == 0 and out["results"][0]["verdict"] == "found"
+    assert "beta" in claims.excerpt_for(tmp_path, "c1")  # the window still feeds the excerpt

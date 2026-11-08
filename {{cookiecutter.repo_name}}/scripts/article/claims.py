@@ -133,7 +133,9 @@ def address_of(node: dict) -> str | None:
 def _addressed(root: Path, text: str) -> tuple[str, dict]:
     """(source path, passage payload) for an address; only the slice is matched later."""
     addr, entry, superseded, current = sources.resolve(root, text)
-    payload = sources.passage_for(root, text, addr, entry, superseded, current, cap=False)
+    payload = sources.passage_for(
+        root, text, addr, entry, superseded, current, cap=False, with_core=True
+    )
     where = sources.store_dir(root, entry["key"], entry["raw_hash"]) / "normalized.txt"
     return where.relative_to(root).as_posix(), payload
 
@@ -162,16 +164,33 @@ def _check_addressed(root: Path, node: dict, text_address: str, record: dict) ->
         record["reason"] = str(exc)
         return record
     record["source"] = source
-    passage = payload["text"]
-    span = find_quote(passage, node["quote"])
+    core = _core(payload)  # the quote must sit inside the locator itself
+    span = find_quote(core, node["quote"])
     record["verdict"] = "found" if span else "not-found"
     if payload["superseded"]:
         record["stale"] = True
         if "current_hash" in payload:
             record["current_hash"] = payload["current_hash"]
     if span:
-        record["cached"] = cached_verdict(root, node["text"], excerpt_in(passage, span))
+        record["cached"] = cached_verdict(root, node["text"], _windowed(payload, span))
     return record
+
+
+def _lead(payload: dict) -> list[str]:
+    return payload["text"].split("\n")[: payload["core_start"] - payload["start"]]
+
+
+def _core(payload: dict) -> str:
+    """The lines of the locator alone, without the context window."""
+    lines = payload["text"].split("\n")
+    lead = len(_lead(payload))
+    return "\n".join(lines[lead : lead + payload["core_end"] - payload["core_start"] + 1])
+
+
+def _windowed(payload: dict, span: tuple[int, int]) -> str:
+    """The excerpt of a match found in the core, cut from the window-extended passage."""
+    offset = sum(len(line) + 1 for line in _lead(payload))
+    return excerpt_in(payload["text"], (span[0] + offset, span[1] + offset))
 
 
 def excerpt_in(text: str, span: tuple[int, int]) -> str:
@@ -212,13 +231,13 @@ def excerpt_for(root: Path, node_id: str) -> str:
     text_address = address_of(node)
     if text_address is not None:
         try:
-            passage = _addressed(root, text_address)[1]["text"]
+            payload = _addressed(root, text_address)[1]
         except sources.SourcesError as exc:
             raise ValueError(f"{node_id!r}: {exc}") from exc
-        span = find_quote(passage, node["quote"])
+        span = find_quote(_core(payload), node["quote"])
         if span is None:
             raise ValueError(f"quote of {node_id!r} is not found in local text")
-        return excerpt_in(passage, span)
+        return _windowed(payload, span)
     path = source_path(root, node)
     span = None
     if path is not None:

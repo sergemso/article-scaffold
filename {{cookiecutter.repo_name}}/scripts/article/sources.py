@@ -667,13 +667,19 @@ def passage_for(
     current: dict[str, Any] | None,
     window: int = DEFAULT_WINDOW,
     cap: bool = True,
+    with_core: bool = False,
 ) -> dict[str, Any]:
-    """``slice_passage`` for an address already resolved with :func:`resolve`."""
+    """``slice_passage`` for an address already resolved with :func:`resolve`.
+
+    ``with_core`` adds ``core_start`` and ``core_end``: the lines of the locator itself,
+    without the context window (for a quote check that must not match a neighbour).
+    """
     lines, index_data = load_locators(root, entry)
     item = _locator_table(index_data).get(addr.locator)
     if item is None:
         raise SourcesError(f"locator {addr.locator} not found in {addr.key}@{addr.hash[:12]}")
     start, end = item["start"], item["end"]
+    core = (start, end)
     if addr.kind != "sec":
         start, end = max(1, start - window), min(len(lines), end + window)
     shown_end, truncated = end, False
@@ -695,6 +701,8 @@ def passage_for(
         "superseded": superseded,
         "text": body,
     }
+    if with_core:
+        payload["core_start"], payload["core_end"] = core
     if superseded and current is not None:
         payload["current_raw_hash"] = current["raw_hash"]
         if "normalized_hash" in current:
