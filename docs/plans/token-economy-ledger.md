@@ -238,10 +238,11 @@ Defect: `sources.legacy_entries` filters rows with the store key grammar, the ol
 Recommend: do not apply the key grammar to legacy rows; apply it when importing into the store (`sources add`), where a clear error is better. Alternative: keep the filter and list skipped rows in `sources list`.
 Resolved: took the Recommend option. `sources.legacy_entries` no longer applies the store key grammar, so `smith:2020` resolves its legacy `.txt` again; `sources add` takes a key from a `MANIFEST.md` row only if it fits the grammar and otherwise refuses naming the key and telling to pass `--key`. Tests: `test_node_citing_a_colon_bib_key_resolves_its_legacy_text`, `test_legacy_key_with_a_colon_is_listed_and_add_refuses_it_clearly`. `docs/cli.md` notes the refusal.
 
-### G.5 Handoff accepts free text — [ ]
+### G.5 Handoff accepts free text — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_handoff.py -q`
 Defect: `handoff._anchor_errors` only needs non-empty strings for `name` and `file`, so an agent can paste a paragraph or a token into the committed `flow.yaml`, against the module's "ids, paths and hashes only"; a hand-edited handoff missing keys makes `done_ids` raise `KeyError`.
 Recommend: `_file_ok` on `file`, a regex and length cap on `name`, a tolerant `done_ids`. Alternative: run `flow.redact` on the strings, weaker because manuscript text is not a secret pattern.
+Resolved: took the Recommend option. `handoff._anchor_errors` now applies `_file_ok` to an anchor's `file` and requires `name` to match `NAME_RE` (no spaces, letters, digits and `_.:/#@+=-`) with at most 200 characters, so a pasted paragraph is rejected with a message saying a name is an id as `flow next` printed it. `done_ids` skips malformed entries instead of raising `KeyError`. `flow-handoff.schema.json` states the same pattern and cap. Tests: three new cases in `tests/test_flow_handoff.py` (paragraph, long name, escaping file) and `test_done_ids_tolerates_a_hand_edited_handoff`.
 
 ### G.6 Locator index version not checked on load — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_sources_store.py tests/test_sources_claims.py -q`

@@ -20,6 +20,8 @@ MAX_ITEMS = 50
 ORDER_RE = re.compile(r"^o-[0-9a-f]{12}$")
 KEY_RE = re.compile(r"^[0-9a-f]{64}$")
 CHECK_RE = re.compile(r"^[a-z][a-z-]*$")
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/#@+=-]*$")
+MAX_NAME = 200
 
 
 def _anchor_errors(items: object, name: str) -> list[str]:
@@ -30,10 +32,16 @@ def _anchor_errors(items: object, name: str) -> list[str]:
         ok = (
             isinstance(item, dict)
             and set(item) == {"name", "file"}
-            and all(isinstance(v, str) and v for v in item.values())
+            and isinstance(item["name"], str)
+            and len(item["name"]) <= MAX_NAME
+            and bool(NAME_RE.match(item["name"]))
+            and _file_ok(item["file"])
         )
         if not ok:
-            errors.append(f"{name} entries must be {{name, file}} of non-empty strings")
+            errors.append(
+                f"{name} entries must be {{name, file}}: a name of at most {MAX_NAME} characters "
+                "with no spaces (an id as `flow next` printed it, not text) and a relative path"
+            )
             break
     return errors
 
@@ -107,4 +115,11 @@ def done_ids(handoff: dict[str, Any] | None) -> set[tuple[str, str]]:
     """``(file, name)`` of every anchor a handoff reports as done."""
     if not isinstance(handoff, dict):
         return set()
-    return {(a["file"], a["name"]) for a in handoff.get("done", [])}
+    done = handoff.get("done")
+    if not isinstance(done, list):
+        return set()
+    return {
+        (a["file"], a["name"])
+        for a in done
+        if isinstance(a, dict) and isinstance(a.get("file"), str) and isinstance(a.get("name"), str)
+    }

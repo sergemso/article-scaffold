@@ -110,6 +110,11 @@ BAD = {
     "unnamed-check": lambda o: {"verify": {"check": "rm-all", "outcome": "pass"}},
     "bad-anchor": lambda o: {"done": [{"name": "x"}]},
     "version": lambda o: {"version": "2.0"},
+    "pasted-paragraph": lambda o: {
+        "remaining": [{"name": "The claim says the method wins everywhere.", "file": A2["file"]}]
+    },
+    "long-name": lambda o: {"remaining": [{"name": "a" * 201, "file": A2["file"]}]},
+    "anchor-file-escape": lambda o: {"remaining": [{"name": "x", "file": "../x"}]},
 }
 
 
@@ -136,7 +141,8 @@ def test_python_validator_agrees_with_the_schema(issued) -> None:
     assert handoff.errors(good) == []
     jsonschema.validate(good, SCHEMA)
     for case in ("model", "host", "bad-order", "path-escape", "absolute", "bad-key",
-                 "bad-outcome", "bad-anchor", "version"):
+                 "bad-outcome", "bad-anchor", "version", "pasted-paragraph",
+                 "long-name", "anchor-file-escape"):
         doc = good | BAD[case](order)
         assert handoff.errors(doc), case
         with pytest.raises(jsonschema.ValidationError):
@@ -162,3 +168,15 @@ def test_handoff_survives_reissue_and_ends_with_done(issued) -> None:
     assert state["handoff"]["done"] == [A1]
     done = _hand(project, order["id"], _doc(order["id"]))
     assert done.returncode == 0
+
+
+def test_done_ids_tolerates_a_hand_edited_handoff() -> None:
+    sys.path.insert(0, str(TEMPLATE))
+    try:
+        from scripts.article import handoff
+    finally:
+        sys.path.remove(str(TEMPLATE))
+    assert handoff.done_ids({"done": [{"name": "x"}, {"file": "f"}, "junk", None]}) == set()
+    assert handoff.done_ids({"done": [{"name": "n", "file": "f"}, {"name": "m"}]}) == {("f", "n")}
+    assert handoff.done_ids({"done": "oops"}) == set()
+    assert handoff.done_ids({}) == set() and handoff.done_ids(None) == set()
