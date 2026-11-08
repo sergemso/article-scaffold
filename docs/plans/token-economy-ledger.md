@@ -179,20 +179,21 @@ Done-when: a note in the article repo states the decision and the evidence, and 
 
 Found by running the whole flow on a synthetic article and on `articles.deterministic-edge` (adoption committed on its branch `adopt/token-economy-ledger`). Repros: `bug-repros.md` in the session scratchpad (may be gone); each item below is self-contained.
 
-### F.1 Cold run must not open the gate on unavailable checks — [ ]
+### F.1 Cold run must not open the gate on unavailable checks — [~]
 Class: implement · Effort: medium · Needs: A.4 · Check: `.venv/bin/python -m pytest tests/test_cold_gate.py -q`
 Do: `check --cold` returns `ok: true` and writes a `cold-run` record when `layout-check` and `lint-counts` are `unavailable` (scripts absent), so a repo lacking them can open the release gate. The plan says `unavailable` never passes. Decide per check whether a missing script means "not applicable" (declared in `CHECK_SPECS`) or a failure, and make an undeclared unavailable check fail the cold run.
 Done-when: a fixture repo without those scripts fails or reports them as not applicable by declaration, and the gate stays closed in the failing case.
 
-### F.2 `sources add` default key and diff quality — [ ]
+### F.2 `sources add` default key and diff quality — [~]
 Class: implement · Effort: medium · Needs: B.1 · Check: `.venv/bin/python -m pytest tests/test_sources_store.py -q`
 Do: (1) `sources add` without `--key` takes the file stem, so `draft-x-01.txt` and `draft-x-02.txt` become separate sources and the old edition is never `superseded`; derive the key without a trailing edition/version suffix, or require `--key` when the stem ends in a version. (2) `sources diff` is positional: one inserted paragraph marks about 14 `para:N` locators changed; match paragraphs by content hash first. (3) `req:KEYWORD:1` resolves to the RFC 2119 boilerplate sentence; exclude it from `req:` numbering.
 Done-when: two editions added without `--key` supersede each other; diff of one inserted paragraph reports one added locator; `req:MUST:1` is the first real requirement.
 
-### F.3 Ledger gc and check-input scope — [ ]
+### F.3 Ledger gc and check-input scope — [x]
 Class: implement · Effort: medium · Needs: A.1, A.3 · Check: `.venv/bin/python -m pytest tests/test_ledger.py tests/test_flow_checks_ledger.py -q`
 Do: `ledger gc` lists any entry whose input hash changed, so every `theses.yaml` edit orphans all check outcomes; the plan says "inputs no longer exist". Restrict to missing inputs, and make `claim-verdict` entries collectable when their claim no longer exists in the map (report-only unless `--apply`). After `sources add` of a new edition, `check` lists every file of every old edition as inputs; use only the current edition's normalized text.
 Done-when: editing `theses.yaml` does not make `gc` list check outcomes; a verdict for a deleted claim is listed; old editions are not check inputs.
+Resolved: `ledger.gc` now lists a path-input entry only when an input file is missing (a changed hash is not an orphan), and lists a `claim-verdict` when no node in `theses.yaml` has wording hashing to the entry's `claim` input; both are report-only without `--apply`, which evicts through the logged `evict`. An unreadable or missing map lists no verdict. `flow._source_inputs` replaces the `paper/sources/**/*` glob in check inputs with `manifest.json`, `MANIFEST.md` and the current edition's `normalized.txt` per key (raw files, locators and old editions are not inputs; an unreadable manifest falls back to the whole tree). `docs/cli.md` and the `ledger gc` help text updated; the output shape and schema are unchanged. Tests: `tests/test_ledger.py` (missing vs changed, deleted claim, unreadable map) and `tests/test_flow_checks_ledger.py` (old editions).
 
 ### F.4 CLI contract and docs fixes — [ ]
 Class: implement · Effort: low · Needs: A.3, C.2 · Check: `.venv/bin/python -m pytest tests/test_flow_checks_ledger.py tests/test_flow_brief.py tests/test_docs.py -q`
