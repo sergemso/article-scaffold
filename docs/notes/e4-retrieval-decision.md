@@ -44,7 +44,7 @@ Rank is the position of the wanted address in the output; `n` is the `total` the
 | `client disconnects while agent continues` | a passage on bridge behaviour | no address exists (the paper claims absence); zero results |
 | `human confirmation during pause` | a passage on held confirmations | no address exists (absence claim); zero results |
 
-Tally of the 15 queries with a wanted address that exists: 12 hit, 3 weak (rank 4 or worse, or a noisy first result), and, of the other five, 4 misses (`timeout budget minimum`, `Merkle chain tamper-evident`, `auto-approve`, `Ed25519 decision`) plus `detach`, which is a vocabulary problem of the source set. Three queries target claims of absence, where no retrieval index can return an address.
+Tally: of the 20 queries whose wanted address exists, 15 found it (two of them weakly, at rank 4 or worse: `Authority-Scope`, `audit artifacts generate`) and 5 missed (`timeout budget minimum`, `Merkle chain tamper-evident`, `auto-approve`, `Ed25519 decision`, `detach`). The other 3 target claims of absence, where no retrieval index can return an address.
 
 ## Reading
 
