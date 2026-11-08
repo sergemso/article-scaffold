@@ -232,10 +232,11 @@ Defect: `ledger.get` raises `LedgerError` on a bad entry (for example a merge-co
 Recommend: `cold_run_recorded` returns False on `LedgerError` (the gate stays closed and `ledger verify` names the file); `check_record` converts it to `FlowError`. Alternative: catch once in `cli._flow`, less specific message.
 Resolved: took the Recommend option. `cold_run_recorded` returns False on `LedgerError`, so the gate stays closed and `flow status`, `next` and `round close` no longer exit 3; `check_record` converts the error from its lookup to `FlowError` (so `flow done` fails the order with the message). Tests: `test_a_corrupt_cold_run_record_keeps_the_gate_closed`, `test_corrupt_ledger_entry_is_a_flow_error_in_check_record`.
 
-### G.4 Bib keys with `:` dropped from `MANIFEST.md` — [ ]
+### G.4 Bib keys with `:` dropped from `MANIFEST.md` — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_claims.py tests/test_sources_store.py -q`
 Defect: `sources.legacy_entries` filters rows with the store key grammar, the old parser accepted any key. A node citing `smith:2020` falls back to a `.txt` name and reports `no-local-text` (regression of B.2 decision 3).
 Recommend: do not apply the key grammar to legacy rows; apply it when importing into the store (`sources add`), where a clear error is better. Alternative: keep the filter and list skipped rows in `sources list`.
+Resolved: took the Recommend option. `sources.legacy_entries` no longer applies the store key grammar, so `smith:2020` resolves its legacy `.txt` again; `sources add` takes a key from a `MANIFEST.md` row only if it fits the grammar and otherwise refuses naming the key and telling to pass `--key`. Tests: `test_node_citing_a_colon_bib_key_resolves_its_legacy_text`, `test_legacy_key_with_a_colon_is_listed_and_add_refuses_it_clearly`. `docs/cli.md` notes the refusal.
 
 ### G.5 Handoff accepts free text — [ ]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_handoff.py -q`

@@ -357,3 +357,21 @@ def test_rfc2119_boilerplate_is_not_numbered_as_a_requirement(tmp_path, capsys):
     assert code == 1 and "not found" in out["error"]
     code, out = run(capsys, tmp_path, "slice", f"bp@{digest}#req:MUST_NOT:1")
     assert code == 1 and "not found" in out["error"]
+
+
+def test_legacy_key_with_a_colon_is_listed_and_add_refuses_it_clearly(tmp_path, capsys):
+    sources_dir = tmp_path / "paper" / "sources"
+    sources_dir.mkdir(parents=True)
+    (sources_dir / "MANIFEST.md").write_text(
+        "| key | file |\n| --- | --- |\n| smith:2020 | s.txt |\n"
+    )
+    shutil.copy(FIXTURES / "draft-agtp-00.txt", sources_dir / "s.txt")
+    assert sources.legacy_entries(tmp_path) == {"smith:2020": "s.txt"}
+    code, out = run(
+        capsys, tmp_path, "add", str(sources_dir / "s.txt"),
+        "--origin", "https://example.org/s", "--edition", "00",
+    )  # fmt: skip
+    assert code == 1 and "smith:2020" in out["error"] and "--key" in out["error"]
+    code, out = add(capsys, tmp_path, "draft-agtp-00.txt", "smith-2020", src=sources_dir / "s.txt")
+    assert code == 0 and out["key"] == "smith-2020"
+

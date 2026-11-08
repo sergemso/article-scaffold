@@ -186,3 +186,20 @@ def test_a_malformed_address_is_a_lint_error_and_a_free_text_locator_is_not():
 def test_schema_rejects_a_bad_rebase_status():
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate({"ok": True, "command": "claims rebase", "status": "maybe"}, SCHEMA)
+
+
+def test_node_citing_a_colon_bib_key_resolves_its_legacy_text(tmp_path, capsys):
+    sources_dir = tmp_path / "paper" / "sources"
+    sources_dir.mkdir(parents=True)
+    (sources_dir / "MANIFEST.md").write_text(
+        "| key | file |\n| --- | --- |\n| smith:2020 | s.txt |\n"
+    )
+    (sources_dir / "s.txt").write_text(f"Intro.\n\n{QUOTE}\n")
+    path = _map(tmp_path, "p. 1")
+    data = json.loads(path.read_text())
+    data["nodes"][0]["bib_keys"] = ["smith:2020"]
+    path.write_text(json.dumps(data))
+    _, out = _run(capsys, tmp_path, "quote-check", "c1")
+    record = out["results"][0]
+    assert record["verdict"] == "found" and record["source"] == "paper/sources/s.txt"
+

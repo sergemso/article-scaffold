@@ -121,7 +121,11 @@ def _save_manifest(root: Path, entries: list[dict[str, Any]]) -> None:
 
 
 def legacy_entries(root: Path) -> dict[str, str]:
-    """Key to file name from the hand-written ``MANIFEST.md`` (read only; any file type)."""
+    """Key to file name from the hand-written ``MANIFEST.md`` (read only; any file type).
+
+    Keys are bib keys and are not held to the store grammar (``smith:2020`` is a valid bib
+    key); the grammar applies when a source is imported with ``add``.
+    """
     path = root / SOURCES_DIR / LEGACY_MANIFEST
     mapping: dict[str, str] = {}
     if not path.is_file():
@@ -135,7 +139,7 @@ def legacy_entries(root: Path) -> dict[str, str]:
             if not bullet:
                 continue
             key, name = bullet.group(1), bullet.group(2)
-        if _KEY.match(key) and "." in name and key.lower() not in ("key", "source"):
+        if key and "." in name and key.lower() not in ("key", "source"):
             mapping.setdefault(key, name)
     return mapping
 
@@ -195,6 +199,11 @@ def add(
     if key is None:
         by_name = {name: k for k, name in legacy.items()}
         key = by_name.get(file.name) or default_key(file.stem)
+        if file.name in by_name and not _KEY.match(key):
+            raise SourcesError(
+                f"MANIFEST.md key {key!r} cannot be a store key (letters, digits, '.', '_' "
+                f"and '-' only); pass --key with a store key for {file.name}"
+            )
     _check_key(key)
     data = file.read_bytes()
     raw_hash = _sha256(data)
