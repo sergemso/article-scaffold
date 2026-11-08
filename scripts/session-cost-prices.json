@@ -1,0 +1,9 @@
+{
+  "note": "ASSUMED list prices in USD per million tokens; replace with the real rates before quoting dollars",
+  "models": {
+    "claude-sonnet-5": {"input": 3.0, "output": 15.0, "cache_read": 0.30, "cache_write_5m": 3.75, "cache_write_1h": 6.0},
+    "claude-opus-5": {"input": 15.0, "output": 75.0, "cache_read": 1.50, "cache_write_5m": 18.75, "cache_write_1h": 30.0},
+    "claude-haiku-5": {"input": 1.0, "output": 5.0, "cache_read": 0.10, "cache_write_5m": 1.25, "cache_write_1h": 2.0},
+    "claude-fable-5": {"input": 15.0, "output": 75.0, "cache_read": 1.50, "cache_write_5m": 18.75, "cache_write_1h": 30.0}
+  }
+}
