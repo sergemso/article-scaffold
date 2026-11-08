@@ -20,7 +20,9 @@ from collections import Counter
 from pathlib import Path
 
 DEFAULT_PRICES = Path(__file__).with_name("session-cost-prices.json")
-READ_CMD = re.compile(r"\b(?:cat|head|tail|sed(?:\s+-n)?\s+'[^']*'|less|nl)\s+(?:-\S+\s+)*([\w./-]+\.\w+)")
+READ_CMD = re.compile(
+    r"\b(?:cat|head|tail|sed(?:\s+-n)?\s+'[^']*'|less|nl)\s+(?:-\S+\s+)*([\w./-]+\.\w+)"
+)
 
 
 def load_prices(path: Path) -> dict:
@@ -119,7 +121,8 @@ def main(argv: list[str]) -> int:
         sid = top.stem
         if a.session and sid not in a.session:
             continue
-        files = [("main", top)] + [(p.stem, p) for p in sorted((a.project_dir / sid / "subagents").glob("*.jsonl"))]
+        subs = sorted((a.project_dir / sid / "subagents").glob("*.jsonl"))
+        files = [("main", top)] + [(p.stem, p) for p in subs]
         for label, p in files:
             parsed = parse(p, a.since, a.until)
             if not parsed["messages"]:
@@ -144,10 +147,12 @@ def main(argv: list[str]) -> int:
         print()
         return 0
     print("summary:", json.dumps(summary))
-    print(f"{'session':10} {'agent':20} {'calls':>5} {'tools':>5} {'max_ctx':>8} {'cache_read':>11} {'usd':>6}")
+    print(f"{'session':10} {'agent':20} {'calls':>5} {'tools':>5} "
+          f"{'max_ctx':>8} {'cache_read':>11} {'usd':>6}")
     for r in sorted(rows, key=lambda r: -r["est_usd"]):
-        print(f"{r['session'][:8]:10} {r['agent'][-18:]:20} {r['calls']:>5} {r['tool_calls']:>5} "
-              f"{r['max_context']:>8} {r.get('cache_read', 0):>11} {r['est_usd']:>6}")
+        print(f"{r['session'][:8]:10} {r['agent'][-18:]:20} {r['calls']:>5} "
+              f"{r['tool_calls']:>5} {r['max_context']:>8} "
+              f"{r.get('cache_read', 0):>11} {r['est_usd']:>6}")
     print(f"\nfiles read >= {a.min_repeat} times:")
     for k, n in rep_reads[:25]:
         print(f"  {n:>4}  {k}")
