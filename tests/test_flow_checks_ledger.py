@@ -248,3 +248,23 @@ def test_stored_fail_reads_as_not_ok(fixture_check):
     (root / "in.txt").write_text("bad\n")
     flow.check_record(root, "fixture")
     assert flow.check_read(root, "fixture")["ok"] is False
+
+
+def test_index_check_is_never_stored_so_a_built_index_passes(tmp_path, monkeypatch):
+    """G.2: the check reads untracked build output the key cannot see."""
+    assert flow.CHECK_SPECS["index-check"].deterministic is False
+    (tmp_path / "in.txt").write_text("one\n")
+    script = tmp_path / "run.py"
+    script.write_text(
+        "import sys, pathlib\n"
+        "sys.exit(0 if pathlib.Path('index.json').exists() else 1)\n"
+    )
+    monkeypatch.setitem(flow.CHECKS, "index-check", ("python", str(script)))
+    spec = flow.CheckSpec(("in.txt",), deterministic=False)
+    monkeypatch.setitem(flow.CHECK_SPECS, "index-check", spec)
+    failed = flow.check_record(tmp_path, "index-check")
+    assert (failed["verdict"], failed["stored"]) == ("fail", False)
+    (tmp_path / "index.json").write_text("{}")
+    passed = flow.check_record(tmp_path, "index-check")
+    assert (passed["ok"], passed["state"]) == (True, "ran")
+

@@ -219,11 +219,12 @@ A read-only review of all commits of the day (scaffold `82ef1b1^..HEAD`, scholar
 ### G.1 Mechanical fixes — [x]
 Done: `brief.slice_hash` is `code_index.slice_hash` (one function, was two copies); `sources.ADDRESS_HASH` alias removed; `flow._paths_overlap` alias removed; `check_keyed` reads its spec once; `CheckSpec.tools` default is an immutable mapping; two E501 lines and an unused import fixed. Not done (low value): `_file_lines`, `_lines` and `_fold` are near-duplicates across `brief`, `code_index` and `sources`; merge them into one helper module only when one of them is next touched.
 
-### G.2 `index-check` key ignores mtime state — [ ]
+### G.2 `index-check` key ignores mtime state — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_checks_ledger.py tests/test_cold_gate.py -q`
 Defect: `index --check` compares mtimes against the untracked `paper/build/section-index.json` (and `code-index.json`), but the `index-check` key hashes only the article inputs. A stored `fail` from a missing index is served after the index is built, so the `reindex` order retries and escalates; a stored `pass` is served in a fresh worktree with no index. `flow.py` `CHECK_SPECS`, `index.py`.
 Recommend: declare `index-check` `deterministic=False` (never stored, always cheap to run). Alternative: add the index files to the inputs, which makes the key depend on build output and so differs per worktree; or compare content hashes instead of mtimes, the cleaner fix but a change to `index --check`.
 Done-when: a test that records a fail with no index, builds the index, and sees `done` pass.
+Resolved: took the Recommend option. `CHECK_SPECS["index-check"]` is `deterministic=False`, so `check record` and `flow done` always run it and never store it, and `check` reports `uncacheable`. The cold run skips it (it only runs deterministic checks); `index --check` stays a cheap per-worktree read. Test: `test_index_check_is_never_stored_so_a_built_index_passes`. `docs/cli.md` names it among the uncacheable checks.
 
 ### G.3 Corrupt ledger entry escapes as exit 3 — [ ]
 Class: implement · Effort: low · Needs: none · Check: same as G.2

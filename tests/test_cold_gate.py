@@ -211,3 +211,4 @@ def test_cold_run_on_a_repo_without_the_optional_scripts_opens_the_gate(repo, mo
         monkeypatch.setitem(flow.CHECK_SPECS, name, spec)
     result = flow.cold_run(root)
     assert result["ok"] and result["checks"]["lint-counts"] == "not-applicable"
+

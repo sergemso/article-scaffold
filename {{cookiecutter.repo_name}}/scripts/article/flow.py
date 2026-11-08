@@ -538,7 +538,9 @@ class CheckSpec(NamedTuple):
 CHECK_SPECS: dict[str, CheckSpec] = {
     "theses-lint": CheckSpec(_ARTICLE_INPUTS),
     "theses-gaps": CheckSpec(_ARTICLE_INPUTS),
-    "index-check": CheckSpec(_ARTICLE_INPUTS),
+    # Reads untracked build output by mtime (paper/build/section-index.json), which the key
+    # cannot see: a stored result would be served in the wrong worktree. Cheap, so never stored.
+    "index-check": CheckSpec(_ARTICLE_INPUTS, deterministic=False),
     "claims-quote-check": CheckSpec(_ARTICLE_INPUTS),
     "make-validate": CheckSpec(
         _ARTICLE_INPUTS + ("scripts/validate-paper.py", "paper/figures/**/*")
