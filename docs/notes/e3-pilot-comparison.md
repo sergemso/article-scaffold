@@ -227,3 +227,48 @@ informative: (a) save the agent's own handoff and let the wrapper pass it
 unchanged, and (b) make the brief fit the cap or tell the agent to read with
 `index slice`, so the anchor claim is tested at all. The `old` arm re-run
 (up to 14.5 USD) would replace the transcript comparison; the owner declined it.
+
+## E.5 part 2: caps of 40, 60 and none, order 3
+
+Same order, base (`5aeec5f`), task text and brief as order 3; one run per cap.
+The budget sentence names the cap ("about 40 / 60 tool calls") and is omitted
+for the no-cap run, which was a single segment with a limit of 250 turns. Capped
+runs hand off through the cheap `git`-state summary of part 1. Figures from the
+transcripts (`session-cost.py --contexts`); dollars are the CLI's, at assumed
+prices.
+
+| Measure | baseline (174 calls) | cap 40 | cap 60 | no cap |
+|---|---|---|---|---|
+| Segments | 1 | 2 (40 + 26 calls) | 2 (60 + 10) | 1 (105 calls) |
+| Tool calls | 174 | 67 | 71 | 109 |
+| Cache-read tokens | 33.22M | 2.93M | 4.77M | 16.71M |
+| Context at end of the longest segment | 288K | 82K | 130K | 253K |
+| Cost (CLI) | | 1.10 USD | 1.44 USD | 3.38 USD |
+| Outcome checks (10) | | all pass | all pass | all pass |
+| Test/vector/mutant files changed | | 7 | 8 | 13 |
+
+Reading, from one run per arm (variance unmeasured):
+
+1. **The saving splits roughly in half.** Without the cap or the budget sentence
+   the new arm still used 50% less cache-read than the baseline (105 calls
+   against 174), so about half of the order 3 saving comes from the brief,
+   tooling and prompt, or from run-to-run variance, not from the reset. The cap
+   takes a further 71% (cap 60) to 82% (cap 40) off the no-cap run.
+2. **Cap 40 was cheapest and lost nothing measurable.** All ten outcome checks
+   pass at every cap. The no-cap run changed the most test files (13), which
+   may be thoroughness or drift; this was not examined.
+3. **The cheap handoff held again.** It cost 0.013 USD in both capped runs;
+   segment 2 finished in 26 and 10 calls. The caveat of part 1 stands: the
+   summary is inferred from the diff, and whether segment 2 re-verified
+   unconfirmed claims was not checked here.
+4. **Refit of the threshold** (`context-threshold.py`, five segments of 10 or
+   more calls): start context 27K and growth 2.06K per call, close to the pilot's
+   2.2K. Cost of a handoff now dominates the answer: at H of 2M (the resume
+   handoff) n* is 44 calls and the threshold 118K; at 0.5M, 22 calls and 73K; at
+   0.1M, 10 calls and 48K. The measured cheap handoff costs about 0.01M tokens
+   directly, but the rediscovery in segment 2 and the unconfirmed claims are not
+   in that number, so H is not known below about 0.1M and the formula should not
+   be trusted to lower the cap below 40 on token cost alone. Cap 40 beat cap 60
+   in this one run, consistent with a lower H than the pilot assumed.
+
+Spend: 5.92 USD for this part, 15.54 USD of the 25 USD in total.
