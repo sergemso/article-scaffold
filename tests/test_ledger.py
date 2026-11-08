@@ -314,7 +314,7 @@ def test_cli_get_miss_hit_explain_and_stats(tmp_path, capsys, monkeypatch):
         "--input", "claim=claim.txt", "--text", "excerpt=X is Y.",
     ]  # fmt: skip
     code, out = _run(capsys, tmp_path, "get", *args)
-    assert code == 1 and out["hit"] is False
+    assert code == 1 and out["hit"] is False and out["ok"] is False  # ok equals the exit code
     ledger.put(
         tmp_path,
         ledger.key(
@@ -323,7 +323,8 @@ def test_cli_get_miss_hit_explain_and_stats(tmp_path, capsys, monkeypatch):
         "pass",
     )
     code, out = _run(capsys, tmp_path, "get", *args)
-    assert code == 0 and out["hit"] is True and out["entry"]["status"] == "pass"
+    assert code == 0 and out["ok"] is True and out["entry"]["status"] == "pass"
+    assert out["hit"] is True
     assert len(out["provenance"]) == 1
     (tmp_path / "claim.txt").write_text("A changed claim.\n")
     code, out = _run(capsys, tmp_path, "explain", *args)

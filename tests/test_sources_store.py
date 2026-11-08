@@ -73,6 +73,7 @@ def test_index_plain_html_and_unreadable_pdf(store, capsys, monkeypatch):
     monkeypatch.setattr(sources.shutil, "which", lambda name: None)
     code, out = run(capsys, store, "index")
     assert code == 1  # an unreadable source is listed and reported, not guessed
+    assert out["ok"] is False  # ok equals the exit code
     status = {row["key"]: row for row in out["sources"]}
     assert status["agtp"]["status"] == "indexed" and status["pace"]["status"] == "indexed"
     assert status["scan"]["status"] == "unreadable" and "pdftotext" in status["scan"]["reason"]

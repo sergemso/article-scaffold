@@ -145,6 +145,7 @@ def _ledger(args: argparse.Namespace) -> int:
                 entry = ledger.lookup(root, keyed) if action == "get" else None
             payload: dict[str, Any] = {"ok": True, "command": command, "key": digest}
             if action == "get":
+                payload["ok"] = entry is not None  # F.4: ok equals the exit code
                 payload["hit"] = entry is not None
                 if entry is not None:
                     payload["entry"] = entry
@@ -202,7 +203,7 @@ def _sources(args: argparse.Namespace) -> int:
         _emit_json({"ok": False, "command": command, "error": str(exc), **exc.extra})
         return core.ExitCode.DIAGNOSTICS
     unreadable = action == "index" and any(r["status"] == "unreadable" for r in result["sources"])
-    _emit_json({"ok": True, "command": command, **result})
+    _emit_json({"ok": not unreadable, "command": command, **result})
     return core.ExitCode.DIAGNOSTICS if unreadable else core.ExitCode.OK
 
 
