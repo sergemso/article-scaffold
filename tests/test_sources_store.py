@@ -267,3 +267,93 @@ def test_sources_makes_no_subprocess_but_pdftotext(tmp_path, capsys, monkeypatch
     add(capsys, tmp_path, "pace.html", "pace")
     run(capsys, tmp_path, "index")
     assert set(calls) <= {"pdftotext"}
+
+
+def _add_default_key(capsys, root, path, edition):
+    return run(
+        capsys, root, "add", str(path), "--origin", "https://example.org/x",
+        "--edition", edition, "--retrieved", RETRIEVED,
+    )  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "stem, key",
+    [
+        ("draft-x-01", "draft-x"),
+        ("draft-x_02", "draft-x"),
+        ("spec-v2", "spec"),
+        ("spec-v1.2", "spec"),
+        ("spec-rev3", "spec"),
+        ("rfc-9110", "rfc-9110"),
+        ("rfc9110", "rfc9110"),
+        ("draft-x", "draft-x"),
+        ("my paper", "my-paper"),
+        ("01", "01"),
+    ],
+)
+def test_default_key_drops_trailing_edition_suffix(stem, key):
+    assert sources.default_key(stem) == key
+
+
+def test_two_editions_added_without_key_supersede_each_other(tmp_path, capsys):
+    v1, v2 = tmp_path / "draft-x-01.txt", tmp_path / "draft-x-02.txt"
+    v1.write_text("1. One\n\nThe first MUST hold.\n")
+    v2.write_text("1. One\n\nThe first MUST hold, always.\n")
+    code, first = _add_default_key(capsys, tmp_path, v1, "01")
+    code, second = _add_default_key(capsys, tmp_path, v2, "02")
+    assert first["key"] == second["key"] == "draft-x"
+    assert second["supersedes"] == [first["raw_hash"]]
+    run(capsys, tmp_path, "index")
+    old = manifest(tmp_path)[0]["normalized_hash"]
+    code, out = run(capsys, tmp_path, "slice", f"draft-x@{old[:12]}#sec:One")
+    assert code == 0 and out["superseded"] is True
+
+
+def _numbered(paragraphs):
+    return "1. One\n\n" + "\n\n".join(paragraphs) + "\n"
+
+
+def test_diff_matches_paragraphs_by_content_so_one_insert_is_one_added(tmp_path, capsys):
+    paras = [f"Paragraph number {n} says something distinct." for n in range(15)]
+    a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+    a.write_text(_numbered(paras))
+    b.write_text(_numbered(paras[:2] + ["A brand new paragraph."] + paras[2:]))
+    add(capsys, tmp_path, "", "d", edition="a", src=a)
+    add(capsys, tmp_path, "", "d", edition="b", src=b)
+    run(capsys, tmp_path, "index")
+    first, second = (e["normalized_hash"][:12] for e in manifest(tmp_path))
+    _, out = run(capsys, tmp_path, "diff", "d", first, second)
+    assert out["added"] == ["para:4"] and out["removed"] == []
+    assert [c for c in out["changed"] if c.startswith("para:")] == []
+    # A deletion is one removed locator, named by its old number; an edit is one changed.
+    _, out = run(capsys, tmp_path, "diff", "d", second, first)
+    assert out["removed"] == ["para:4"] and out["added"] == []
+    c = tmp_path / "c.txt"
+    c.write_text(_numbered(paras[:5] + ["Edited."] + paras[6:]))
+    add(capsys, tmp_path, "", "d", edition="c", src=c)
+    run(capsys, tmp_path, "index")
+    third = manifest(tmp_path)[2]["normalized_hash"][:12]
+    _, out = run(capsys, tmp_path, "diff", "d", first, third)
+    assert [x for x in out["changed"] if x.startswith("para:")] == ["para:7"]
+    assert out["added"] == [] and out["removed"] == []
+
+
+def test_rfc2119_boilerplate_is_not_numbered_as_a_requirement(tmp_path, capsys):
+    src = tmp_path / "bp.txt"
+    src.write_text(
+        "1. Conventions\n\n"
+        '   The key words "MUST", "MUST NOT", "SHOULD", "MAY" in this document are to\n'
+        "   be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only\n"
+        "   when, they appear in all capitals, as shown here.\n\n"
+        "2. Rules\n\n"
+        "   A sender MUST sign.\n   A sender MAY retry.\n"
+    )
+    add(capsys, tmp_path, "", "bp", src=src)
+    run(capsys, tmp_path, "index")
+    digest = manifest(tmp_path)[0]["normalized_hash"][:12]
+    code, out = run(capsys, tmp_path, "slice", f"bp@{digest}#req:MUST:1", "--window", "0")
+    assert code == 0 and "A sender MUST sign." in out["text"]
+    code, out = run(capsys, tmp_path, "slice", f"bp@{digest}#req:MUST:2")
+    assert code == 1 and "not found" in out["error"]
+    code, out = run(capsys, tmp_path, "slice", f"bp@{digest}#req:MUST_NOT:1")
+    assert code == 1 and "not found" in out["error"]
