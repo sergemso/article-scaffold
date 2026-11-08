@@ -24,8 +24,8 @@ Clarifications to 0079 (recorded in E.1):
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
-Status (2026-11-08, evening): F.1 to F.4 are done and merged into `feat/token-economy-ledger`. E.2 is adopted and committed in both articles (see E.2 Progress). E.4 is done: keyword search is enough, B.4 is skipped (`[>]`). Open: E.3 and the review findings in section G. Order for the rest: G.1 (small fixes), E.3, then the G items the owner accepts.
-- Full suite on the branch after the review fixes: 986 passed, 4 skipped (12 minutes). The two earlier failures are fixed: `tests/test_upgrade_flow.py` now allows the comment block that the E.1 migration appends to an existing `flow.yaml` and still asserts no value changes (decision: the append is intended).
+Status (2026-11-08, evening): F.1 to F.4 are done and merged into `feat/token-economy-ledger`. E.2 is adopted and committed in both articles (see E.2 Progress). E.4 is done: keyword search is enough, B.4 is skipped (`[>]`). G.1 to G.8 are fixed and merged. Open: E.3 (needs the owner's go-ahead for article-repo commits), G.9 (owner decision) and a `.manifest.lock` line for the template `.gitignore`.
+- Full suite on the branch after the G.2 to G.8 fixes: 1008 passed, 4 skipped (12 minutes). The two earlier failures are fixed: `tests/test_upgrade_flow.py` now allows the comment block that the E.1 migration appends to an existing `flow.yaml` and still asserts no value changes (decision: the append is intended).
 - `go-getter plan start <id> --worktree <slug>` branches from master, not from the current branch. Create a worktree from `feat/token-economy-ledger` by hand and copy the plan file in.
 - `ruff format --check` fails on 67 files that were already failing; not addressed.
 - `ledger get --no-ledger` sets `ARTICLE_LEDGER=off` for the whole process (`cli.py` `_ledger`). The test now restores it; the code could restore it too.
