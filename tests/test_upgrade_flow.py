@@ -48,9 +48,8 @@ def _only_comments_added(text: str) -> bool:
     """The E.1 migration may append commented examples; no value may change."""
     if not text.startswith(STATE):
         return False
-    return all(
-        not line.strip() or line.lstrip().startswith("#") for line in text[len(STATE) :].splitlines()
-    )
+    extra = text[len(STATE) :].splitlines()
+    return all(not line.strip() or line.lstrip().startswith("#") for line in extra)
 
 
 def test_existing_flow_yaml_is_untouched(tmp_path: Path, base_template: dict[str, str]) -> None:

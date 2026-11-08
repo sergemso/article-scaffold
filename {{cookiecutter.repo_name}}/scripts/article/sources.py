@@ -786,7 +786,6 @@ def diff(root: Path, key: str, old: str, new: str) -> dict[str, Any]:
 
 DEFAULT_FIND_LIMIT = 20
 CONTEXT_CHARS = 160
-ADDRESS_HASH = address.MIN_HASH
 
 
 def _fold(text: str) -> str:
@@ -844,7 +843,7 @@ def find(
             skipped.append({"key": name, "reason": str(exc)})
             continue
         searched.append(name)
-        prefix = f"{name}@{entry['normalized_hash'][:ADDRESS_HASH]}#"
+        prefix = f"{name}@{entry['normalized_hash'][:address.MIN_HASH]}#"
         for group, rank_base in (("sections", 0), ("paragraphs", 1)):
             for order, item in enumerate(index_data[group]):
                 if group == "sections":

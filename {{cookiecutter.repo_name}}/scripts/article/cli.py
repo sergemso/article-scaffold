@@ -991,7 +991,9 @@ def build_parser() -> argparse.ArgumentParser:
     l_evict.add_argument("kind", choices=sorted(ledger.KINDS))
     l_evict.add_argument("key")
     l_evict.add_argument("--reason", required=True)
-    l_gc = ledger_sub.add_parser("gc", help="report entries whose input files are gone or whose claim left the map")
+    l_gc = ledger_sub.add_parser(
+        "gc", help="report entries whose input files are gone or whose claim left the map"
+    )
     l_gc.add_argument("--apply", action="store_true", help="evict and log them")
     l_stats = ledger_sub.add_parser("stats", help="local hit and miss counters, no content")
     l_stats.add_argument("--reset", action="store_true")

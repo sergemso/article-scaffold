@@ -11,7 +11,6 @@ digest and the byte cap.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -67,9 +66,7 @@ _FILE_LINES = re.compile(r"^(?P<file>[\w./-]+):(?P<start>\d+)(?:-(?P<end>\d+))?$
 # ------------------------------------------------------------------ anchors
 
 
-def slice_hash(lines: list[str]) -> str:
-    """12 hex characters of the slice's lines (the hash the code index stores)."""
-    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:HASH_LEN]
+slice_hash = code_index.slice_hash
 
 
 def _file_lines(path: Path, *, strip: bool = False) -> list[str]:

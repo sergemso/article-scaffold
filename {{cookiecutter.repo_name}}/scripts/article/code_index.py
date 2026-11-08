@@ -48,7 +48,7 @@ def _lines(text: str) -> list[str]:
     return lines
 
 
-def _hash(lines: list[str]) -> str:
+def slice_hash(lines: list[str]) -> str:
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:HASH_LEN]
 
 
@@ -58,7 +58,7 @@ def _symbol(name: str, kind: str, file: str, start: int, end: int, lines: list[s
         "kind": kind,
         "file": file,
         "lines": [start, end],
-        "hash": _hash(lines[start - 1 : end]),
+        "hash": slice_hash(lines[start - 1 : end]),
     }
 
 
@@ -423,7 +423,7 @@ def slice_symbol(root: Path, name: str, file: str | None = None) -> dict:
     lines = _lines(path.read_text(encoding="utf-8")) if path.is_file() else []
     start, end = symbol["lines"]
     chunk = lines[start - 1 : end]
-    if len(chunk) != end - start + 1 or _hash(chunk) != symbol["hash"]:
+    if len(chunk) != end - start + 1 or slice_hash(chunk) != symbol["hash"]:
         raise CodeIndexError(
             f"{symbol['file']} changed since {INDEX_PATH.as_posix()} was built; "
             "run `python3 -m scripts.article index`"

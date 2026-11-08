@@ -12,8 +12,10 @@ import hashlib
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, NamedTuple
 
 import yaml
@@ -525,7 +527,7 @@ class CheckSpec(NamedTuple):
 
     inputs: tuple[str, ...]
     version: str = "1"
-    tools: dict[str, str] = {}
+    tools: Mapping[str, str] = MappingProxyType({})
     deterministic: bool = True
     # The repo may legitimately ship no script for this check (the template does not). A cold
     # run then reports "not-applicable". Anything else that is unavailable fails the run.
@@ -605,8 +607,8 @@ def check_keyed(root: Path, name: str) -> ledger.Keyed | None:
     """The ledger key of a named check, or None when none of its inputs exists."""
     if name not in CHECKS:
         raise FlowError(f"unknown check name {name!r}")
-    found = _expand(root, CHECK_SPECS[name].inputs)
     spec = CHECK_SPECS[name]
+    found = _expand(root, spec.inputs)
     if not found:
         return None
     return ledger.key(
@@ -1742,7 +1744,6 @@ def round_close(root: Path, today: date | None = None) -> dict[str, Any]:
 # ------------------------------------------------------------ parallel orders
 
 
-_paths_overlap = group.paths_overlap
 
 
 def mark_parallel(orders: list[dict[str, Any]]) -> None:
@@ -1758,7 +1759,7 @@ def mark_parallel(orders: list[dict[str, Any]]) -> None:
             if other is order:
                 continue
             if set(order["nodes"]) & set(other["nodes"]) or any(
-                _paths_overlap(x, y) for x in order["outputs"] for y in other["outputs"]
+                group.paths_overlap(x, y) for x in order["outputs"] for y in other["outputs"]
             ):
                 safe = False
         order["parallel_safe"] = safe
