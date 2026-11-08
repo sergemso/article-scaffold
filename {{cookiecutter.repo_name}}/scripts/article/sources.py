@@ -23,6 +23,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -30,8 +32,14 @@ from typing import Any
 
 from . import address
 
+try:  # POSIX only; where it is missing the lock is skipped and the writes stay atomic
+    import fcntl
+except ImportError:  # pragma: no cover
+    fcntl = None  # type: ignore[assignment]
+
 SOURCES_DIR = Path("paper") / "sources"
 MANIFEST_JSON = "manifest.json"
+MANIFEST_LOCK = ".manifest.lock"
 LEGACY_MANIFEST = "MANIFEST.md"
 SCHEMA_VERSION = "1.0"
 INDEX_VERSION = "2"
@@ -112,6 +120,23 @@ def load_manifest(root: Path) -> list[dict[str, Any]]:
     ):
         raise SourcesError(f"{MANIFEST_JSON} is not a version {SCHEMA_VERSION} source manifest")
     return data["sources"]
+
+
+@contextmanager
+def _manifest_lock(root: Path) -> Iterator[None]:
+    """Exclusive lock on ``.manifest.lock``, the file scholar-mcp's fetch tool also takes, so a
+    concurrent fetch and ``add`` or ``index`` cannot drop each other's entry."""
+    if fcntl is None:  # pragma: no cover
+        yield
+        return
+    lock = manifest_path(root).parent / MANIFEST_LOCK
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)  # closing releases the lock
 
 
 def _save_manifest(root: Path, entries: list[dict[str, Any]]) -> None:
@@ -212,34 +237,35 @@ def add(
     media = media_type or _MEDIA_TYPES.get(suffix, "application/octet-stream")
     if not re.fullmatch(r"[a-z]+/[a-z0-9.+-]+", media):
         raise SourcesError(f"invalid media type {media!r}")
-    entries = load_manifest(root)
-    for entry in entries:
-        if entry["key"] == key and entry["raw_hash"] == raw_hash:
-            return {"key": key, "raw_hash": raw_hash, "added": False, "entry": entry}
-    target = store_dir(root, key, raw_hash) / f"raw.{ext}"
-    if not (target.exists() and target.read_bytes() == data):
-        _atomic_write(target, data)
-    entry = {
-        "key": key,
-        "origin": origin,
-        "retrieved": retrieved or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "raw_hash": raw_hash,
-        "media_type": media,
-        "edition": edition,
-    }
-    if terms:
-        entry["terms"] = terms
-    entries.append(entry)
-    _save_manifest(root, entries)
-    superseded = [e["raw_hash"] for e in entries[:-1] if e["key"] == key]
-    return {
-        "key": key,
-        "raw_hash": raw_hash,
-        "added": True,
-        "path": target.relative_to(root).as_posix(),
-        "supersedes": superseded[-1:] if superseded else [],
-        "entry": entry,
-    }
+    with _manifest_lock(root):
+        entries = load_manifest(root)
+        for entry in entries:
+            if entry["key"] == key and entry["raw_hash"] == raw_hash:
+                return {"key": key, "raw_hash": raw_hash, "added": False, "entry": entry}
+        target = store_dir(root, key, raw_hash) / f"raw.{ext}"
+        if not (target.exists() and target.read_bytes() == data):
+            _atomic_write(target, data)
+        entry = {
+            "key": key,
+            "origin": origin,
+            "retrieved": retrieved or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "raw_hash": raw_hash,
+            "media_type": media,
+            "edition": edition,
+        }
+        if terms:
+            entry["terms"] = terms
+        entries.append(entry)
+        _save_manifest(root, entries)
+        superseded = [e["raw_hash"] for e in entries[:-1] if e["key"] == key]
+        return {
+            "key": key,
+            "raw_hash": raw_hash,
+            "added": True,
+            "path": target.relative_to(root).as_posix(),
+            "supersedes": superseded[-1:] if superseded else [],
+            "entry": entry,
+        }
 
 
 def list_sources(root: Path) -> dict[str, Any]:
@@ -538,52 +564,53 @@ def _paths(root: Path, entry: dict[str, Any]) -> tuple[Path, Path, Path]:
 
 def index(root: Path, key: str | None = None, force: bool = False) -> dict[str, Any]:
     """Normalize and index every entry (or those of *key*). Existing text is kept."""
-    entries = load_manifest(root)
-    if key is not None:
-        _check_key(key)
-        if not any(e["key"] == key for e in entries):
-            raise SourcesError(f"no source with key {key}")
-    results: list[dict[str, Any]] = []
-    changed = False
-    for entry in entries:
-        if key is not None and entry["key"] != key:
-            continue
-        raw, text_path, index_path = _paths(root, entry)
-        row: dict[str, Any] = {"key": entry["key"], "raw_hash": entry["raw_hash"]}
-        if text_path.is_file() and not force:
-            text = text_path.read_text(encoding="utf-8")
-            digest = _sha256(text.encode("utf-8"))
-            if entry.get("normalized_hash") not in (None, digest):
-                raise SourcesError(
-                    f"normalized text of {entry['key']}@{entry['raw_hash'][:12]} differs from the "
-                    "manifest; keep the committed text or re-run with --force",
-                    key=entry["key"],
-                )
-            row["status"] = "kept"
-            normalizer = entry.get("normalizer") or {"name": "unknown", "version": "0"}
-        else:
-            outcome = normalize(raw, entry["media_type"])
-            if isinstance(outcome, str):
-                row.update(status="unreadable", reason=outcome)
-                results.append(row)
+    with _manifest_lock(root):
+        entries = load_manifest(root)
+        if key is not None:
+            _check_key(key)
+            if not any(e["key"] == key for e in entries):
+                raise SourcesError(f"no source with key {key}")
+        results: list[dict[str, Any]] = []
+        changed = False
+        for entry in entries:
+            if key is not None and entry["key"] != key:
                 continue
-            text, name, version = outcome
-            _atomic_write(text_path, text.encode("utf-8"))
-            digest = _sha256(text.encode("utf-8"))
-            normalizer = {"name": name, "version": version}
-            row["status"] = "indexed"
-        if entry.get("normalized_hash") != digest or entry.get("normalizer") != normalizer:
-            entry["normalized_hash"] = digest
-            entry["normalizer"] = normalizer
-            changed = True
-        locators = _json_bytes(build_locators(text))
-        if not index_path.is_file() or index_path.read_bytes() != locators:
-            _atomic_write(index_path, locators)
-        row.update(normalized_hash=digest, normalizer=normalizer)
-        results.append(row)
-    if changed:
-        _save_manifest(root, entries)
-    return {"sources": results}
+            raw, text_path, index_path = _paths(root, entry)
+            row: dict[str, Any] = {"key": entry["key"], "raw_hash": entry["raw_hash"]}
+            if text_path.is_file() and not force:
+                text = text_path.read_text(encoding="utf-8")
+                digest = _sha256(text.encode("utf-8"))
+                if entry.get("normalized_hash") not in (None, digest):
+                    raise SourcesError(
+                        f"normalized text of {entry['key']}@{entry['raw_hash'][:12]} differs "
+                        "from the manifest; keep the committed text or re-run with --force",
+                        key=entry["key"],
+                    )
+                row["status"] = "kept"
+                normalizer = entry.get("normalizer") or {"name": "unknown", "version": "0"}
+            else:
+                outcome = normalize(raw, entry["media_type"])
+                if isinstance(outcome, str):
+                    row.update(status="unreadable", reason=outcome)
+                    results.append(row)
+                    continue
+                text, name, version = outcome
+                _atomic_write(text_path, text.encode("utf-8"))
+                digest = _sha256(text.encode("utf-8"))
+                normalizer = {"name": name, "version": version}
+                row["status"] = "indexed"
+            if entry.get("normalized_hash") != digest or entry.get("normalizer") != normalizer:
+                entry["normalized_hash"] = digest
+                entry["normalizer"] = normalizer
+                changed = True
+            locators = _json_bytes(build_locators(text))
+            if not index_path.is_file() or index_path.read_bytes() != locators:
+                _atomic_write(index_path, locators)
+            row.update(normalized_hash=digest, normalizer=normalizer)
+            results.append(row)
+        if changed:
+            _save_manifest(root, entries)
+        return {"sources": results}
 
 
 # ------------------------------------------------------------- resolve/slice

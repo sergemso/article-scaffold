@@ -388,3 +388,32 @@ def test_an_older_locator_index_is_refused_with_a_reindex_hint(store, capsys):
         sources.load_locators(store, entry)
     sources.index(store, "agtp")  # reindexing restores it
     sources.load_locators(store, entry)
+
+
+def test_add_and_index_wait_for_the_manifest_lock(tmp_path):
+    import threading
+
+    fcntl = pytest.importorskip("fcntl")
+    src = tmp_path / "draft-00.txt"
+    src.write_text("Hello.\n")
+    lock = tmp_path / "paper/sources/.manifest.lock"
+    lock.parent.mkdir(parents=True)
+    fd = lock.open("w")
+    fcntl.flock(fd, fcntl.LOCK_EX)  # what scholar-mcp's fetch holds while it appends
+    done = {}
+
+    def work():
+        done["add"] = sources.add(tmp_path, src, origin="note", edition="00", key="d")
+        sources.index(tmp_path)
+        done["index"] = True
+
+    thread = threading.Thread(target=work)
+    thread.start()
+    thread.join(0.5)
+    assert thread.is_alive() and not done  # blocked on the lock, nothing written
+    assert not (tmp_path / "paper/sources/manifest.json").exists()
+    fcntl.flock(fd, fcntl.LOCK_UN)
+    thread.join(10)
+    fd.close()
+    assert done["add"]["added"] is True and done["index"] is True
+    assert manifest(tmp_path)[0]["normalized_hash"]
