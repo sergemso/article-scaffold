@@ -9,6 +9,7 @@ orders). There is no stage pointer: the current stage is the earliest failing ga
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -595,13 +596,18 @@ def _source_inputs(root: Path) -> list[Path]:
     return paths
 
 
-def _expand(root: Path, patterns: tuple[str, ...]) -> dict[str, Path]:
-    found: dict[str, Path] = {}
+def _expand(root: Path, patterns: tuple[str, ...]) -> dict[str, Path | str]:
+    """Input name to what is hashed. A symlink is hashed by its link text, not followed, so
+    retargeting it changes the key and a link to a file outside the repo is never read."""
+    found: dict[str, Path | str] = {}
     for pattern in patterns:
         matches = _source_inputs(root) if pattern == SOURCES_GLOB else sorted(root.glob(pattern))
         for path in matches:
-            if path.is_file() and not path.is_symlink():
-                found[path.relative_to(root).as_posix()] = path
+            name = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                found[name] = "symlink:" + os.readlink(path)
+            elif path.is_file():
+                found[name] = path
     return found
 
 

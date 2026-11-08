@@ -277,3 +277,16 @@ def test_corrupt_ledger_entry_is_a_flow_error_in_check_record(fixture_check):
     path.write_text("<<<<<<< HEAD\n")
     with pytest.raises(flow.FlowError):
         flow.check_record(root, "fixture")
+
+
+def test_a_symlinked_input_is_keyed_by_its_link_text(tmp_path, monkeypatch):
+    monkeypatch.setitem(flow.CHECKS, "fixture", ("python", "x.py"))
+    monkeypatch.setitem(flow.CHECK_SPECS, "fixture", flow.CheckSpec(("link.txt",)))
+    (tmp_path / "one.txt").write_text("same")
+    (tmp_path / "two.txt").write_text("same")
+    (tmp_path / "link.txt").symlink_to("one.txt")
+    first = flow.check_keyed(tmp_path, "fixture")
+    assert first is not None  # a symlinked input is no longer dropped
+    (tmp_path / "link.txt").unlink()
+    (tmp_path / "link.txt").symlink_to("two.txt")  # same bytes behind it, other target
+    assert flow.check_keyed(tmp_path, "fixture").key != first.key
