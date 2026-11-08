@@ -268,3 +268,12 @@ def test_index_check_is_never_stored_so_a_built_index_passes(tmp_path, monkeypat
     passed = flow.check_record(tmp_path, "index-check")
     assert (passed["ok"], passed["state"]) == (True, "ran")
 
+
+def test_corrupt_ledger_entry_is_a_flow_error_in_check_record(fixture_check):
+    root, _ = fixture_check
+    flow.check_record(root, "fixture")
+    keyed = flow.check_keyed(root, "fixture")
+    path = ledger._entry_path(root, "check-outcome", keyed.key)
+    path.write_text("<<<<<<< HEAD\n")
+    with pytest.raises(flow.FlowError):
+        flow.check_record(root, "fixture")

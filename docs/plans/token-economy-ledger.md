@@ -226,10 +226,11 @@ Recommend: declare `index-check` `deterministic=False` (never stored, always che
 Done-when: a test that records a fail with no index, builds the index, and sees `done` pass.
 Resolved: took the Recommend option. `CHECK_SPECS["index-check"]` is `deterministic=False`, so `check record` and `flow done` always run it and never store it, and `check` reports `uncacheable`. The cold run skips it (it only runs deterministic checks); `index --check` stays a cheap per-worktree read. Test: `test_index_check_is_never_stored_so_a_built_index_passes`. `docs/cli.md` names it among the uncacheable checks.
 
-### G.3 Corrupt ledger entry escapes as exit 3 — [ ]
+### G.3 Corrupt ledger entry escapes as exit 3 — [x]
 Class: implement · Effort: low · Needs: none · Check: same as G.2
 Defect: `ledger.get` raises `LedgerError` on a bad entry (for example a merge-conflict marker in a committed `cold-run` file). `flow.cold_run_recorded` and `flow.check_record` do not catch it, `cli._flow` catches only `FlowError`, so `flow status`, `next`, `round close` and `done` exit 3.
 Recommend: `cold_run_recorded` returns False on `LedgerError` (the gate stays closed and `ledger verify` names the file); `check_record` converts it to `FlowError`. Alternative: catch once in `cli._flow`, less specific message.
+Resolved: took the Recommend option. `cold_run_recorded` returns False on `LedgerError`, so the gate stays closed and `flow status`, `next` and `round close` no longer exit 3; `check_record` converts the error from its lookup to `FlowError` (so `flow done` fails the order with the message). Tests: `test_a_corrupt_cold_run_record_keeps_the_gate_closed`, `test_corrupt_ledger_entry_is_a_flow_error_in_check_record`.
 
 ### G.4 Bib keys with `:` dropped from `MANIFEST.md` — [ ]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_claims.py tests/test_sources_store.py -q`

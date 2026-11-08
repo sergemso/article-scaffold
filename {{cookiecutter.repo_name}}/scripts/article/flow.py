@@ -655,7 +655,10 @@ def check_record(root: Path, name: str) -> dict[str, Any]:
     spec = CHECK_SPECS[name]
     keyed = check_keyed(root, name) if spec.deterministic else None
     if keyed is not None:
-        entry = ledger.lookup(root, keyed)
+        try:
+            entry = ledger.lookup(root, keyed)
+        except ledger.LedgerError as exc:
+            raise FlowError(str(exc)) from exc
         if entry is not None:
             return {
                 **base, "ok": entry["status"] == "pass", "state": "hit", "stored": False,
@@ -716,7 +719,10 @@ def cold_run_recorded(root: Path) -> bool:
     keyed = cold_keyed(root)
     if keyed is None:
         return False
-    entry = ledger.get(root, COLD_KIND, keyed.key)
+    try:
+        entry = ledger.get(root, COLD_KIND, keyed.key)
+    except ledger.LedgerError:
+        return False  # a corrupt record keeps the gate closed; `ledger verify` names the file
     return entry is not None and entry["status"] == "pass"
 
 

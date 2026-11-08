@@ -212,3 +212,11 @@ def test_cold_run_on_a_repo_without_the_optional_scripts_opens_the_gate(repo, mo
     result = flow.cold_run(root)
     assert result["ok"] and result["checks"]["lint-counts"] == "not-applicable"
 
+
+def test_a_corrupt_cold_run_record_keeps_the_gate_closed(repo):
+    """G.3: a merge-conflict marker in the committed record must not raise."""
+    root, _ = repo
+    flow.cold_run(root)
+    keyed = flow.cold_keyed(root)
+    ledger._entry_path(root, flow.COLD_KIND, keyed.key).write_text("<<<<<<< HEAD\n")
+    assert flow.cold_run_recorded(root) is False
