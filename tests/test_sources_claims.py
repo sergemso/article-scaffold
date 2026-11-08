@@ -186,3 +186,54 @@ def test_a_malformed_address_is_a_lint_error_and_a_free_text_locator_is_not():
 def test_schema_rejects_a_bad_rebase_status():
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate({"ok": True, "command": "claims rebase", "status": "maybe"}, SCHEMA)
+
+
+def test_node_citing_a_colon_bib_key_resolves_its_legacy_text(tmp_path, capsys):
+    sources_dir = tmp_path / "paper" / "sources"
+    sources_dir.mkdir(parents=True)
+    (sources_dir / "MANIFEST.md").write_text(
+        "| key | file |\n| --- | --- |\n| smith:2020 | s.txt |\n"
+    )
+    (sources_dir / "s.txt").write_text(f"Intro.\n\n{QUOTE}\n")
+    path = _map(tmp_path, "p. 1")
+    data = json.loads(path.read_text())
+    data["nodes"][0]["bib_keys"] = ["smith:2020"]
+    path.write_text(json.dumps(data))
+    _, out = _run(capsys, tmp_path, "quote-check", "c1")
+    record = out["results"][0]
+    assert record["verdict"] == "found" and record["source"] == "paper/sources/s.txt"
+
+
+def test_old_locator_index_is_reported_not_called_not_found(tmp_path, capsys):
+    digest = _store(tmp_path)
+    _map(tmp_path, f"agtp@{digest[:12]}#sec:Requirements/Framing")
+    entry = sources.current_edition(tmp_path, "agtp")
+    index_path = sources.store_dir(tmp_path, "agtp", entry["raw_hash"]) / "locators.json"
+    data = json.loads(index_path.read_text())
+    data["index_version"] = "1"
+    index_path.write_text(json.dumps(data))
+    _, out = _run(capsys, tmp_path, "quote-check", "c1")
+    record = out["results"][0]
+    assert record["verdict"] == "no-local-text" and "run `sources index`" in record["reason"]
+
+
+def test_record_and_cache_output_validate_against_the_schema(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ARTICLE_LEDGER", raising=False)
+    digest = _store(tmp_path)
+    _map(tmp_path, f"agtp@{digest[:12]}#sec:Requirements/Framing")
+    code, recorded = _run(capsys, tmp_path, "record", "c1", "--set", "supports")
+    assert (code, recorded["command"], recorded["verdict"]) == (0, "claims record", "supports")
+    code, read = _run(capsys, tmp_path, "cache", "c1")
+    assert (code, read["command"], read["verdict"]) == (0, "claims cache", "supports")
+    assert read["key"] == recorded["key"]
+
+
+def test_a_quote_from_a_neighbouring_paragraph_is_not_found(tmp_path, capsys):
+    digest = _store(tmp_path, "First paragraph says alpha.\n\nSecond paragraph says beta.\n")
+    _map(tmp_path, f"agtp@{digest[:12]}#para:1", quote="Second paragraph says beta.")
+    code, out = _run(capsys, tmp_path, "quote-check", "c1")
+    assert code == 1 and out["results"][0]["verdict"] == "not-found"  # window is excerpt only
+    _map(tmp_path, f"agtp@{digest[:12]}#para:1", quote="First paragraph says alpha.")
+    code, out = _run(capsys, tmp_path, "quote-check", "c1")
+    assert code == 0 and out["results"][0]["verdict"] == "found"
+    assert "beta" in claims.excerpt_for(tmp_path, "c1")  # the window still feeds the excerpt

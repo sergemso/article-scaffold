@@ -9,6 +9,7 @@ orders). There is no stage pointer: the current stage is the earliest failing ga
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -538,7 +539,9 @@ class CheckSpec(NamedTuple):
 CHECK_SPECS: dict[str, CheckSpec] = {
     "theses-lint": CheckSpec(_ARTICLE_INPUTS),
     "theses-gaps": CheckSpec(_ARTICLE_INPUTS),
-    "index-check": CheckSpec(_ARTICLE_INPUTS),
+    # Reads untracked build output by mtime (paper/build/section-index.json), which the key
+    # cannot see: a stored result would be served in the wrong worktree. Cheap, so never stored.
+    "index-check": CheckSpec(_ARTICLE_INPUTS, deterministic=False),
     "claims-quote-check": CheckSpec(_ARTICLE_INPUTS),
     "make-validate": CheckSpec(
         _ARTICLE_INPUTS + ("scripts/validate-paper.py", "paper/figures/**/*")
@@ -593,13 +596,18 @@ def _source_inputs(root: Path) -> list[Path]:
     return paths
 
 
-def _expand(root: Path, patterns: tuple[str, ...]) -> dict[str, Path]:
-    found: dict[str, Path] = {}
+def _expand(root: Path, patterns: tuple[str, ...]) -> dict[str, Path | str]:
+    """Input name to what is hashed. A symlink is hashed by its link text, not followed, so
+    retargeting it changes the key and a link to a file outside the repo is never read."""
+    found: dict[str, Path | str] = {}
     for pattern in patterns:
         matches = _source_inputs(root) if pattern == SOURCES_GLOB else sorted(root.glob(pattern))
         for path in matches:
-            if path.is_file() and not path.is_symlink():
-                found[path.relative_to(root).as_posix()] = path
+            name = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                found[name] = "symlink:" + os.readlink(path)
+            elif path.is_file():
+                found[name] = path
     return found
 
 
@@ -653,7 +661,10 @@ def check_record(root: Path, name: str) -> dict[str, Any]:
     spec = CHECK_SPECS[name]
     keyed = check_keyed(root, name) if spec.deterministic else None
     if keyed is not None:
-        entry = ledger.lookup(root, keyed)
+        try:
+            entry = ledger.lookup(root, keyed)
+        except ledger.LedgerError as exc:
+            raise FlowError(str(exc)) from exc
         if entry is not None:
             return {
                 **base, "ok": entry["status"] == "pass", "state": "hit", "stored": False,
@@ -714,7 +725,10 @@ def cold_run_recorded(root: Path) -> bool:
     keyed = cold_keyed(root)
     if keyed is None:
         return False
-    entry = ledger.get(root, COLD_KIND, keyed.key)
+    try:
+        entry = ledger.get(root, COLD_KIND, keyed.key)
+    except ledger.LedgerError:
+        return False  # a corrupt record keeps the gate closed; `ledger verify` names the file
     return entry is not None and entry["status"] == "pass"
 
 

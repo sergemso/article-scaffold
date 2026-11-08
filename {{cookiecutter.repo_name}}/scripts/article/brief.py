@@ -257,8 +257,14 @@ def guardrail_digest(root: Path, kind: str) -> list[dict]:
 
 
 def _size(brief: dict) -> int:
+    """Bytes of the brief as dumped, counting its own ``bytes`` field (digits settled by
+    iteration), so the figure compared with the cap is the figure printed."""
     probe = {k: v for k, v in brief.items() if k != "bytes"}
-    return len(dump(probe).encode("utf-8"))
+    base = len(dump(probe).encode("utf-8")) + len(',"bytes":')
+    size = base
+    while len(str(size)) + base != size:
+        size = base + len(str(size))
+    return size
 
 
 def dump(value: Any) -> str:

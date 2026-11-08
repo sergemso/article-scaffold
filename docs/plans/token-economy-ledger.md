@@ -24,7 +24,7 @@ Clarifications to 0079 (recorded in E.1):
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
-Status (2026-11-08, evening): F.1 to F.4 are done and merged into `feat/token-economy-ledger`. E.2 is adopted and committed in both articles (see E.2 Progress). Open: B.4, E.3, E.4, and the review findings in section G. Order for the rest: G.1 (small fixes), E.4 (decides B.4), E.3, then the G items the owner accepts.
+Status (2026-11-08, evening): F.1 to F.4 are done and merged into `feat/token-economy-ledger`. E.2 is adopted and committed in both articles (see E.2 Progress). E.4 is done: keyword search is enough, B.4 is skipped (`[>]`). Open: E.3 and the review findings in section G. Order for the rest: G.1 (small fixes), E.3, then the G items the owner accepts.
 - Full suite on the branch after the review fixes: 986 passed, 4 skipped (12 minutes). The two earlier failures are fixed: `tests/test_upgrade_flow.py` now allows the comment block that the E.1 migration appends to an existing `flow.yaml` and still asserts no value changes (decision: the append is intended).
 - `go-getter plan start <id> --worktree <slug>` branches from master, not from the current branch. Create a worktree from `feat/token-economy-ledger` by hand and copy the plan file in.
 - `ruff format --check` fails on 67 files that were already failing; not addressed.
@@ -105,7 +105,7 @@ Do: Add `sources find <query>` as a keyword and phrase search over the locator i
 Done-when: results are stable and ordered; every result resolves through `sources slice`; nothing is written to the ledger.
 Resolved: `sources.find` and the `sources find QUERY... [--key K] [--limit N]` command (schema `sources-result.schema.json` extended with `query`, `total`, `searched`, `skipped`, `results`; `docs/cli.md` row updated; tests in `tests/test_sources_find.py`). Decisions taken: (1) it searches the current edition of each indexed source only; unreadable or unindexed sources are listed in `skipped`. (2) A hit is a section title or a paragraph holding every term (case and spacing folded); results are `source@<12 hex>#sec:|para:` addresses with line range, integer `score` and a one-line context of at most 160 characters. (3) Order: whole-phrase hits first, then higher score (phrase occurrences x3 plus term occurrences, +2 for a section title), then section before paragraph, then key and locator order, so output is deterministic. (4) Default limit 20, with `total` and `truncated`. (5) `req:` locators are not returned (a keyword line is already inside a paragraph). (6) Read-only: no ledger, manifest or text write, asserted by a test; no adapter.
 
-### B.4 Optional locator adapter — [ ]
+### B.4 Optional locator adapter — [>]
 Class: explore · Effort: medium · Needs: B.3 · Check: `.venv/bin/python -m pytest tests/test_locator_adapter.py -q`
 Context: Decision 0080, guardrail `retrieval-returns-locators-not-verdicts`, fact 0010 (virage is not in the local tree; read go-getter fact 0038 at `/home/sergei/projects/vivantel/go-getter/docs/facts/0038-virage-integration-surface.md` and confirm its CLI surface before coding). Skip this step if E.4 finds keyword search enough.
 Do: Let `sources find` call an adapter whose command comes from user-level configuration or an environment variable, never from a file in the repo (a cloned repo must not supply a command). Refuse an adapter that is not declared local-only: a hosted embedder would send the query and chunk text off the machine (`claim-check-input-stays-local`). Accept only a list of addresses, resolve each through the store, and discard any text. Adapter output is never written to the ledger. Document in `docs/skills/adding-an-external-source.md` that the virage prompt hook must stay disabled.
@@ -176,11 +176,13 @@ Context: The baseline is the reviewed fix round: roughly 17 subagents, 100 to 17
 Do: Write `scripts/session-cost.py` in the article-scaffold repo (maintainer tooling, not shipped in the template) that sums those fields per session and per subagent and prints call counts, maximum context, files read more than N times, and an estimated cost from prices in a config file (cache creation at the 5-minute and 1-hour rates priced separately). Replay the same round: check out the pre-fix commit of the bridge-contract article and run the same fix round through the new flow, so the two rounds cover the same content. Compare calls, cache-read tokens, maximum context, repeated whole-file reads, ledger hit rate (`ledger stats`), handoffs at the cap, and then dollars as a secondary figure.
 Done-when: a written comparison is committed under `docs/notes/` in the article repo with the figures, and states whether any outcome (findings fixed, checks passing, cold run clean) was lost relative to the baseline round.
 
-### E.4 Disable the retrieval prompt hook and decide on virage — [ ]
+### E.4 Disable the retrieval prompt hook and decide on virage — [x]
 Class: explore · Effort: low · Needs: B.3 · Check: `! grep -q inject-context .claude/settings.json`
 Context: Fact 0010; virage's Claude Code plugin merges a `UserPromptSubmit` hook that injects chunks on every prompt.
 Do: Use B.3 keyword search on the real source set of E.2 and record the cases where it missed an address a reader would have wanted. If a retrieval index is still wanted, install it with the hook disabled and verify in a fresh session that no chunks are injected. If keyword search was enough, do not install virage and mark B.4 `[>]`.
 Done-when: a note in the article repo states the decision and the evidence, and `.claude/settings.json` does not contain the injection hook.
+
+Resolved: keyword search is enough, so virage is not installed and B.4 is skipped (`[>]`). Read-only look at the bridge-contract article on `upgrade/44076df7` (11 stored sources) with 23 queries formed from the six `source-claim` nodes and the related-work text: of the 20 whose wanted address exists, 15 found it (two weakly: `Authority-Scope` at rank 9, `audit artifacts generate` at rank 4); the misses were all-terms queries (`timeout budget minimum`, `Merkle chain tamper-evident`), a spelling variant (`auto-approve` against `AUTO_APPROVE`), a word the sources use only in compound names (`detach`) and one thin result (`Ed25519 decision`): five misses in all, each recovered by a shorter or source-spelled query; three queries were absence claims, which no index can answer. Neither the article repo nor the scaffold template contains an `inject-context` hook, so no settings change was needed and there was nothing to verify in a fresh session. Evidence table and caveats (one judge, small sample) are in `docs/notes/e4-retrieval-decision.md` in the scaffold, not in the article repo as the step said, because the article repo was to stay untouched; the owner may copy it there. B.3 gained no change.
 
 ## F. Fixes found by adopting
 
@@ -217,38 +219,44 @@ A read-only review of all commits of the day (scaffold `82ef1b1^..HEAD`, scholar
 ### G.1 Mechanical fixes — [x]
 Done: `brief.slice_hash` is `code_index.slice_hash` (one function, was two copies); `sources.ADDRESS_HASH` alias removed; `flow._paths_overlap` alias removed; `check_keyed` reads its spec once; `CheckSpec.tools` default is an immutable mapping; two E501 lines and an unused import fixed. Not done (low value): `_file_lines`, `_lines` and `_fold` are near-duplicates across `brief`, `code_index` and `sources`; merge them into one helper module only when one of them is next touched.
 
-### G.2 `index-check` key ignores mtime state — [ ]
+### G.2 `index-check` key ignores mtime state — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_checks_ledger.py tests/test_cold_gate.py -q`
 Defect: `index --check` compares mtimes against the untracked `paper/build/section-index.json` (and `code-index.json`), but the `index-check` key hashes only the article inputs. A stored `fail` from a missing index is served after the index is built, so the `reindex` order retries and escalates; a stored `pass` is served in a fresh worktree with no index. `flow.py` `CHECK_SPECS`, `index.py`.
 Recommend: declare `index-check` `deterministic=False` (never stored, always cheap to run). Alternative: add the index files to the inputs, which makes the key depend on build output and so differs per worktree; or compare content hashes instead of mtimes, the cleaner fix but a change to `index --check`.
 Done-when: a test that records a fail with no index, builds the index, and sees `done` pass.
+Resolved: took the Recommend option. `CHECK_SPECS["index-check"]` is `deterministic=False`, so `check record` and `flow done` always run it and never store it, and `check` reports `uncacheable`. The cold run skips it (it only runs deterministic checks); `index --check` stays a cheap per-worktree read. Test: `test_index_check_is_never_stored_so_a_built_index_passes`. `docs/cli.md` names it among the uncacheable checks.
 
-### G.3 Corrupt ledger entry escapes as exit 3 — [ ]
+### G.3 Corrupt ledger entry escapes as exit 3 — [x]
 Class: implement · Effort: low · Needs: none · Check: same as G.2
 Defect: `ledger.get` raises `LedgerError` on a bad entry (for example a merge-conflict marker in a committed `cold-run` file). `flow.cold_run_recorded` and `flow.check_record` do not catch it, `cli._flow` catches only `FlowError`, so `flow status`, `next`, `round close` and `done` exit 3.
 Recommend: `cold_run_recorded` returns False on `LedgerError` (the gate stays closed and `ledger verify` names the file); `check_record` converts it to `FlowError`. Alternative: catch once in `cli._flow`, less specific message.
+Resolved: took the Recommend option. `cold_run_recorded` returns False on `LedgerError`, so the gate stays closed and `flow status`, `next` and `round close` no longer exit 3; `check_record` converts the error from its lookup to `FlowError` (so `flow done` fails the order with the message). Tests: `test_a_corrupt_cold_run_record_keeps_the_gate_closed`, `test_corrupt_ledger_entry_is_a_flow_error_in_check_record`.
 
-### G.4 Bib keys with `:` dropped from `MANIFEST.md` — [ ]
+### G.4 Bib keys with `:` dropped from `MANIFEST.md` — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_claims.py tests/test_sources_store.py -q`
 Defect: `sources.legacy_entries` filters rows with the store key grammar, the old parser accepted any key. A node citing `smith:2020` falls back to a `.txt` name and reports `no-local-text` (regression of B.2 decision 3).
 Recommend: do not apply the key grammar to legacy rows; apply it when importing into the store (`sources add`), where a clear error is better. Alternative: keep the filter and list skipped rows in `sources list`.
+Resolved: took the Recommend option. `sources.legacy_entries` no longer applies the store key grammar, so `smith:2020` resolves its legacy `.txt` again; `sources add` takes a key from a `MANIFEST.md` row only if it fits the grammar and otherwise refuses naming the key and telling to pass `--key`. Tests: `test_node_citing_a_colon_bib_key_resolves_its_legacy_text`, `test_legacy_key_with_a_colon_is_listed_and_add_refuses_it_clearly`. `docs/cli.md` notes the refusal.
 
-### G.5 Handoff accepts free text — [ ]
+### G.5 Handoff accepts free text — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_handoff.py -q`
 Defect: `handoff._anchor_errors` only needs non-empty strings for `name` and `file`, so an agent can paste a paragraph or a token into the committed `flow.yaml`, against the module's "ids, paths and hashes only"; a hand-edited handoff missing keys makes `done_ids` raise `KeyError`.
 Recommend: `_file_ok` on `file`, a regex and length cap on `name`, a tolerant `done_ids`. Alternative: run `flow.redact` on the strings, weaker because manuscript text is not a secret pattern.
+Resolved: took the Recommend option. `handoff._anchor_errors` now applies `_file_ok` to an anchor's `file` and requires `name` to match `NAME_RE` (no spaces, letters, digits and `_.:/#@+=-`) with at most 200 characters, so a pasted paragraph is rejected with a message saying a name is an id as `flow next` printed it. `done_ids` skips malformed entries instead of raising `KeyError`. `flow-handoff.schema.json` states the same pattern and cap. Tests: three new cases in `tests/test_flow_handoff.py` (paragraph, long name, escaping file) and `test_done_ids_tolerates_a_hand_edited_handoff`.
 
-### G.6 Locator index version not checked on load — [ ]
+### G.6 Locator index version not checked on load — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_sources_store.py tests/test_sources_claims.py -q`
 Defect (plausible): `sources.load_locators` serves an older `locators.json` without comparing `index_version`; after a version bump two clones can disagree on `req:MUST:1` and `quote-check` says not-found instead of stale.
 Recommend: refuse with "run `sources index`" when the version differs. Alternative: rebuild in memory on every load (slow on 5 MB files).
+Resolved: took the Recommend option. `sources.load_locators` raises `SourcesError` naming both versions and "run `sources index`" when `index_version` differs from `INDEX_VERSION`; `slice`, `find` and `claims` all go through it, so `quote-check` reports `no-local-text` with that reason instead of `not-found`. Tests: `test_an_older_locator_index_is_refused_with_a_reindex_hint`, `test_old_locator_index_is_reported_not_called_not_found`. `docs/cli.md` names the refusal.
 
-### G.7 Result schemas missing for `check` and `claims record` — [ ]
+### G.7 Result schemas missing for `check` and `claims record` — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_schemas.py tests/test_docs.py -q`
 Defect: plan constraint 4 says every new command's output validates against a schema. `check`, `check record` and `check --cold` have none; `claims record` and `claims cache` emit a `command` outside the enum of `claims-result.schema.json` (which forbids extra properties), and `docs/cli.md` cites that schema for them.
 Recommend: add `schemas/check-result.schema.json` and a record variant in `claims-result`, each loaded by a test. Alternative: narrow the docs claim (leaves the constraint broken).
+Resolved: took the Recommend option. `schemas/check-result.schema.json` is a `oneOf` of four strict shapes (`check`, `check record`, `check --cold`, and a failure `{ok: false, command, error}`), written from real output of a fixture repo. `claims-result.schema.json` gained `claims record` and `claims cache` in the `command` enum and the optional `key` and `verdict` properties, still without extra properties allowed. Tests: `tests/test_check_result_schema.py` (read states hit, stale, miss and uncacheable; record hit, ran, fail and unavailable; cold clean, failed and ledger off; the schema rejects an extra field) and `test_record_and_cache_output_validate_against_the_schema` in `tests/test_sources_claims.py`. `docs/cli.md` cites both schemas. A bad `--set` value is an argparse usage error (exit 2, no JSON), so it has no schema case.
 
-### G.8 Smaller scaffold points — [ ]
+### G.8 Smaller scaffold points — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_ledger.py tests/test_flow_checks_ledger.py tests/test_sources_claims.py tests/test_flow_brief.py -q`
 - `flow._expand` skips symlinked inputs, so a symlinked input is not in the key and can serve a wrong hit. Recommend hashing the link text; alternative: refuse symlinks in check inputs.
 - `claims._check_addressed` matches the quote in the window-extended slice, so a quote from a neighbouring paragraph passes while `rebase` proposes another locator. Recommend matching inside `[start, end]` and using the window only for the excerpt.
@@ -256,6 +264,8 @@ Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m py
 - `ledger.hash_input` normalizes CRLF inside binary inputs (the PDF read by `layout-check`). Recommend a text/binary split by extension or NUL scan.
 - `brief.compile_brief` adds `bytes` after measuring, so a brief can exceed the cap by about 15 bytes. Recommend counting it first.
 - `sources.add` and `sources.index` write `manifest.json` without the `flock` on `.manifest.lock` that scholar-mcp takes, so a concurrent fetch and add can drop an entry. Recommend taking the same lock.
+
+Resolved: all six bullets applied with the Recommend option, one commit each, each with a test that fails on the old code. `flow._expand` keys a symlink by `symlink:<link text>` (no longer skipped, never followed). `claims` matches an addressed quote inside the locator only (`sources.passage_for(..., with_core=True)` adds `core_start`/`core_end`); the window still widens the excerpt, so the tier 2 cache key is unchanged for quotes that were inside the locator. `ledger get` miss and `sources index` with an unreadable source now print `ok: false` (exit 1), as the F.4 contract says; `docs/cli.md` and the two tests that pinned the old output are updated. `ledger.hash_input` leaves content that starts with `%PDF-` or has a NUL byte in its first 8000 bytes unnormalized; a PDF that contained CRLF gets a new key once. `brief._size` counts the `bytes` field itself, so `bytes` is the printed size and is within the cap. `sources.add` and `sources.index` hold an exclusive `flock` on `paper/sources/.manifest.lock` (same name and open flags as scholar-mcp `sourcefetch`), with `fcntl` imported under `try` so the module imports where it is missing (no lock there). Not done: `.manifest.lock` is not added to a template `.gitignore`; no bullet was skipped.
 
 ### G.9 Contract gaps between scaffold and scholar-mcp — [ ]
 Class: review · Effort: medium · Needs: none · Check: `make test` in scholar-mcp (owner decision; decide before the next D.1 change)

@@ -42,8 +42,8 @@
         "additionalProperties": false,
         "required": ["name", "file"],
         "properties": {
-          "name": {"type": "string", "minLength": 1},
-          "file": {"type": "string", "minLength": 1}
+          "name": {"type": "string", "maxLength": 200, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@+=-]*$"},
+          "file": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$)).+$"}
         }
       },
       "description": "Anchors as `flow next` printed them, identified by file and name. An anchor is not in both done and remaining."

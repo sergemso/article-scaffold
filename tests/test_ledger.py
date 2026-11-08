@@ -314,7 +314,7 @@ def test_cli_get_miss_hit_explain_and_stats(tmp_path, capsys, monkeypatch):
         "--input", "claim=claim.txt", "--text", "excerpt=X is Y.",
     ]  # fmt: skip
     code, out = _run(capsys, tmp_path, "get", *args)
-    assert code == 1 and out["hit"] is False
+    assert code == 1 and out["hit"] is False and out["ok"] is False  # ok equals the exit code
     ledger.put(
         tmp_path,
         ledger.key(
@@ -323,7 +323,8 @@ def test_cli_get_miss_hit_explain_and_stats(tmp_path, capsys, monkeypatch):
         "pass",
     )
     code, out = _run(capsys, tmp_path, "get", *args)
-    assert code == 0 and out["hit"] is True and out["entry"]["status"] == "pass"
+    assert code == 0 and out["ok"] is True and out["entry"]["status"] == "pass"
+    assert out["hit"] is True
     assert len(out["provenance"]) == 1
     (tmp_path / "claim.txt").write_text("A changed claim.\n")
     code, out = _run(capsys, tmp_path, "explain", *args)
@@ -378,3 +379,14 @@ def test_companion_default_excludes_ledger_and_source_store():
 def test_template_ships_the_ledger_directory_and_attributes():
     assert (TEMPLATE / "docs" / "ledger" / "README.md").is_file()
     assert "docs/ledger/**" in (TEMPLATE / ".gitattributes").read_text()
+
+
+def test_binary_input_is_hashed_as_is_but_text_ignores_crlf(tmp_path):
+    pdf = b"%PDF-1.7\n%\xe2\xe3\n1 0 obj\r\n<<>>\r\nendobj\n"
+    a, b = tmp_path / "a.pdf", tmp_path / "b.pdf"
+    a.write_bytes(pdf)
+    b.write_bytes(pdf.replace(b"\r\n", b"\n"))
+    assert ledger.hash_input(a) != ledger.hash_input(b)  # CRLF inside a PDF is content
+    nul = b"\0\x01" + b"x\r\ny"
+    assert ledger.hash_input(nul) != ledger.hash_input(nul.replace(b"\r\n", b"\n"))
+    assert ledger.hash_input("a\r\nb") == ledger.hash_input("a\nb")

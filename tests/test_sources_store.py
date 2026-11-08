@@ -73,6 +73,7 @@ def test_index_plain_html_and_unreadable_pdf(store, capsys, monkeypatch):
     monkeypatch.setattr(sources.shutil, "which", lambda name: None)
     code, out = run(capsys, store, "index")
     assert code == 1  # an unreadable source is listed and reported, not guessed
+    assert out["ok"] is False  # ok equals the exit code
     status = {row["key"]: row for row in out["sources"]}
     assert status["agtp"]["status"] == "indexed" and status["pace"]["status"] == "indexed"
     assert status["scan"]["status"] == "unreadable" and "pdftotext" in status["scan"]["reason"]
@@ -357,3 +358,62 @@ def test_rfc2119_boilerplate_is_not_numbered_as_a_requirement(tmp_path, capsys):
     assert code == 1 and "not found" in out["error"]
     code, out = run(capsys, tmp_path, "slice", f"bp@{digest}#req:MUST_NOT:1")
     assert code == 1 and "not found" in out["error"]
+
+
+def test_legacy_key_with_a_colon_is_listed_and_add_refuses_it_clearly(tmp_path, capsys):
+    sources_dir = tmp_path / "paper" / "sources"
+    sources_dir.mkdir(parents=True)
+    (sources_dir / "MANIFEST.md").write_text(
+        "| key | file |\n| --- | --- |\n| smith:2020 | s.txt |\n"
+    )
+    shutil.copy(FIXTURES / "draft-agtp-00.txt", sources_dir / "s.txt")
+    assert sources.legacy_entries(tmp_path) == {"smith:2020": "s.txt"}
+    code, out = run(
+        capsys, tmp_path, "add", str(sources_dir / "s.txt"),
+        "--origin", "https://example.org/s", "--edition", "00",
+    )  # fmt: skip
+    assert code == 1 and "smith:2020" in out["error"] and "--key" in out["error"]
+    code, out = add(capsys, tmp_path, "draft-agtp-00.txt", "smith-2020", src=sources_dir / "s.txt")
+    assert code == 0 and out["key"] == "smith-2020"
+
+
+def test_an_older_locator_index_is_refused_with_a_reindex_hint(store, capsys):
+    run(capsys, store, "index", "agtp")
+    entry = sources.current_edition(store, "agtp")
+    index_path = sources.store_dir(store, "agtp", entry["raw_hash"]) / "locators.json"
+    data = json.loads(index_path.read_text())
+    data["index_version"] = "1"
+    index_path.write_text(json.dumps(data))
+    with pytest.raises(sources.SourcesError, match="run `sources index`"):
+        sources.load_locators(store, entry)
+    sources.index(store, "agtp")  # reindexing restores it
+    sources.load_locators(store, entry)
+
+
+def test_add_and_index_wait_for_the_manifest_lock(tmp_path):
+    import threading
+
+    fcntl = pytest.importorskip("fcntl")
+    src = tmp_path / "draft-00.txt"
+    src.write_text("Hello.\n")
+    lock = tmp_path / "paper/sources/.manifest.lock"
+    lock.parent.mkdir(parents=True)
+    fd = lock.open("w")
+    fcntl.flock(fd, fcntl.LOCK_EX)  # what scholar-mcp's fetch holds while it appends
+    done = {}
+
+    def work():
+        done["add"] = sources.add(tmp_path, src, origin="note", edition="00", key="d")
+        sources.index(tmp_path)
+        done["index"] = True
+
+    thread = threading.Thread(target=work)
+    thread.start()
+    thread.join(0.5)
+    assert thread.is_alive() and not done  # blocked on the lock, nothing written
+    assert not (tmp_path / "paper/sources/manifest.json").exists()
+    fcntl.flock(fd, fcntl.LOCK_UN)
+    thread.join(10)
+    fd.close()
+    assert done["add"]["added"] is True and done["index"] is True
+    assert manifest(tmp_path)[0]["normalized_hash"]

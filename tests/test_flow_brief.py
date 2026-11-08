@@ -293,3 +293,18 @@ def test_order_without_anchors_omits_the_field(flow_project: Path) -> None:
     assert order["kind"] == "state-thesis"
     assert "anchors" not in order
     assert _flow(flow_project, "--brief")["brief"]["anchors"] == []
+
+
+def test_brief_bytes_counts_its_own_field_against_the_cap() -> None:
+    brief = _brief_module()
+    anchors = [{"name": "a", "file": "f.py", "lines": [1, 2], "hash": "h" * 12, "text": "x" * 300}]
+    kwargs = dict(
+        order={"id": "o1"}, row={"id": "r"}, anchors=anchors, guardrails=[], ledger_hits=[],
+        verify=None, max_calls=None, notes=[],
+    )  # fmt: skip
+    for cap in range(300, 700):
+        out = brief.compile_brief(cap=cap, **kwargs)
+        printed = len(brief.dump(out).encode("utf-8"))
+        assert out["bytes"] == printed  # the figure counts its own field
+        if "over-cap" not in out["degraded"]:
+            assert printed <= cap
