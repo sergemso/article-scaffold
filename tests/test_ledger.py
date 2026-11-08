@@ -305,7 +305,9 @@ def _run(capsys, root, *argv):
     return code, out
 
 
-def test_cli_get_miss_hit_explain_and_stats(tmp_path, capsys):
+def test_cli_get_miss_hit_explain_and_stats(tmp_path, capsys, monkeypatch):
+    # `--no-ledger` sets the variable in-process; restore it when the test ends
+    monkeypatch.setenv("ARTICLE_LEDGER", "on")
     (tmp_path / "claim.txt").write_text("The draft defines X.\n")
     args = [
         "claim-verdict", "--version", "1", "--tier", "2",
