@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 import yaml
 
 from . import brief as order_brief
-from . import claims, companion, core, group, ledger, theses
+from . import claims, companion, core, group, ledger, sources, theses
 from . import handoff as order_handoff
 from . import index as section_index
 
@@ -569,10 +569,33 @@ def failing_lines(lines: list[str]) -> list[str]:
     return [redact(line)[:FAILING_WIDTH] for line in kept[:FAILING_LINES]]
 
 
+SOURCES_GLOB = "paper/sources/**/*"
+
+
+def _source_inputs(root: Path) -> list[Path]:
+    """What a check reads of the source store: the manifest files and, per source key, the
+    normalized text of the current edition only. Old editions, raw files and locator indexes
+    are not inputs, so adding an edition does not list every file of every old one. A manifest
+    that cannot be read falls back to the whole tree (over-inclusive, never a wrong hit)."""
+    base = root / sources.SOURCES_DIR
+    try:
+        entries = sources.load_manifest(root)
+    except sources.SourcesError:
+        return sorted(p for p in base.glob("**/*") if p.is_file())
+    paths = [base / sources.MANIFEST_JSON, base / sources.LEGACY_MANIFEST]
+    current: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        current[entry["key"]] = entry  # the newest entry of a key is the last one
+    for entry in current.values():
+        paths.append(sources.store_dir(root, entry["key"], entry["raw_hash"]) / "normalized.txt")
+    return paths
+
+
 def _expand(root: Path, patterns: tuple[str, ...]) -> dict[str, Path]:
     found: dict[str, Path] = {}
     for pattern in patterns:
-        for path in sorted(root.glob(pattern)):
+        matches = _source_inputs(root) if pattern == SOURCES_GLOB else sorted(root.glob(pattern))
+        for path in matches:
             if path.is_file() and not path.is_symlink():
                 found[path.relative_to(root).as_posix()] = path
     return found

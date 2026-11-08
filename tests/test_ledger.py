@@ -246,24 +246,53 @@ def test_explain_names_the_input_that_differs(tmp_path):
     assert ledger.explain(tmp_path / "empty", _key())["nearest"] is None
 
 
-def test_gc_reports_and_evicts_entries_for_changed_or_missing_files(tmp_path):
+def test_gc_lists_missing_inputs_not_changed_ones(tmp_path):
     (tmp_path / "paper").mkdir()
     (tmp_path / "paper" / "a.tex").write_text("alpha\n")
     (tmp_path / "paper" / "b.tex").write_text("beta\n")
     live = ledger.key("check-outcome", {"paper/a.tex": tmp_path / "paper/a.tex"}, "1", "script")
     ledger.put(tmp_path, live, "pass")
-    (tmp_path / "paper" / "b.tex").write_text("beta v1\n")
     old = ledger.key("check-outcome", {"paper/b.tex": tmp_path / "paper/b.tex"}, "1", "script")
     ledger.put(tmp_path, old, "pass")
-    (tmp_path / "paper" / "b.tex").write_text("beta v2\n")
-    ledger.put(tmp_path, _key(), "pass")  # a label-input kind is never touched
+    (tmp_path / "paper" / "b.tex").write_text("beta v2\n")  # changed: still not an orphan
+    assert ledger.gc(tmp_path)["orphans"] == []
+    (tmp_path / "paper" / "b.tex").unlink()  # gone: now it is
     report = ledger.gc(tmp_path)
     assert [o["key"] for o in report["orphans"]] == [old.key]
-    assert report["orphans"][0]["reason"] == "input changed: paper/b.tex"
-    assert len(ledger._entry_files(tmp_path)) == 3
+    assert report["orphans"][0]["reason"] == "input missing: paper/b.tex"
+    assert len(ledger._entry_files(tmp_path)) == 2  # report only
     ledger.gc(tmp_path, apply=True)
-    assert len(ledger._entry_files(tmp_path)) == 2
-    assert "gc: input changed" in (tmp_path / ledger.EVICTIONS).read_text()
+    assert len(ledger._entry_files(tmp_path)) == 1
+    assert "gc: input missing" in (tmp_path / ledger.EVICTIONS).read_text()
+
+
+def test_gc_lists_verdict_of_a_claim_that_left_the_map(tmp_path, monkeypatch):
+    kept = ledger.key("claim-verdict", {"claim": "Kept claim.", "excerpt": "e"}, "1", "2")
+    gone = ledger.key("claim-verdict", {"claim": "Deleted claim.", "excerpt": "e"}, "1", "2")
+    ledger.put(tmp_path, kept, "pass")
+    ledger.put(tmp_path, gone, "pass")
+    from scripts.article import theses
+
+    monkeypatch.setattr(
+        theses, "load_map",
+        lambda root: {"nodes": [{"id": "n1", "text": "Kept claim."}]},
+    )  # fmt: skip
+    monkeypatch.setattr(theses, "structure_errors", lambda data: type("R", (), {"ok": True})())
+    report = ledger.gc(tmp_path)
+    assert [(o["key"], o["reason"]) for o in report["orphans"]] == [
+        (gone.key, "claim no longer in the map")
+    ]
+    assert len(ledger._entry_files(tmp_path)) == 2  # report-only without --apply
+    ledger.gc(tmp_path, apply=True)
+    assert [e.stem for e in ledger._entry_files(tmp_path)] == [kept.key]
+    assert "gc: claim no longer in the map" in (tmp_path / ledger.EVICTIONS).read_text()
+
+
+def test_gc_touches_no_verdict_when_the_map_is_unreadable(tmp_path):
+    ledger.put(tmp_path, _key(), "pass")
+    assert ledger.gc(tmp_path)["orphans"] == []  # no theses.yaml at all
+    (tmp_path / "theses.yaml").write_text("not: [valid", encoding="utf-8")
+    assert ledger.gc(tmp_path)["orphans"] == []
 
 
 # ------------------------------------------------------------------------ CLI

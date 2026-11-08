@@ -204,3 +204,26 @@ def test_flow_file_with_a_command_field_is_rejected_by_the_schema(flow_project):
     state["command"] = "make test"
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(state, SCHEMA)
+
+
+def test_old_editions_are_not_check_inputs(tmp_path):
+    from scripts.article import sources
+
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    (paper / "a.tex").write_text("alpha\n")
+    for edition, body in (("01", "first draft\n"), ("02", "second draft\n")):
+        src = tmp_path / "ext.txt"
+        src.write_text(body)
+        sources.add(tmp_path, src, origin="https://example.org/x", edition=edition, key="draft-x")
+        sources.index(tmp_path)
+    inputs = flow.check_keyed(tmp_path, "theses-lint").inputs
+    store = sorted(n for n in inputs if n.startswith("paper/sources/"))
+    current = sources.current_edition(tmp_path, "draft-x")
+    assert store == [
+        "paper/sources/draft-x/" + current["raw_hash"] + "/normalized.txt",
+        "paper/sources/manifest.json",
+    ]
+    # nothing of the first edition (raw, normalized, locators) is an input
+    first = next(e for e in sources.load_manifest(tmp_path) if e["edition"] == "01")
+    assert not any(first["raw_hash"] in n for n in inputs)

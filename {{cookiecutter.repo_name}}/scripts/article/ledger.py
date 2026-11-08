@@ -454,32 +454,60 @@ def evict(root: Path, kind: str, digest: str, reason: str) -> None:
         handle.write(json.dumps(line, sort_keys=True, ensure_ascii=False) + "\n")
 
 
-def gc(root: Path, apply: bool = False) -> dict[str, Any]:
-    """Entries of path-input kinds whose files no longer hash to the stored values.
+def _live_claim_hashes(root: Path) -> set[str] | None:
+    """Hashes of the wording of every node in the map, or None when the map cannot be read
+    (then no verdict is judged orphaned)."""
+    import yaml
 
-    Label-input kinds (a claim wording) cannot be compared with disk and are not touched.
-    An entry may still be valid on another branch; ``apply`` evicts and logs each one.
+    from . import theses  # local: the ledger core stays importable without the map code
+
+    try:
+        data = theses.load_map(root)
+        if data is None or not theses.structure_errors(data).ok:
+            return None
+    except (OSError, ValueError, yaml.YAMLError):
+        return None
+    return {
+        hash_input(node["text"])
+        for node in data.get("nodes") or []
+        if isinstance(node, dict) and isinstance(node.get("text"), str)
+    }
+
+
+def _missing_input(root: Path, entry: dict[str, Any]) -> str | None:
+    for name in entry["inputs"]:
+        if not (root / name).is_file():
+            return name
+    return None
+
+
+def gc(root: Path, apply: bool = False) -> dict[str, Any]:
+    """Entries that can no longer be asked for, reported and evicted only with ``apply``.
+
+    A changed input hash is not an orphan: the entry is still right for the old content (it
+    may be the one another branch needs), so editing ``theses.yaml`` lists nothing. Two cases:
+    a path-input entry whose input file no longer exists, and a ``claim-verdict`` whose claim
+    wording no longer occurs in the map. Eviction is logged like any other.
     """
     orphans = []
-    for kind in (k for k in KINDS.values() if k.paths):
+    live = _live_claim_hashes(root)
+    for kind in KINDS.values():
+        if not kind.paths and kind.name != "claim-verdict":
+            continue
         for path in _entry_files(root, kind.name):
             try:
                 entry = json.loads(path.read_text(encoding="utf-8"))
                 _check_entry(entry, kind.name, path.stem)
             except (OSError, json.JSONDecodeError, LedgerError):
                 continue
-            for name, stored in entry["inputs"].items():
-                target = root / name
-                try:
-                    current = hash_input(target) if target.is_file() else None
-                except LedgerError:
-                    current = None
-                if current != stored:
-                    reason = "input missing" if current is None else "input changed"
-                    orphans.append(
-                        {"kind": kind.name, "key": entry["key"], "reason": f"{reason}: {name}"}
-                    )
-                    break
+            reason = None
+            if kind.paths:
+                missing = _missing_input(root, entry)
+                reason = f"input missing: {missing}" if missing else None
+            elif live is not None and entry["inputs"].get("claim") not in live:
+                reason = "claim no longer in the map"
+            if reason:
+                orphans.append({"kind": kind.name, "key": entry["key"], "reason": reason})
     if apply:
         for item in orphans:
             evict(root, item["kind"], item["key"], f"gc: {item['reason']}")
