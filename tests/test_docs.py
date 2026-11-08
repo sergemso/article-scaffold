@@ -196,3 +196,17 @@ def test_readme_states_goals_and_links_the_detail_docs() -> None:
     for link in ("docs/upgrading.md", "docs/companion.md", "canonical-pattern.md"):
         assert link in text, link
         assert (ROOT / link).exists(), link
+
+
+def test_cli_and_claim_check_docs_state_the_f4_contracts() -> None:
+    cli_md = (TEMPLATE / "docs" / "cli.md").read_text()
+    assert "`ok` and the exit code always agree" in cli_md
+    assert "omitted from the order when there are none" in cli_md
+    claim = (TEMPLATE / "docs" / "procedures" / "claim-check.md").read_text()
+    for form in ("ledger get claim-verdict --key", "--text claim=", "--version 1 --tier 2",
+                 "ledger explain claim-verdict"):
+        assert form in claim, form
+    plan = (ROOT / "docs" / "plans" / "token-economy-ledger.md").read_text()
+    assert "claims quote-check --all" in plan
+    e2 = plan[plan.index("### E.2") : plan.index("### E.3")]
+    assert "article claims`" not in e2 and "article claims quote-check --all`" in e2

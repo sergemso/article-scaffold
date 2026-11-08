@@ -227,3 +227,24 @@ def test_old_editions_are_not_check_inputs(tmp_path):
     # nothing of the first edition (raw, normalized, locators) is an input
     first = next(e for e in sources.load_manifest(tmp_path) if e["edition"] == "01")
     assert not any(first["raw_hash"] in n for n in inputs)
+
+
+def test_check_ok_agrees_with_the_exit_code(flow_project):
+    """`check NAME`: ok is true (exit 0) only for a hit with a stored pass."""
+    (flow_project / "theses.yaml").write_text(THESIS_MAP)
+    missed = cli(flow_project, "check", "theses-lint")
+    assert (json.loads(missed.stdout)["ok"], missed.returncode) == (False, 1)
+    cli(flow_project, "check", "record", "theses-lint")
+    hit = cli(flow_project, "check", "theses-lint")
+    assert (json.loads(hit.stdout)["ok"], hit.returncode) == (True, 0)
+    (flow_project / "theses.yaml").write_text(THESIS_MAP + "# edited\n")
+    stale = cli(flow_project, "check", "theses-lint")
+    assert (json.loads(stale.stdout)["state"], json.loads(stale.stdout)["ok"]) == ("stale", False)
+    assert stale.returncode == 1
+
+
+def test_stored_fail_reads_as_not_ok(fixture_check):
+    root, _ = fixture_check
+    (root / "in.txt").write_text("bad\n")
+    flow.check_record(root, "fixture")
+    assert flow.check_read(root, "fixture")["ok"] is False

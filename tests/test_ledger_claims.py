@@ -176,3 +176,13 @@ def test_a_corrupt_entry_is_a_miss_and_verify_reports_it(tmp_path):
     assert _cached(root)["c1"] is None
     (problem,) = ledger.verify(root)
     assert key in problem
+
+
+def test_record_does_not_count_as_a_lookup(tmp_path):
+    root = _two(tmp_path)
+    ledger.stats(root, reset=True)
+    claims.verdict_for_node(root, "c1", "supports")
+    claims.verdict_for_node(root, "c1", "supports")  # repeat record
+    assert ledger.stats(root)["hits"] == 0
+    claims.verdict_for_node(root, "c1")  # a plain read is a lookup
+    assert ledger.stats(root)["hits"] == 1

@@ -300,8 +300,9 @@ def main() -> None:
     print(f"       git push -u origin {default_branch}")
     print()
     print("When you're ready to cut a release:")
-    print("       git tag v1.0.0")
-    print("       git push origin v1.0.0   # triggers release.yml")
+    version = "{{ cookiecutter.version }}"
+    print(f"       git tag v{version}")
+    print(f"       git push origin v{version}   # triggers release.yml")
     print()
 
 
