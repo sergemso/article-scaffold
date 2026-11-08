@@ -9,7 +9,8 @@
   "properties": {
     "version": { "type": "integer", "const": 1 },
     "nodes": { "type": "array", "items": { "$ref": "#/definitions/node" } },
-    "edges": { "type": "array", "items": { "$ref": "#/definitions/edge" } }
+    "edges": { "type": "array", "items": { "$ref": "#/definitions/edge" } },
+    "terms": { "type": "array", "items": { "$ref": "#/definitions/term" } }
   },
   "definitions": {
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
@@ -28,7 +29,7 @@
         "bib_keys": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "accepted-by": { "type": "string", "minLength": 1 },
         "quote": { "type": "string", "minLength": 1 },
-        "locator": { "type": "string", "minLength": 1 },
+        "locator": { "type": "string", "minLength": 1, "description": "Free text such as `p. 3`, or a source address `key@hash#locator` (decision 0080) that the claim check resolves in the source store." },
         "source": { "type": "string", "minLength": 1 },
         "conclusion": { "$ref": "#/definitions/id" },
         "inference": { "enum": ["deduction", "modus-ponens", "modus-tollens", "disjunctive-syllogism", "induction", "abduction", "analogy", "authority"] },
@@ -190,6 +191,50 @@
         "from": { "$ref": "#/definitions/id" },
         "to": { "$ref": "#/definitions/id" },
         "type": { "enum": ["supports", "attacks", "rebuts"] }
+      }
+    },
+    "line": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
+    "term": {
+      "description": "A defined term (decision 0076). kind defined needs anchor, external needs source, acronym needs expansion. match phrase-only (the default) searches only forms of two or more words and acronyms; match word, or a scope of section files, also searches single-word forms.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind", "status"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "name": { "$ref": "#/definitions/line" },
+        "forms": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "kind": { "enum": ["defined", "external", "acronym"] },
+        "anchor": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "expansion": { "$ref": "#/definitions/line" },
+        "definition": { "$ref": "#/definitions/line" },
+        "senses": { "type": "array", "items": { "$ref": "#/definitions/sense" } },
+        "children": { "type": "array", "items": { "$ref": "#/definitions/term-child" } },
+        "status": { "enum": ["proposed", "accepted", "retired"] },
+        "author": { "enum": ["agent", "human"] },
+        "accepted-by": { "type": "string", "minLength": 1 },
+        "match": { "enum": ["phrase-only", "word"] },
+        "scope": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "sense": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor"],
+      "properties": {
+        "anchor": { "type": "string", "minLength": 1 },
+        "definition": { "$ref": "#/definitions/line" }
+      }
+    },
+    "term-child": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "name": { "$ref": "#/definitions/line" },
+        "forms": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "definition": { "$ref": "#/definitions/line" }
       }
     }
   }

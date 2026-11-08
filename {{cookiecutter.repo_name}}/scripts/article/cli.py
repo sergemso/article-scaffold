@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
-from . import claims, companion, core, flow, theses
+from . import claims, code_index, companion, core, flow, ledger, sources, terms, theses
 from . import index as section_index
 
 
@@ -50,8 +51,16 @@ def _validate(args: argparse.Namespace) -> int:
 
 def _index(args: argparse.Namespace) -> int:
     root = _root(args)
+    if getattr(args, "index_action", None) == "slice":
+        try:
+            result = code_index.slice_symbol(root, args.name, args.file)
+        except code_index.CodeIndexError as exc:
+            _emit_json({"ok": False, "command": "index slice", "error": str(exc), **exc.extra})
+            return core.ExitCode.DIAGNOSTICS
+        _emit_json({"ok": True, "command": "index slice", **result})
+        return core.ExitCode.OK
     if args.check:
-        stale = section_index.check_index(root)
+        stale = section_index.check_index(root) + code_index.check_index(root)
         if args.json:
             _emit_json({"ok": not stale, "command": "index", "check": True, "stale": stale})
         else:
@@ -61,6 +70,7 @@ def _index(args: argparse.Namespace) -> int:
                 print("Section index is current.")
         return core.ExitCode.DIAGNOSTICS if stale else core.ExitCode.OK
     index = section_index.write_index(root)
+    code = code_index.write_index(root)
     payload = {
         "ok": True,
         "command": "index",
@@ -68,6 +78,15 @@ def _index(args: argparse.Namespace) -> int:
         "sections": len(index["sections"]),
         "labels": len(index["labels"]),
     }
+    broken = []
+    if code is not None:
+        payload["code_path"] = code_index.INDEX_PATH.as_posix()
+        payload["code_files"] = len(code["files"])
+        payload["symbols"] = len(code["symbols"])
+        broken = [f for f in code["files"] if f["status"] != "ok"]
+        payload["unparsed"] = [
+            {"file": f["file"], "status": f["status"], "error": f.get("error", "")} for f in broken
+        ]
     if args.json:
         _emit_json(payload)
     else:
@@ -75,7 +94,117 @@ def _index(args: argparse.Namespace) -> int:
             f"Wrote {payload['path']} "
             f"({payload['sections']} sections, {payload['labels']} labels)."
         )
+        if code is not None:
+            print(
+                f"Wrote {payload['code_path']} "
+                f"({payload['code_files']} files, {payload['symbols']} symbols)."
+            )
+            for f in broken:
+                print(f"WARNING: {f['file']} not indexed: {f['status']}", file=sys.stderr)
     return core.ExitCode.OK
+
+
+def _ledger_keyed(args: argparse.Namespace, root: Path) -> ledger.Keyed:
+    """Key from ``--input name=PATH`` (file content) and ``--text name=VALUE`` (literal)."""
+    values: dict[str, Any] = {}
+    for item in args.input or []:
+        name, sep, path = item.partition("=")
+        if not sep or not name:
+            raise ledger.LedgerError(f"--input wants name=PATH, got {item!r}")
+        values[name] = (root / path).resolve()
+    for item in args.text or []:
+        name, sep, value = item.partition("=")
+        if not sep or not name:
+            raise ledger.LedgerError(f"--text wants name=VALUE, got {item!r}")
+        values[name] = value
+    tools = {}
+    for item in args.tool or []:
+        name, sep, version = item.partition("=")
+        if not sep or not name:
+            raise ledger.LedgerError(f"--tool wants name=VERSION, got {item!r}")
+        tools[name] = version
+    if not args.version or not args.tier:
+        raise ledger.LedgerError("give --version and --tier")
+    return ledger.key(args.kind, values, args.version, args.tier, tools)
+
+
+def _ledger(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.ledger_action
+    command = f"ledger {action}"
+    try:
+        if action in ("get", "explain"):
+            if getattr(args, "no_ledger", False):
+                os.environ["ARTICLE_LEDGER"] = "off"
+            if action == "get" and args.key:
+                entry = ledger.get(root, args.kind, args.key)
+                digest = args.key
+            else:
+                keyed = _ledger_keyed(args, root)
+                digest = keyed.key
+                entry = ledger.lookup(root, keyed) if action == "get" else None
+            payload: dict[str, Any] = {"ok": True, "command": command, "key": digest}
+            if action == "get":
+                payload["ok"] = entry is not None  # F.4: ok equals the exit code
+                payload["hit"] = entry is not None
+                if entry is not None:
+                    payload["entry"] = entry
+                    payload["provenance"] = ledger.provenance(root, args.kind, digest)
+                payload["bypassed"] = not ledger.enabled()
+                _emit_json(payload)
+                return core.ExitCode.OK if entry is not None else core.ExitCode.DIAGNOSTICS
+            _emit_json({**payload, **ledger.explain(root, keyed)})
+            return core.ExitCode.OK
+        if action == "verify":
+            problems = ledger.verify(root)
+            _emit_json({"ok": not problems, "command": command, "problems": problems})
+            return core.ExitCode.DIAGNOSTICS if problems else core.ExitCode.OK
+        if action == "evict":
+            ledger.evict(root, args.kind, args.key, args.reason)
+            _emit_json({"ok": True, "command": command, "key": args.key, "evicted": True})
+            return core.ExitCode.OK
+        if action == "gc":
+            _emit_json({"ok": True, "command": command, **ledger.gc(root, args.apply)})
+            return core.ExitCode.OK
+        _emit_json({"ok": True, "command": command, "stats": ledger.stats(root, args.reset)})
+        return core.ExitCode.OK
+    except ledger.LedgerError as exc:
+        _emit_json({"ok": False, "command": command, "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
+
+
+def _sources(args: argparse.Namespace) -> int:
+    root = _root(args)
+    action = args.sources_action
+    command = f"sources {action}"
+    try:
+        if action == "add":
+            result = sources.add(
+                root,
+                Path(args.file),
+                origin=args.origin,
+                edition=args.edition,
+                key=args.key,
+                terms=args.terms,
+                retrieved=args.retrieved,
+                media_type=args.media_type,
+            )
+        elif action == "index":
+            result = sources.index(root, args.key, args.force)
+        elif action == "slice":
+            result = sources.slice_passage(root, args.address, args.window)
+        elif action == "diff":
+            result = sources.diff(root, args.key, args.old, args.new)
+        elif action == "find":
+            result = sources.find(root, " ".join(args.query), args.key, args.limit)
+        else:
+            result = sources.list_sources(root)
+    except sources.SourcesError as exc:
+        _emit_json({"ok": False, "command": command, "error": str(exc), **exc.extra})
+        return core.ExitCode.DIAGNOSTICS
+    unreadable = action == "index" and any(r["status"] == "unreadable" for r in result["sources"])
+    _emit_json({"ok": not unreadable, "command": command, **result})
+    return core.ExitCode.DIAGNOSTICS if unreadable else core.ExitCode.OK
 
 
 def _claims(args: argparse.Namespace) -> int:
@@ -86,14 +215,19 @@ def _claims(args: argparse.Namespace) -> int:
             if args.id is None and not args.all:
                 raise ValueError("give a node id or --all")
             results = claims.quote_check(root, None if args.all else args.id)
-            bad = [r["id"] for r in results if r["verdict"] == "not-found"]
+            bad = [r["id"] for r in results if r["verdict"] == "not-found" or r.get("stale")]
             _emit_json({"ok": not bad, "command": "claims quote-check", "results": results})
             return core.ExitCode.DIAGNOSTICS if bad else core.ExitCode.OK
         if action == "excerpt":
             print(claims.excerpt_for(root, args.id))
             return core.ExitCode.OK
-        entry = claims.cache_for_node(root, args.id, args.set)
-        _emit_json({"ok": True, "command": "claims cache", **entry})
+        if action == "rebase":
+            proposal = claims.rebase(root, args.id)
+            good = proposal["status"] in ("current", "proposed")
+            _emit_json({"ok": good, "command": "claims rebase", **proposal})
+            return core.ExitCode.OK if good else core.ExitCode.DIAGNOSTICS
+        entry = claims.verdict_for_node(root, args.id, args.set)
+        _emit_json({"ok": True, "command": f"claims {action}", **entry})
         return core.ExitCode.OK
     except ValueError as exc:
         _emit_json({"ok": False, "command": f"claims {action}", "error": str(exc)})
@@ -105,6 +239,9 @@ def _theses(args: argparse.Namespace) -> int:
     action = args.theses_action
     if action == "lint":
         diagnostics = theses.lint(root)
+        if diagnostics.ok:
+            data = theses.load_map(root)
+            diagnostics.extend(terms.check(root, data).diagnostics)
         if args.json:
             _emit_json(diagnostics.to_dict())
         else:
@@ -128,8 +265,22 @@ def _theses(args: argparse.Namespace) -> int:
         if action == "slice":
             _emit_json(theses.slice_map(data, args.id, args.depth))
             return core.ExitCode.OK
+        if action == "terms":
+            report = terms.check(root, data)
+            _emit_json(
+                {
+                    "ok": report.diagnostics.ok and not report.gaps,
+                    "command": "theses terms",
+                    "diagnostics": report.diagnostics.to_dict()["diagnostics"],
+                    "gaps": report.gaps,
+                    "notes": report.notes,
+                }
+            )
+            return core.ExitCode.OK if report.diagnostics.ok else core.ExitCode.DIAGNOSTICS
         kinds = tuple(args.kind) if args.kind else theses.DEFAULT_GAP_KINDS
         found = theses.gaps(data, theses.paper_labels(root), kinds)
+        if "term-unregistered" in kinds:
+            found += terms.check(root, data).gaps
         _emit_json({"ok": not found, "command": "theses gaps", "gaps": found})
         return core.ExitCode.DIAGNOSTICS if found else core.ExitCode.OK
     except (theses.AcceptError, KeyError) as exc:
@@ -162,12 +313,26 @@ def _flow(args: argparse.Namespace) -> int:
                 print(f"current stage: {payload['current_stage']}")
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
         if action == "next":
-            _emit_json(flow.open_orders(root) if args.open else flow.next_order(root))
+            if args.open:
+                _emit_json(flow.open_orders(root, with_brief=args.brief))
+            else:
+                _emit_json(flow.next_order(root, with_brief=args.brief))
             return core.ExitCode.OK
         if action == "done":
             payload = flow.done(root, args.order_id)
             _emit_json(payload)
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+        if action == "handoff":
+            try:
+                raw = sys.stdin.read() if args.file == "-" else Path(args.file).read_text("utf-8")
+            except OSError as exc:
+                raise flow.FlowError(f"cannot read the handoff file: {exc}") from exc
+            try:
+                data = json.loads(raw)
+            except ValueError as exc:
+                raise flow.FlowError(f"handoff is not valid JSON: {exc}") from exc
+            _emit_json(flow.handoff(root, args.order_id, data))
+            return core.ExitCode.OK
         if action == "round":
             if args.round_action == "open":
                 payload = flow.round_open(root, args.review)
@@ -188,6 +353,38 @@ def _flow(args: argparse.Namespace) -> int:
         _emit_json({"ok": False, "command": f"flow {action}", "error": str(exc)})
         return core.ExitCode.DIAGNOSTICS
     raise AssertionError(action)  # pragma: no cover
+
+
+def _check(args: argparse.Namespace) -> int:
+    root = _root(args)
+    words = args.words
+    if args.cold:
+        if words:
+            print("usage error: check --cold takes no name", file=sys.stderr)
+            return core.ExitCode.USAGE
+        try:
+            payload = flow.cold_run(root)
+        except (flow.FlowError, ledger.LedgerError) as exc:
+            _emit_json({"ok": False, "command": "check --cold", "error": str(exc)})
+            return core.ExitCode.DIAGNOSTICS
+        _emit_json(payload)
+        return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+    record = len(words) == 2 and words[0] == "record"
+    if not record and len(words) != 1:  # also covers no name at all
+        print("usage error: check takes a name, or `record` and a name", file=sys.stderr)
+        return core.ExitCode.USAGE
+    name = words[-1]
+    command = "check record" if record else "check"
+    try:
+        payload = flow.check_record(root, name) if record else flow.check_read(root, name)
+    except (flow.FlowError, ledger.LedgerError) as exc:
+        _emit_json({"ok": False, "command": command, "error": str(exc)})
+        return core.ExitCode.DIAGNOSTICS
+    _emit_json(payload)
+    if record:
+        return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
+    hit_pass = payload["state"] == "hit" and payload["verdict"] == "pass"
+    return core.ExitCode.OK if hit_pass else core.ExitCode.DIAGNOSTICS
 
 
 def _metadata(args: argparse.Namespace) -> int:
@@ -721,7 +918,8 @@ def build_parser() -> argparse.ArgumentParser:
     validate.set_defaults(func=_validate)
 
     index_cmd = subparsers.add_parser(
-        "index", help="write paper/build/section-index.json (labels, line ranges, summaries)"
+        "index",
+        help="write the section index and the code index (paper/build/); `index slice NAME`",
     )
     _add_common(index_cmd)
     index_cmd.add_argument(
@@ -730,6 +928,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail when the index is missing or older than a section; write nothing",
     )
     index_cmd.set_defaults(func=_index)
+    index_sub = index_cmd.add_subparsers(dest="index_action")
+    i_slice = index_sub.add_parser("slice", help="print one code symbol's lines (JSON)")
+    i_slice.add_argument("name", help="qualified symbol name, e.g. Class.method or Type::method")
+    i_slice.add_argument("--file", help="only symbols in this file (resolves an ambiguous name)")
+    _add_common(i_slice)
+    i_slice.set_defaults(func=_index, check=False)
 
     claims_cmd = subparsers.add_parser(
         "claims", help="check source-claim quotes against local source text"
@@ -750,8 +954,89 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(c_cache)
     c_cache.add_argument("id")
     c_cache.add_argument("--set", choices=claims.VERDICTS, help="record a verdict")
-    for sub in (c_check, c_excerpt, c_cache):
+    c_record = claims_sub.add_parser(
+        "record", help="record the tier-2 verdict of a node in the ledger (same as cache --set)"
+    )
+    _add_common(c_record)
+    c_record.add_argument("id")
+    c_record.add_argument("--set", choices=claims.VERDICTS, required=True, help="the verdict")
+    c_rebase = claims_sub.add_parser(
+        "rebase",
+        help="propose the address of a node's quote in the current edition (the map is not edited)",
+    )
+    _add_common(c_rebase)
+    c_rebase.add_argument("id")
+    for sub in (c_check, c_excerpt, c_cache, c_record, c_rebase):
         sub.set_defaults(func=_claims)
+
+    ledger_cmd = subparsers.add_parser(
+        "ledger", help="read, verify and maintain the committed results ledger"
+    )
+    ledger_sub = ledger_cmd.add_subparsers(dest="ledger_action", required=True)
+    l_get = ledger_sub.add_parser("get", help="look a result up (exit 1 on a miss)")
+    l_explain = ledger_sub.add_parser("explain", help="why a lookup misses: the nearest entry")
+    for sub in (l_get, l_explain):
+        _add_common(sub)
+        sub.add_argument("kind", choices=sorted(ledger.KINDS))
+        sub.add_argument("--input", action="append", metavar="NAME=PATH", help="a file input")
+        sub.add_argument("--text", action="append", metavar="NAME=VALUE", help="a literal input")
+        sub.add_argument("--version", help="procedure or check version")
+        sub.add_argument("--tier", help="tier of the result")
+        sub.add_argument("--tool", action="append", metavar="NAME=VERSION", help="declared tool")
+        sub.add_argument("--no-ledger", action="store_true", help="bypass the lookup")
+    l_get.add_argument("--key", help="read this exact key instead of computing one")
+    l_verify = ledger_sub.add_parser(
+        "verify", help="recompute every stored key (exit 1 on a problem)"
+    )
+    l_evict = ledger_sub.add_parser("evict", help="remove one entry; the only delete, logged")
+    l_evict.add_argument("kind", choices=sorted(ledger.KINDS))
+    l_evict.add_argument("key")
+    l_evict.add_argument("--reason", required=True)
+    l_gc = ledger_sub.add_parser(
+        "gc", help="report entries whose input files are gone or whose claim left the map"
+    )
+    l_gc.add_argument("--apply", action="store_true", help="evict and log them")
+    l_stats = ledger_sub.add_parser("stats", help="local hit and miss counters, no content")
+    l_stats.add_argument("--reset", action="store_true")
+    for sub in (l_verify, l_evict, l_gc, l_stats):
+        _add_common(sub)
+    for sub in (l_get, l_explain, l_verify, l_evict, l_gc, l_stats):
+        sub.set_defaults(func=_ledger)
+
+    sources_cmd = subparsers.add_parser(
+        "sources", help="add, normalize, index and slice third-party sources (offline)"
+    )
+    sources_sub = sources_cmd.add_subparsers(dest="sources_action", required=True)
+    s_add = sources_sub.add_parser("add", help="copy a file into paper/sources/ and record it")
+    s_add.add_argument("file")
+    s_add.add_argument("--origin", required=True, help="where the file came from (URL or note)")
+    s_add.add_argument("--edition", required=True, help="edition key, e.g. a draft revision")
+    s_add.add_argument("--key", help="source key (default: from MANIFEST.md or the file name)")
+    s_add.add_argument("--terms", help="a note on the source's terms of use")
+    s_add.add_argument("--retrieved", help="retrieval time, UTC ISO 8601 (default: now)")
+    s_add.add_argument("--media-type", help="override the media type guessed from the suffix")
+    s_index = sources_sub.add_parser(
+        "index", help="normalize text and build the locator index (exit 1 if one is unreadable)"
+    )
+    s_index.add_argument("key", nargs="?", help="only this source")
+    s_index.add_argument("--force", action="store_true", help="regenerate normalized text")
+    s_slice = sources_sub.add_parser("slice", help="print the passage an address names")
+    s_slice.add_argument("address", help="source-key@hash#locator")
+    s_slice.add_argument("--window", type=int, default=sources.DEFAULT_WINDOW, help="context lines")
+    s_diff = sources_sub.add_parser("diff", help="locators added, removed and changed")
+    s_diff.add_argument("key")
+    s_diff.add_argument("old", help="old normalized hash (prefix)")
+    s_diff.add_argument("new", help="new normalized hash (prefix)")
+    s_find = sources_sub.add_parser(
+        "find", help="keyword and phrase search; prints addresses with one-line context"
+    )
+    s_find.add_argument("query", nargs="+", help="terms that must all occur in a passage")
+    s_find.add_argument("--key", help="only this source")
+    s_find.add_argument("--limit", type=int, default=sources.DEFAULT_FIND_LIMIT)
+    s_list = sources_sub.add_parser("list", help="stored sources and MANIFEST.md rows not imported")
+    for sub in (s_add, s_index, s_slice, s_diff, s_find, s_list):
+        _add_common(sub)
+        sub.set_defaults(func=_sources)
 
     theses_cmd = subparsers.add_parser(
         "theses", help="lint, inspect and promote nodes of the theses map"
@@ -777,8 +1062,24 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(t_accept)
     t_accept.add_argument("id")
     t_accept.add_argument("--by", required=True, help="name of the accepting person")
-    for sub in (t_lint, t_gaps, t_slice, t_accept):
+    t_terms = theses_sub.add_parser(
+        "terms", help="tier 0 term checks, including the informational notes"
+    )
+    _add_common(t_terms)
+    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept):
         sub.set_defaults(func=_theses, command="theses")
+
+    check_cmd = subparsers.add_parser(
+        "check",
+        help="read a named check's stored result, or `check record NAME` to run and store it",
+    )
+    _add_common(check_cmd)
+    check_cmd.add_argument("words", nargs="*", metavar="[record] NAME")
+    check_cmd.add_argument(
+        "--cold", action="store_true",
+        help="run every deterministic check ignoring lookups and record the cold run",
+    )
+    check_cmd.set_defaults(func=_check, command="check")
 
     flow_cmd = subparsers.add_parser(
         "flow", help="lifecycle gates, work orders and review rounds"
@@ -792,11 +1093,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--open", action="store_true",
         help="list every open order of the current stage with parallel_safe marks",
     )
+    f_next.add_argument(
+        "--brief", action="store_true",
+        help="add the compiled brief (finding row, anchor slices, guardrail digest, ledger "
+        "hits, verify command) to each order",
+    )
     f_done = flow_sub.add_parser(
         "done", help="close an issued order by running its named check (takes the id only)"
     )
     _add_common(f_done)
     f_done.add_argument("order_id")
+    f_handoff = flow_sub.add_parser(
+        "handoff", help="record the state an agent hands back at its call cap"
+    )
+    _add_common(f_handoff)
+    f_handoff.add_argument("order_id")
+    f_handoff.add_argument(
+        "--file", required=True, help="handoff JSON (schemas/flow-handoff.schema.json); - is stdin"
+    )
     f_attest = flow_sub.add_parser("attest", help="record a human attestation (terminal only)")
     _add_common(f_attest)
     f_attest.add_argument("name", help="for example bibliography or claim:<node id>")
@@ -815,7 +1129,7 @@ def build_parser() -> argparse.ArgumentParser:
     r_open.add_argument("--review", required=True, help="local review file in this repository")
     r_close = round_sub.add_parser("close", help="record the round once the gates pass")
     _add_common(r_close)
-    for sub in (f_status, f_next, f_done, f_attest, f_waive, r_open, r_close):
+    for sub in (f_status, f_next, f_done, f_handoff, f_attest, f_waive, r_open, r_close):
         sub.set_defaults(func=_flow, command="flow")
 
     metadata = subparsers.add_parser(

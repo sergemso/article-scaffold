@@ -7,7 +7,7 @@ from pathlib import Path
 
 import jsonschema
 from conftest import ROOT
-from flow_helpers import THESIS_MAP, cli, jcli, set_state, write_map
+from flow_helpers import THESIS_MAP, cli, jcli, record_cold_run, set_state, write_map
 
 TEMPLATE = ROOT / "{{cookiecutter.repo_name}}"
 ORDER_SCHEMA = json.loads((TEMPLATE / "schemas" / "flow-order.schema.json").read_text())
@@ -99,7 +99,7 @@ def test_verify_sources_stage_claim_check_and_attest(flow_project: Path) -> None
     order = _order(flow_project)
     assert (order["kind"], order["tier"], order["nodes"]) == ("claim-check", "small", ["s1"])
     assert order["procedure"] == "docs/procedures/claim-check.md"
-    assert order["outputs"] == [".theses/claims-cache.json"]
+    assert order["outputs"] == ["docs/ledger/claim-verdict"]
 
 
 def test_adversarial_stage_red_team_and_blue_team(flow_project: Path) -> None:
@@ -144,6 +144,10 @@ def test_release_gate_stage_gated_bibliography_then_publish(flow_project: Path) 
     set_state(flow_project, attestations=[{
         "name": "bibliography", "by": "Ada", "at": "2026-01-01", "why": "verified",
     }])
+    cold = _order(flow_project)
+    assert (cold["stage"], cold["kind"]) == ("release-gate", "run-cold")
+    assert cold["gated"] is True and cold["confirm"] == "cold-run" and cold["check"] is None
+    record_cold_run(flow_project)
     last = _order(flow_project)
     assert (last["stage"], last["kind"], last["needs_human"]) == ("publish", "publish", True)
 

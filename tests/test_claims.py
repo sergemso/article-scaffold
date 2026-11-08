@@ -1,4 +1,4 @@
-"""Tier 1 quote matching and the tier 2 check cache."""
+"""Tier 1 quote matching and the tier 2 verdicts (stored in the ledger)."""
 
 from __future__ import annotations
 
@@ -126,9 +126,12 @@ def test_cache_hit_skips_recomputation_and_misses_on_change(tmp_path: Path) -> N
     put = _cli(project, "claims", "cache", "c1", "--set", "overstates")
     assert json.loads(put.stdout)["verdict"] == "overstates"
     assert _check(project, "c1")[1]["results"][0]["cached"] == "overstates"
-    cache = json.loads((project / ".theses" / "claims-cache.json").read_text())
-    assert len(cache) == 1 and list(cache.values()) == [{"verdict": "overstates"}]
-    assert "second sentence" not in json.dumps(cache)
+    files = [p for p in (project / "docs" / "ledger" / "claim-verdict").rglob("*.json")
+             if not p.name.endswith(".prov.json")]
+    assert len(files) == 1
+    stored = json.loads(files[0].read_text())
+    assert stored["result"] == {"verdict": "overstates"} and stored["status"] == "fail"
+    assert "second sentence" not in json.dumps(stored)
     # the excerpt changes -> the key changes -> miss
     sources = project / "paper" / "sources"
     (sources / "smith2020.txt").write_text(padded.replace("x x ", "z z ", 1))
@@ -142,7 +145,7 @@ def test_cache_hit_skips_recomputation_and_misses_on_change(tmp_path: Path) -> N
     assert _check(project, "c1")[1]["results"][0]["cached"] is None
 
 
-def test_cache_unit_helpers_and_bad_verdict(tmp_path: Path) -> None:
+def test_record_unit_helpers_and_bad_verdict(tmp_path: Path) -> None:
     project = _project(tmp_path, _node("c1", "A second sentence follows."))
     bad = _cli(project, "claims", "cache", "c1", "--set", "maybe")
     assert bad.returncode == 2
@@ -150,9 +153,9 @@ def test_cache_unit_helpers_and_bad_verdict(tmp_path: Path) -> None:
         "from scripts.article import claims; from pathlib import Path;"
         "r=Path('.');"
         "assert claims.cached_verdict(r,'a','b') is None;"
-        "claims.cache_put(r,'a','b','supports');"
+        "claims.record_verdict(r,'a','b','supports');"
         "assert claims.cached_verdict(r,'a','b')=='supports';"
-        "assert claims.cache_key('a','b')!=claims.cache_key('ab','')"
+        "assert claims.verdict_key('a','b').key!=claims.verdict_key('ab','').key"
     )
     assert run(project, "python3", "-c", code).returncode == 0
 
@@ -163,6 +166,7 @@ def test_excerpt_command_prints_local_passage(tmp_path: Path) -> None:
     assert result.returncode == 0 and "A second sentence follows." in result.stdout
 
 
-def test_template_gitignores_the_cache(tmp_path: Path) -> None:
+def test_template_gitignores_the_local_counters(tmp_path: Path) -> None:
     project = render(tmp_path=tmp_path)
     assert ".theses/" in (project / ".gitignore").read_text().splitlines()
+    assert "paper/sources/.manifest.lock" in (project / ".gitignore").read_text().splitlines()

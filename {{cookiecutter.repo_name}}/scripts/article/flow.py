@@ -9,16 +9,21 @@ orders). There is no stage pointer: the current stage is the earliest failing ga
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, NamedTuple
 
 import yaml
 
-from . import claims, core, theses
+from . import brief as order_brief
+from . import claims, companion, core, group, ledger, sources, theses
+from . import handoff as order_handoff
 from . import index as section_index
 
 STATE_FILE = "flow.yaml"
@@ -38,6 +43,8 @@ TIERS = ("script", "small", "large")
 DEFAULT_WEIGHTS = {"script": 0, "small": 1, "large": 5}
 DEFAULT_BUDGET_LIMIT = 20
 DEFAULT_RETRY_CAP = 3
+DEFAULT_MAX_CALLS = {"small": 40, "large": 60}  # advisory; the fallback when no context is set
+MIN_MAX_CONTEXT = 1000  # tokens; a threshold below this is a typo
 STATE_FIELDS = {
     "version",
     "round",
@@ -49,6 +56,11 @@ STATE_FIELDS = {
     "orders",
     "reviews",
     "closed",
+    "brief_bytes",
+    "max_calls",
+    "max_context",
+    "max_context_ceiling",
+    "group_size",
 }
 HEADER = (
     "# Flow state: decisions the repo cannot derive (round, attestations, waivers, budget).\n"
@@ -137,6 +149,23 @@ def state_errors(data: object) -> list[str]:
         errors.append("orders must be a mapping")
     if not isinstance(data.get("reviews"), list):
         errors.append("reviews must be a list")
+    if "brief_bytes" in data and not (
+        _nonneg_int(data["brief_bytes"]) and data["brief_bytes"] >= order_brief.MIN_BRIEF_BYTES
+    ):
+        errors.append(f"brief_bytes must be an integer of at least {order_brief.MIN_BRIEF_BYTES}")
+    if "max_calls" in data:
+        calls = data["max_calls"]
+        if not isinstance(calls, dict) or not set(calls) <= {"small", "large"}:
+            errors.append("max_calls must be a mapping with only small and large")
+        elif not all(_nonneg_int(v) and v >= 1 for v in calls.values()):
+            errors.append("max_calls values must be positive integers")
+    for key in ("max_context", "max_context_ceiling"):
+        if key in data and not (_nonneg_int(data[key]) and data[key] >= MIN_MAX_CONTEXT):
+            errors.append(f"{key} must be an integer of at least {MIN_MAX_CONTEXT} (tokens)")
+    if "group_size" in data and not (
+        _nonneg_int(data["group_size"]) and data["group_size"] >= group.MIN_GROUP_SIZE
+    ):
+        errors.append("group_size must be a positive integer (1 turns grouping off)")
     closed = data.get("closed", [])
     if not isinstance(closed, list) or not all(
         isinstance(c, dict) and set(c) == {"round", "at"} and _nonneg_int(c["round"])
@@ -251,8 +280,12 @@ class Facts:
         return self._once("claims", make)
 
     @property
+    def validation_diagnostics(self) -> list:
+        return self._once("validate", lambda: list(core.validate_paper(self.root).errors))
+
+    @property
     def validation_errors(self) -> int:
-        return self._once("validate", lambda: len(core.validate_paper(self.root).errors))
+        return len(self.validation_diagnostics)
 
     @property
     def index_stale(self) -> list[str]:
@@ -344,11 +377,16 @@ def _gate_draft(f: Facts) -> dict[str, Any]:
 
 
 def source_claim_state(f: Facts, record: dict) -> str:
-    """One of: ok, attested, needs-check, not-found, no-local-text, overstates, contradicts."""
+    """One of: ok, attested, needs-check, not-found, no-local-text, stale, overstates, contradicts.
+
+    ``stale``: the node's source address names a superseded edition (``claims rebase``).
+    """
     if f.attested(f"claim:{record['id']}"):
         return "attested"
     if record["verdict"] in ("not-found", "no-local-text"):
         return record["verdict"]
+    if record.get("stale"):
+        return "stale"  # the pinned edition was superseded; `claims rebase` proposes an address
     cached = record.get("cached")
     if cached == "supports":
         return "ok"
@@ -397,7 +435,15 @@ def _gate_release(f: Facts) -> dict[str, Any]:
         return _verdict(False, "the layout check fails", "python3 scripts/check_pdf_layout.py")
     if not f.attested("bibliography"):
         return _verdict(False, "no recorded bibliography verification", f"{CMD} flow attest")
-    return _verdict(True, "release plan clear and bibliography attested", command)
+    if not cold_run_recorded(f.root):
+        return _verdict(
+            False, "no cold run matches the current inputs", f"{CMD} check --cold"
+        )
+    verdict = _verdict(
+        True, "release plan clear, bibliography attested, cold run current", command
+    )
+    verdict["relied_on"] = relied_on(f.root)
+    return verdict
 
 
 def _gate_publish(f: Facts) -> dict[str, Any]:
@@ -449,7 +495,11 @@ def argv_for(name: str) -> list[str]:
 
 
 def run_check(root: Path, name: str) -> dict[str, Any]:
-    """Run a check from the fixed table: status is pass, fail or unavailable."""
+    """Run a check from the fixed table: status is pass, fail, unavailable or error.
+
+    A timeout or a process that cannot start is an ``error``, never a ``fail``: it says
+    nothing about the paper, so it must not be stored or counted as a verdict.
+    """
     if name not in CHECKS:
         raise FlowError(f"unknown check name {name!r}")
     script = CHECK_SCRIPTS.get(name)
@@ -460,9 +510,298 @@ def run_check(root: Path, name: str) -> dict[str, Any]:
             argv_for(name), cwd=root, capture_output=True, text=True, timeout=300, check=False
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return {"status": "fail", "output": str(exc)[:OUTPUT_LIMIT]}
+        return {"status": "error", "output": str(exc)[:OUTPUT_LIMIT]}
     text = " ".join((proc.stdout + proc.stderr).split())
-    return {"status": "pass" if proc.returncode == 0 else "fail", "output": text[:OUTPUT_LIMIT]}
+    return {
+        "status": "pass" if proc.returncode == 0 else "fail",
+        "output": text[:OUTPUT_LIMIT],
+        "lines": (proc.stdout + proc.stderr).splitlines(),
+    }
+
+
+# ---------------------------------------------------------- ledgered checks
+
+_ARTICLE_INPUTS = (
+    "scripts/article/*.py", "schemas/*.json", "theses.yaml", "metadata.yaml",
+    "paper/**/*.tex", "paper/**/*.bib", "paper/sources/**/*",
+)  # fmt: skip
+
+
+class CheckSpec(NamedTuple):
+    """What a named check reads. ``inputs`` are repo-relative globs; ``tools`` are declared
+    version strings, never found by running a tool. A check that is not ``deterministic``
+    is never stored."""
+
+    inputs: tuple[str, ...]
+    version: str = "1"
+    tools: Mapping[str, str] = MappingProxyType({})
+    deterministic: bool = True
+    # The repo may legitimately ship no script for this check (the template does not). A cold
+    # run then reports "not-applicable". Anything else that is unavailable fails the run.
+    optional: bool = False
+
+
+# Over-inclusive on purpose: an extra input costs a miss, a missing one serves a wrong hit.
+CHECK_SPECS: dict[str, CheckSpec] = {
+    "theses-lint": CheckSpec(_ARTICLE_INPUTS),
+    "theses-gaps": CheckSpec(_ARTICLE_INPUTS),
+    # Reads untracked build output by mtime (paper/build/section-index.json), which the key
+    # cannot see: a stored result would be served in the wrong worktree. Cheap, so never stored.
+    "index-check": CheckSpec(_ARTICLE_INPUTS, deterministic=False),
+    "claims-quote-check": CheckSpec(_ARTICLE_INPUTS),
+    "make-validate": CheckSpec(
+        _ARTICLE_INPUTS + ("scripts/validate-paper.py", "paper/figures/**/*")
+    ),
+    "release-plan": CheckSpec(_ARTICLE_INPUTS, deterministic=False),  # reads git state
+    "layout-check": CheckSpec(
+        ("scripts/check_pdf_layout.py", "paper/article.pdf"), optional=True
+    ),
+    "lint-counts": CheckSpec(
+        ("scripts/lint-counts.py", "paper/**/*.tex", "data/**/*"), optional=True
+    ),
+}
+CHECK_TIER = "script"
+FAILING_LINES = 5
+FAILING_WIDTH = 200
+_LABELLED_SECRET = re.compile(rb"(?i)\b(password|passwd|secret|token|api[_-]?key)\b\s*[:=]\s*\S+")
+
+
+def redact(line: str) -> str:
+    """Mask the secret patterns the commit guardrail uses (`companion.SECRET_PATTERNS`)."""
+    raw = line.encode("utf-8", "replace")
+    for pattern in (*companion.SECRET_PATTERNS, _LABELLED_SECRET):
+        raw = pattern.sub(b"[redacted]", raw)
+    return raw.decode("utf-8", "replace")
+
+
+def failing_lines(lines: list[str]) -> list[str]:
+    """The first few non-empty output lines, redacted and cut to a fixed width."""
+    kept = [" ".join(line.split()) for line in lines if line.strip()]
+    return [redact(line)[:FAILING_WIDTH] for line in kept[:FAILING_LINES]]
+
+
+SOURCES_GLOB = "paper/sources/**/*"
+
+
+def _source_inputs(root: Path) -> list[Path]:
+    """What a check reads of the source store: the manifest files and, per source key, the
+    normalized text of the current edition only. Old editions, raw files and locator indexes
+    are not inputs, so adding an edition does not list every file of every old one. A manifest
+    that cannot be read falls back to the whole tree (over-inclusive, never a wrong hit)."""
+    base = root / sources.SOURCES_DIR
+    try:
+        entries = sources.load_manifest(root)
+    except sources.SourcesError:
+        return sorted(p for p in base.glob("**/*") if p.is_file())
+    paths = [base / sources.MANIFEST_JSON, base / sources.LEGACY_MANIFEST]
+    current: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        current[entry["key"]] = entry  # the newest entry of a key is the last one
+    for entry in current.values():
+        paths.append(sources.store_dir(root, entry["key"], entry["raw_hash"]) / "normalized.txt")
+    return paths
+
+
+def _expand(root: Path, patterns: tuple[str, ...]) -> dict[str, Path | str]:
+    """Input name to what is hashed. A symlink is hashed by its link text, not followed, so
+    retargeting it changes the key and a link to a file outside the repo is never read."""
+    found: dict[str, Path | str] = {}
+    for pattern in patterns:
+        matches = _source_inputs(root) if pattern == SOURCES_GLOB else sorted(root.glob(pattern))
+        for path in matches:
+            name = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                found[name] = "symlink:" + os.readlink(path)
+            elif path.is_file():
+                found[name] = path
+    return found
+
+
+def check_keyed(root: Path, name: str) -> ledger.Keyed | None:
+    """The ledger key of a named check, or None when none of its inputs exists."""
+    if name not in CHECKS:
+        raise FlowError(f"unknown check name {name!r}")
+    spec = CHECK_SPECS[name]
+    found = _expand(root, spec.inputs)
+    if not found:
+        return None
+    return ledger.key(
+        "check-outcome", found, f"{name}@{spec.version}", CHECK_TIER, spec.tools
+    )
+
+
+def check_read(root: Path, name: str) -> dict[str, Any]:
+    """A pure read: ``hit`` with the stored verdict, ``stale`` (an older entry of this check
+    exists for other inputs), ``miss`` or ``uncacheable``. Nothing runs and nothing is written."""
+    if name not in CHECKS:
+        raise FlowError(f"unknown check name {name!r}")
+    base = {"ok": False, "command": "check", "name": name}  # ok: only a stored pass (= exit 0)
+    if not CHECK_SPECS[name].deterministic:
+        return {**base, "state": "uncacheable"}
+    keyed = check_keyed(root, name)
+    if keyed is None:
+        return {**base, "state": "miss", "reason": "no input file exists"}
+    entry = ledger.lookup(root, keyed)
+    if entry is not None:
+        return {
+            **base, "ok": entry["status"] == "pass", "state": "hit",
+            "verdict": entry["status"], "key": keyed.key,
+            "failing": entry.get("result", {}).get("failing", []),
+        }
+    nearest = ledger.explain(root, keyed, f"{name}@")
+    if nearest["nearest"] is None:
+        return {**base, "state": "miss", "key": keyed.key}
+    return {**base, "state": "stale", "key": keyed.key, "changed": nearest["changed"],
+            "added": nearest["added"], "removed": nearest["removed"]}  # fmt: skip
+
+
+def check_record(root: Path, name: str) -> dict[str, Any]:
+    """Run a check from the fixed table and store a pass or fail.
+
+    The key is computed first, so an unchanged input is a hit and nothing runs. An
+    ``error`` or ``unavailable`` outcome and a non-deterministic check are never stored.
+    """
+    if name not in CHECKS:
+        raise FlowError(f"unknown check name {name!r}")
+    base = {"command": "check record", "name": name}
+    spec = CHECK_SPECS[name]
+    keyed = check_keyed(root, name) if spec.deterministic else None
+    if keyed is not None:
+        try:
+            entry = ledger.lookup(root, keyed)
+        except ledger.LedgerError as exc:
+            raise FlowError(str(exc)) from exc
+        if entry is not None:
+            return {
+                **base, "ok": entry["status"] == "pass", "state": "hit", "stored": False,
+                "verdict": entry["status"],
+                "failing": entry.get("result", {}).get("failing", []),
+            }
+    ran = run_check(root, name)
+    status = ran["status"]
+    if status not in ("pass", "fail"):
+        return {**base, "ok": False, "state": status, "stored": False,
+                "failing": failing_lines([ran["output"]])}  # fmt: skip
+    failing = failing_lines(ran.get("lines", [])) if status == "fail" else []
+    stored = False
+    if keyed is not None:
+        try:
+            stored = ledger.put(
+                root, keyed, status, {"check": name, "failing": failing},
+                {"author": "script"},
+            ) == "created"
+        except ledger.LedgerConflict as exc:
+            raise FlowError(str(exc)) from exc
+    return {**base, "ok": status == "pass", "state": "ran", "stored": stored,
+            "verdict": status, "failing": failing}  # fmt: skip
+
+
+# ----------------------------------------------------------------- cold run
+
+COLD_KIND = "cold-run"
+COLD_TIER = "cold"
+RELIED_ON_CAP = 50
+
+
+def cold_keyed(root: Path) -> ledger.Keyed | None:
+    """Key over the inputs of every deterministic table check and their versions.
+
+    Any change to a file a check reads makes the key differ, so a cold run never carries
+    over to changed inputs and there is no time window.
+    """
+    found: dict[str, Path] = {}
+    versions = []
+    for name in sorted(CHECKS):
+        spec = CHECK_SPECS[name]
+        if not spec.deterministic:
+            continue
+        versions.append(f"{name}@{spec.version}")
+        found.update(_expand(root, spec.inputs))
+    if not found:
+        return None
+    return ledger.key(COLD_KIND, found, "cold-run@1;" + ";".join(versions), COLD_TIER)
+
+
+def cold_run_recorded(root: Path) -> bool:
+    """True when a passing cold-run record matches the current inputs. A pure file read.
+
+    It uses ``ledger.get`` and not ``lookup``, so ``ARTICLE_LEDGER=off`` cannot satisfy it
+    and only ``cold_run`` can write the record.
+    """
+    keyed = cold_keyed(root)
+    if keyed is None:
+        return False
+    try:
+        entry = ledger.get(root, COLD_KIND, keyed.key)
+    except ledger.LedgerError:
+        return False  # a corrupt record keeps the gate closed; `ledger verify` names the file
+    return entry is not None and entry["status"] == "pass"
+
+
+def relied_on(root: Path) -> dict[str, Any]:
+    """Tier 2 verdicts a gate rests on, with provenance: no cold run can re-judge them."""
+    digests = ledger.keys(root, "claim-verdict")
+    entries = []
+    for digest in digests[:RELIED_ON_CAP]:
+        prov = (ledger.provenance(root, "claim-verdict", digest) or [{}])[0]
+        item = {"key": digest[:12], "author": str(prov.get("author", "unknown"))}
+        if "recorded" in prov:
+            item["recorded"] = str(prov["recorded"])
+        entries.append(item)
+    return {"count": len(digests), "entries": entries}
+
+
+def cold_run(root: Path) -> dict[str, Any]:
+    """Run every deterministic table check ignoring lookups, then compare with the ledger.
+
+    A stored outcome that differs from the cold one is evicted (logged) and replaced, and
+    the run fails: the ledger had served a wrong answer. Only a clean run writes the
+    ``cold-run`` record the release gate reads. It is run by CI or the parent session,
+    never from ``next_order``.
+    """
+    if not ledger.enabled():
+        error = "the ledger is switched off; a cold run could not be recorded"
+        return {"ok": False, "command": "check --cold", "error": error}
+    outcomes: dict[str, str] = {}
+    differences: list[dict[str, str]] = []
+    problems: list[str] = []
+    for name in sorted(CHECKS):
+        if not CHECK_SPECS[name].deterministic:
+            outcomes[name] = "skipped"
+            continue
+        ran = run_check(root, name)
+        status = ran["status"]
+        outcomes[name] = status
+        if status not in ("pass", "fail"):
+            if status == "unavailable" and CHECK_SPECS[name].optional:
+                outcomes[name] = "not-applicable"
+            else:
+                problems.append(f"{name}: {ran['output']}")
+            continue
+        failing = failing_lines(ran.get("lines", [])) if status == "fail" else []
+        keyed = check_keyed(root, name)
+        if keyed is None:
+            continue
+        stored = ledger.get(root, "check-outcome", keyed.key)
+        result = {"check": name, "failing": failing}
+        if stored is not None and (stored["status"], stored.get("result")) != (status, result):
+            ledger.evict(
+                root, "check-outcome", keyed.key,
+                f"cold run differs: ledger said {stored['status']}, cold run says {status}",
+            )
+            differences.append({"check": name, "ledger": stored["status"], "cold": status})
+            stored = None
+        if stored is None:
+            ledger.put(root, keyed, status, result, {"author": "script", "cold": True})
+    failed = sorted(n for n, s in outcomes.items() if s == "fail")
+    ok = not (differences or problems or failed)
+    recorded = False
+    keyed = cold_keyed(root)
+    if ok and keyed is not None:
+        ledger.put(root, keyed, "pass", {"checks": outcomes}, {"author": "script"})
+        recorded = True
+    return {"ok": ok, "command": "check --cold", "recorded": recorded, "checks": outcomes,
+            "differences": differences, "failed": failed, "errors": problems}  # fmt: skip
 
 
 # -------------------------------------------------------------------- status
@@ -489,6 +828,8 @@ def evaluate(facts: Facts, today: date) -> list[dict[str, Any]]:
         status = "pass" if verdict["ok"] else "fail"
         reason = verdict["reason"]
         entry = {"stage": stage, "status": status, "reason": reason, "command": verdict["command"]}
+        if "relied_on" in verdict:
+            entry["relied_on"] = verdict["relied_on"]
         waiver = None if verdict["ok"] else active_waiver(facts.state, stage, today)
         if waiver is not None:
             entry["status"] = "waived"
@@ -704,7 +1045,7 @@ def _verify_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
             out.append(
                 make_order(
                     stage, "claim-check", nodes=[record["id"]],
-                    outputs=[claims.CACHE_PATH.as_posix()], proc=procedure("claim-check"),
+                    outputs=[claims.VERDICT_OUTPUT], proc=procedure("claim-check"),
                     check="claims-quote-check",
                     reason=f"{record['id']} has no fresh cached verdict",
                 )
@@ -750,6 +1091,17 @@ def _release_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
                 reason="bibliography verification needs a confirmation in the owner's terminal",
             )
         )
+    elif not cold_run_recorded(f.root):
+        out.append(
+            make_order(
+                stage, "run-cold", tier="script", gated=True, confirm="cold-run",
+                outputs=["docs/ledger/cold-run"],
+                reason=(
+                    "no cold run matches the current inputs; CI or a person runs "
+                    f"`{CMD} check --cold`, then records `flow attest cold-run`"
+                ),
+            )
+        )
     return out
 
 
@@ -768,7 +1120,9 @@ def _record(state: dict[str, Any], order: dict[str, Any]) -> dict[str, Any] | No
     return entry if isinstance(entry, dict) else None
 
 
-def next_order(root: Path, today: date | None = None) -> dict[str, Any]:
+def next_order(
+    root: Path, today: date | None = None, with_brief: bool = False
+) -> dict[str, Any]:
     """The first open order for the earliest failing gate; re-issuing is idempotent."""
     state = load_state(root)
     facts = Facts(root, state)
@@ -785,13 +1139,40 @@ def next_order(root: Path, today: date | None = None) -> dict[str, Any]:
                 reason=f"{entry['reason']}; run {entry['command']}",
             )
         ]
-    order = candidates[0]
-    entry = _record(state, order)
-    order["retries"] = int(entry.get("retries", 0)) if entry else 0
-    order = _apply_limits(order, entry, state)
-    if not order["needs_human"]:
-        _remember(root, state, order)
-    return {"ok": True, "command": "flow next", "order": order}
+    ready = _ready(candidates, state)
+    for item in ready:
+        decorate(item, facts)
+    groups, _ = group.plan(ready, group_size(state))
+    members = next((g for g in groups if g[0] == 0), None)
+    if members is None:
+        order = ready[0]
+        if not order["needs_human"]:
+            _remember(root, state, order)
+        decorate(order, facts, with_brief)
+        return {"ok": True, "command": "flow next", "order": order}
+    batch = [ready[i] for i in members]
+    for item in batch:
+        _remember(root, state, item)
+    unit = group_unit(batch, facts, with_brief)
+    for item in batch:
+        item["group"] = unit["id"]
+    return {
+        "ok": True, "command": "flow next", "order": batch[0], "group": unit, "orders": batch,
+    }
+
+
+def _ready(candidates: list[dict[str, Any]], state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Candidates with their retry count and the retry or budget limits applied."""
+    ready = []
+    for order in candidates:
+        entry = _record(state, order)
+        order["retries"] = int(entry.get("retries", 0)) if entry else 0
+        ready.append(_apply_limits(order, entry, state))
+    return ready
+
+
+def group_size(state: dict[str, Any]) -> int:
+    return int(state.get("group_size", group.DEFAULT_GROUP_SIZE))
 
 
 def _apply_limits(order: dict[str, Any], entry: dict | None, state: dict[str, Any]):
@@ -836,9 +1217,361 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
     }
     if isinstance(old, dict) and old.get("last_output"):
         entry["last_output"] = old["last_output"]
+    if isinstance(old, dict) and old.get("handoff"):
+        entry["handoff"] = old["handoff"]
     if old != entry:
         state["orders"][order["id"]] = entry
         save_state(root, state)
+
+
+# ------------------------------------------------------------- brief, call cap
+
+# Where the finding or gap row of a brief comes from, per order kind. The row is read from
+# the stage that issued the order, never from a model. Kinds not listed use the gate row.
+ROW_SOURCES = {
+    "fill-gap": "theses gaps",
+    "find-related": "theses gaps",
+    "red-team": "theses gaps",
+    "blue-team": "theses gaps",
+    "triage-objection": "theses.yaml node",
+    "claim-check": "claims quote-check",
+    "attest-claim": "claims quote-check",
+    "write-section": "validate",
+    "fix-validation": "validate",  # only where the order's check is make-validate
+}
+# The gap kinds each gap-driven order answers; the row lists only those.
+ROW_GAP_KINDS = {
+    "fill-gap": MAP_GAP_KINDS,
+    "find-related": ("single-source",),
+    "red-team": ("thesis-unattacked",),
+    "blue-team": ("objection-undefended",),
+}
+GATE_ROW_SOURCE = "flow status"
+ROW_TEXT = 300
+ROW_ERRORS = 5
+MAX_BRIEF_NODES = 5
+
+
+def _row_source(order: dict[str, Any]) -> str:
+    source = ROW_SOURCES.get(order["kind"], GATE_ROW_SOURCE)
+    if source == "validate" and order["check"] != "make-validate":
+        return GATE_ROW_SOURCE
+    return source
+
+
+def _short(value: object) -> object:
+    return value[:ROW_TEXT] if isinstance(value, str) else value
+
+
+def _relative(root: Path, path: str) -> str:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        try:
+            return candidate.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            return path
+    return candidate.as_posix()
+
+
+def finding_row(order: dict[str, Any], f: Facts) -> dict[str, Any]:
+    """The finding or gap row that raised the order, labelled with its source."""
+    source = _row_source(order)
+    nodes = order["nodes"][:MAX_BRIEF_NODES]
+    row: dict[str, Any] = {"source": source}
+    if source == "theses gaps":
+        row["gaps"] = sorted(
+            (
+                {"kind": g["kind"], "id": g["id"], "text": _short(g["text"])}
+                for g in f.gaps
+                if g["id"] in nodes and g["kind"] in ROW_GAP_KINDS[order["kind"]]
+            ),
+            key=lambda g: (g["id"], g["kind"]),
+        )
+    elif source in ("theses.yaml node", "claims quote-check"):
+        row["nodes"] = [
+            {k: _short(f.nodes[n][k]) for k in ("id", "type", "status", "text") if k in f.nodes[n]}
+            for n in nodes
+            if n in f.nodes
+        ]
+        if source == "claims quote-check":
+            row["records"] = sorted(
+                (
+                    {k: _short(v) for k, v in r.items() if isinstance(v, (str, bool, int))}
+                    for r in f.claim_records
+                    if r["id"] in nodes
+                ),
+                key=lambda r: r["id"],
+            )
+    elif source == "validate":
+        diagnostics = f.validation_diagnostics
+        row["count"] = len(diagnostics)
+        row["errors"] = [
+            {
+                "path": _relative(f.root, str(d.path)),
+                "line": d.line,
+                "code": d.code,
+                "message": _short(d.message),
+            }
+            for d in diagnostics[:ROW_ERRORS]
+        ]
+    else:
+        row["reason"] = order["reason"]
+    return row
+
+
+def _order_anchors(order: dict[str, Any], f: Facts, row: dict[str, Any]) -> list[dict]:
+    nodes = [f.nodes[n] for n in order["nodes"] if n in f.nodes]
+    places = [(e["path"], e["line"]) for e in row.get("errors", []) if e["line"] > 0]
+    return order_brief.anchors_for(
+        f.root,
+        labels=[n["anchor"] for n in nodes if isinstance(n.get("anchor"), str)],
+        texts=[n["text"] for n in nodes],
+        places=places,
+    )
+
+
+def _ledger_hits(order: dict[str, Any], f: Facts) -> list[dict[str, Any]]:
+    """Ledger entries already valid for the order's inputs (read only, nothing counted)."""
+    hits: list[dict[str, Any]] = []
+    if not ledger.enabled():
+        return hits
+    name = order["check"]
+    spec = CHECK_SPECS.get(name) if name else None
+    if spec is not None and spec.deterministic:
+        keyed = check_keyed(f.root, name)
+        entry = _safe_get(f.root, keyed)
+        if entry is not None:
+            hits.append(
+                {
+                    "kind": "check-outcome", "name": name, "key": keyed.key,
+                    "status": entry["status"],
+                    "failing": (entry.get("result") or {}).get("failing", []),
+                }
+            )  # fmt: skip
+    if order["kind"] in ("claim-check", "attest-claim"):
+        for node_id in order["nodes"][:MAX_BRIEF_NODES]:
+            try:
+                excerpt = claims.excerpt_for(f.root, node_id)
+            except (ValueError, OSError):
+                continue
+            keyed = claims.verdict_key(f.nodes[node_id]["text"], excerpt)
+            entry = _safe_get(f.root, keyed)
+            if entry is not None:
+                hits.append(
+                    {
+                        "kind": claims.VERDICT_KIND, "name": node_id, "key": keyed.key,
+                        "status": entry["status"],
+                        "verdict": (entry.get("result") or {}).get("verdict"),
+                    }
+                )  # fmt: skip
+    return sorted(hits, key=lambda h: (h["kind"], h["name"]))
+
+
+def _safe_get(root: Path, keyed: ledger.Keyed | None) -> dict[str, Any] | None:
+    if keyed is None:
+        return None
+    try:
+        return ledger.get(root, keyed.kind, keyed.key)
+    except ledger.LedgerError:
+        return None  # a corrupt entry is never served; `ledger verify` reports it
+
+
+def max_calls_for(order: dict[str, Any], state: dict[str, Any]) -> int | None:
+    """The advisory call cap for an order's tier: ``flow.yaml`` ``max_calls`` over the defaults.
+
+    Script orders and orders for a person carry none. The host counts calls; the CLI never
+    enforces this.
+    """
+    if order["needs_human"] or order["tier"] not in DEFAULT_MAX_CALLS:
+        return None
+    table = {**DEFAULT_MAX_CALLS, **(state.get("max_calls") or {})}
+    return int(table[order["tier"]])
+
+
+def max_context_for(order: dict[str, Any], state: dict[str, Any]) -> int | None:
+    """The advisory context threshold, in tokens: the smaller of ``max_context`` and
+    ``max_context_ceiling`` when set, else None (the call cap is then the only limit).
+
+    Orders that carry no call cap (script and human orders) carry none. The host counts
+    context; the CLI never enforces this.
+    """
+    if order["needs_human"] or order["tier"] not in DEFAULT_MAX_CALLS:
+        return None
+    limits = [state[k] for k in ("max_context", "max_context_ceiling") if k in state]
+    return int(min(limits)) if limits else None
+
+
+def _anchored(order: dict[str, Any], f: Facts) -> tuple[dict[str, Any], list[dict]]:
+    """The finding row and the anchors of an order, each anchor marked ``write`` or ``read``.
+
+    An anchor is a write anchor when the order's outputs cover its file (see ``group``).
+    """
+    row = finding_row(order, f)
+    anchors = _order_anchors(order, f, row)
+    finished = order_handoff.done_ids(_handoff_of(f.state, order["id"]))
+    anchors = [a for a in anchors if (a["file"], a["name"]) not in finished]
+    for anchor in anchors:
+        anchor["mode"] = group.anchor_mode(order["outputs"], anchor["file"])
+    return row, anchors
+
+
+def _handoff_of(state: dict[str, Any], order_id: str) -> dict[str, Any] | None:
+    entry = state["orders"].get(order_id)
+    found = entry.get("handoff") if isinstance(entry, dict) else None
+    return found if isinstance(found, dict) else None
+
+
+def _handoffs(state: dict[str, Any], ids: list[str]) -> list[dict[str, Any]]:
+    """The recorded handoffs of the given orders, sorted by order id."""
+    return [h for i in sorted(ids) if (h := _handoff_of(state, i))]
+
+
+def _verify_for(order: dict[str, Any]) -> dict[str, str] | None:
+    name = order["check"]
+    return {"check": name, "command": f"{CMD} check record {name}"} if name else None
+
+
+def _brief_cap(f: Facts) -> int:
+    return int(f.state.get("brief_bytes", order_brief.DEFAULT_BRIEF_BYTES))
+
+
+def _index_notes(f: Facts) -> list[str]:
+    if (f.root / section_index.INDEX_PATH).is_file():
+        return []
+    return ["the section index is missing; section anchors are not resolved"]
+
+
+def decorate(order: dict[str, Any], f: Facts, with_brief: bool = False) -> None:
+    """Add the optional ``anchors`` and ``max_calls``; with *with_brief*, the compiled brief.
+
+    Nothing here is stored in ``flow.yaml``. A brief is rebuilt from the repo on each call.
+    """
+    row, anchors = _anchored(order, f)
+    order.pop("anchors", None)
+    if anchors:
+        order["anchors"] = [order_brief.order_anchor(a) for a in anchors]
+    calls = max_calls_for(order, f.state)
+    if calls is not None:
+        order["max_calls"] = calls
+    context = max_context_for(order, f.state)
+    if context is not None:
+        order["max_context"] = context
+    if not with_brief:
+        return
+    order["brief"] = order_brief.compile_brief(
+        order=order,
+        row=row,
+        anchors=anchors,
+        guardrails=order_brief.guardrail_digest(f.root, order["kind"]),
+        ledger_hits=_ledger_hits(order, f),
+        verify=_verify_for(order),
+        max_calls=calls,
+        max_context=context,
+        cap=_brief_cap(f),
+        notes=_index_notes(f),
+        handoffs=_handoffs(f.state, [order["id"]]),
+    )
+
+
+def group_unit(batch: list[dict[str, Any]], f: Facts, with_brief: bool) -> dict[str, Any]:
+    """One unit for one agent: the member ids, the shared files, a combined cap and brief.
+
+    The members keep their own fields but carry no brief of their own.
+    """
+    ids = [o["id"] for o in batch]
+    gid = group.group_id(ids)
+    counts: dict[str, int] = {}
+    for order in batch:
+        for file in group.write_files(order):
+            counts[file] = counts.get(file, 0) + 1
+    unit: dict[str, Any] = {
+        "id": gid,
+        "orders": ids,
+        "files": sorted(file for file, n in counts.items() if n > 1),
+    }
+    calls = [o["max_calls"] for o in batch if "max_calls" in o]
+    if calls:
+        unit["max_calls"] = sum(calls)
+    contexts = [o["max_context"] for o in batch if "max_context" in o]
+    if contexts:
+        unit["max_context"] = min(contexts)  # one agent reads all members: one context
+    seen: dict[tuple, dict] = {}
+    parts = [_anchored(o, f) for o in batch]
+    for _, anchors in parts:
+        for a in anchors:
+            seen.setdefault((a["file"], tuple(a["lines"]), a["name"]), a)
+    merged = [seen[k] for k in sorted(seen)]
+    unit["anchors"] = [order_brief.order_anchor(a) for a in merged]
+    if not with_brief:
+        return unit
+    guardrails: dict[str, dict] = {}
+    hits: dict[tuple, dict] = {}
+    verifies: dict[str, dict] = {}
+    for order in batch:
+        for item in order_brief.guardrail_digest(f.root, order["kind"]):
+            guardrails.setdefault(item["id"], item)
+        for hit in _ledger_hits(order, f):
+            hits.setdefault((hit["kind"], hit["name"]), hit)
+        verify = _verify_for(order)
+        if verify:
+            verifies.setdefault(verify["command"], verify)
+    commands = sorted(verifies)
+    notes = _index_notes(f)
+    notes += [f"also verify: {c}" for c in commands[1:]]
+    notes.append(f"{len(batch)} orders share {', '.join(unit['files']) or 'files'}")
+    row = dict(parts[0][0])
+    row["members"] = [{"order": o["id"], "row": p[0]} for o, p in zip(batch, parts, strict=True)]
+    unit["brief"] = order_brief.compile_brief(
+        order={"id": gid},
+        row=row,
+        anchors=merged,
+        guardrails=[guardrails[k] for k in sorted(guardrails)],
+        ledger_hits=[hits[k] for k in sorted(hits)],
+        verify=verifies[commands[0]] if commands else None,
+        max_calls=unit.get("max_calls"),
+        max_context=unit.get("max_context"),
+        cap=_brief_cap(f),
+        notes=notes,
+        handoffs=_handoffs(f.state, ids),
+    )
+    return unit
+
+
+# ------------------------------------------------------------------- handoff
+
+
+def handoff(root: Path, order_id: str, data: object) -> dict[str, Any]:
+    """Record the handoff of an issued, open order (decision 0081).
+
+    The handoff is validated, normalized and stored in the order's entry in ``flow.yaml``.
+    The next ``flow next`` rebuilds the brief from the repo and this record, leaving out the
+    anchors reported done. Recording again replaces the earlier handoff.
+    """
+    state = load_state(root)
+    entry = state["orders"].get(order_id)
+    if not isinstance(entry, dict):
+        raise FlowError(f"unknown order {order_id!r}; run `flow next`")
+    if entry.get("done"):
+        raise FlowError(f"order {order_id!r} is already done; nothing to hand off")
+    problems = order_handoff.errors(data)
+    if not problems and data["order"] != order_id:  # type: ignore[index]
+        problems.append(f"order {data['order']!r} does not match {order_id!r}")  # type: ignore[index]
+    if not problems:
+        check = data["verify"]["check"]  # type: ignore[index]
+        if check is not None and check not in CHECKS:
+            problems.append(f"verify check {check!r} is not a named check")
+    if problems:
+        raise FlowError("invalid handoff: " + "; ".join(problems))
+    record = order_handoff.normalize(data)  # type: ignore[arg-type]
+    entry["handoff"] = record
+    save_state(root, state)
+    return {
+        "ok": True,
+        "command": "flow handoff",
+        "id": order_id,
+        "handoff": record,
+        "remaining": len(record["remaining"]),
+    }
 
 
 # ---------------------------------------------------------------- done, attest
@@ -883,9 +1616,11 @@ def done(root: Path, order_id: str, today: date | None = None) -> dict[str, Any]
             f"`flow attest {entry.get('confirm')}` in a terminal"
         )
     if check is not None:
-        ran = run_check(root, check)
-        if ran["status"] != "pass":
-            return _fail(root, state, order_id, f"check {check}: {ran['status']}: {ran['output']}")
+        ran = check_record(root, check)
+        if not ran["ok"]:
+            detail = "; ".join(ran["failing"]) or ran["state"]
+            outcome = ran.get("verdict", ran["state"])
+            return _fail(root, state, order_id, f"check {check}: {outcome}: {detail}")
     facts = Facts(root, state)
     if order_id in {o["id"] for o in orders_for(entry["stage"], facts)}:
         return _fail(root, state, order_id, "the condition behind this order still holds")
@@ -1050,10 +1785,6 @@ def round_close(root: Path, today: date | None = None) -> dict[str, Any]:
 # ------------------------------------------------------------ parallel orders
 
 
-def _paths_overlap(a: str, b: str) -> bool:
-    if a == b:
-        return True
-    return (a.endswith("/") and b.startswith(a)) or (b.endswith("/") and a.startswith(b))
 
 
 def mark_parallel(orders: list[dict[str, Any]]) -> None:
@@ -1069,13 +1800,15 @@ def mark_parallel(orders: list[dict[str, Any]]) -> None:
             if other is order:
                 continue
             if set(order["nodes"]) & set(other["nodes"]) or any(
-                _paths_overlap(x, y) for x in order["outputs"] for y in other["outputs"]
+                group.paths_overlap(x, y) for x in order["outputs"] for y in other["outputs"]
             ):
                 safe = False
         order["parallel_safe"] = safe
 
 
-def open_orders(root: Path, today: date | None = None) -> dict[str, Any]:
+def open_orders(
+    root: Path, today: date | None = None, with_brief: bool = False
+) -> dict[str, Any]:
     """Every open order of the current stage, with `parallel_safe` marks.
 
     Hosts run one working copy per concurrent order and merge the branches.
@@ -1086,13 +1819,34 @@ def open_orders(root: Path, today: date | None = None) -> dict[str, Any]:
     stage = current_stage(results)
     if stage is None:
         return {"ok": True, "command": "flow next", "orders": []}
-    orders = []
-    for order in orders_for(stage, facts):
-        entry = _record(state, order)
-        order["retries"] = int(entry.get("retries", 0)) if entry else 0
-        order = _apply_limits(order, entry, state)
+    ready = _ready(orders_for(stage, facts), state)
+    for order in ready:
+        decorate(order, facts)
+    plans, deferred = group.plan(ready, group_size(state))
+    grouped = {i for g in plans for i in g}
+    offered = [(i, o) for i, o in enumerate(ready) if i not in deferred]
+    for _, order in offered:
         if not order["needs_human"]:
             _remember(root, state, order)
-        orders.append(order)
+    units = []
+    for g in plans:
+        batch = [ready[i] for i in g]
+        unit = group_unit(batch, facts, with_brief)
+        for order in batch:
+            order["group"] = unit["id"]
+        units.append(unit)
+    orders = [o for _, o in offered]
+    if with_brief:
+        for i, order in offered:
+            if i not in grouped:
+                decorate(order, facts, True)
     mark_parallel(orders)
-    return {"ok": True, "command": "flow next", "orders": orders}
+    for order in orders:
+        if "group" in order:
+            order["parallel_safe"] = False
+    payload: dict[str, Any] = {"ok": True, "command": "flow next", "orders": orders}
+    if units:
+        payload["groups"] = units
+    if deferred:
+        payload["deferred"] = [ready[i]["id"] for i in deferred]
+    return payload

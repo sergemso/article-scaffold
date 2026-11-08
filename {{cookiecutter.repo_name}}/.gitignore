@@ -51,3 +51,6 @@ paper/supplementary/*.pdf
 # Biblatex/biber intermediates
 paper/*.bcf
 paper/*.run.xml
+
+# Source store lock (held while the manifest is written)
+paper/sources/.manifest.lock

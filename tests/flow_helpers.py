@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import yaml
-from conftest import run
+from conftest import ROOT, run
+
+sys.path.insert(0, str(ROOT / "{{cookiecutter.repo_name}}"))
 
 THESIS_MAP = """\
 version: 1
@@ -18,6 +21,16 @@ nodes:
     accepted-by: Ada Lovelace
 edges: []
 """
+
+
+CLEAN_MAP = (
+    "version: 1\nnodes:\n"
+    "  - {id: t1, type: thesis, text: T., status: accepted, accepted-by: Ada}\n"
+    "  - {id: o1, type: objection, text: O., status: accepted, accepted-by: Ada}\n"
+    "  - {id: d1, type: defense, text: D., status: proposed}\n"
+    "edges:\n  - {from: d1, to: t1, type: supports}\n"
+    "  - {from: o1, to: t1, type: attacks}\n  - {from: d1, to: o1, type: rebuts}\n"
+)
 
 
 def cli(project: Path, *args: str):
@@ -43,3 +56,11 @@ def set_state(project: Path, **changes) -> None:
 
 def write_map(project: Path, text: str) -> None:
     (project / "theses.yaml").write_text(text)
+
+
+def record_cold_run(project: Path) -> None:
+    """Write the cold-run record for the project's current inputs (what `check --cold` does
+    after a clean run), without running every check."""
+    from scripts.article import flow, ledger
+
+    ledger.put(project, flow.cold_keyed(project), "pass", {"checks": {}})

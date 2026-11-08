@@ -10,6 +10,7 @@ You propose. You never accept. Every node you write has `status: proposed`; prom
 - The output of `python3 -m scripts.article theses slice <id> --depth 2` for the one gap you take.
 - At most the section lines named by the anchor, found through `paper/build/section-index.json` (write it with `python3 -m scripts.article index`). Read those lines only.
 - Evidence only through `source-claim` nodes already in the map.
+- If a work order gave you a brief (`flow next --brief`), start from it and read nothing it already shows. A code symbol comes from `python3 -m scripts.article index slice NAME`; a passage of a source from `python3 -m scripts.article sources slice <key@hash#locator>`, found with `sources find <terms>`. Never open a whole source or code file.
 
 Do not read `paper/article.tex`, whole section files or the bibliography.
 
@@ -47,3 +48,4 @@ Do not read `paper/article.tex`, whole section files or the bibliography.
 - Retire an objection, or edit or delete a node you did not write. Retiring is the author's decision.
 - Put manuscript or source text in `text` beyond one line.
 - Work on more than one gap.
+- Run past the order's `max_calls`: at about that many tool calls stop and record `python3 -m scripts.article flow handoff <order-id> --file -`.

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -97,3 +98,57 @@ def migrate_metadata(text: str, old_version: object, new_version: object) -> str
         )
         text = re.sub(r"\n{3,}", "\n\n", text)
     return text
+
+
+# ------------------------------------------------------------------ delivered files
+#
+# Files an older repo needs for the results ledger and the source store. They are
+# computed read-only (``deliveries``) so the upgrade can tell whether it has work, and
+# written only after the upgrade branch exists. Each one is idempotent and only adds:
+# a value the author wrote in ``flow.yaml`` or ``metadata.yaml`` is never read or changed.
+
+LEDGER_ATTRIBUTES = "docs/ledger/** linguist-generated=true"
+SOURCE_ATTRIBUTES = (
+    "# Third-party source bytes stay exactly as retrieved; their hashes are of those bytes.\n"
+    "paper/sources/*.txt -text\n"
+    "paper/sources/*/*/raw.* -text"
+)
+FLOW_HINTS = (
+    "# Optional token-economy settings; the defaults apply while they are absent.\n"
+    "# max_calls: {small: 40, large: 60}   # advisory cap on tool calls per order\n"
+    "# brief_bytes: 6000                   # byte cap of `flow next --brief`\n"
+    "# group_size: 3                       # orders per group that write one file; 1 = off\n"
+    "# max_context: 120000                 # advisory context tokens; unset = call cap only\n"
+)
+EMPTY_SOURCE_MANIFEST = '{\n  "schema_version": "1.0",\n  "sources": []\n}\n'
+
+
+def deliveries(root: Path) -> dict[str, str]:
+    """Path to new text for the ledger, flow-hint and source-manifest files an old repo lacks."""
+    out: dict[str, str] = {}
+    attributes = root / ".gitattributes"
+    if attributes.is_file():
+        text = attributes.read_text(encoding="utf-8")
+        added = [
+            block
+            for marker, block in (
+                ("docs/ledger/", LEDGER_ATTRIBUTES),
+                ("paper/sources/", SOURCE_ATTRIBUTES),
+            )
+            if marker not in text
+        ]
+        if added:
+            out[".gitattributes"] = (
+                text + ("" if text.endswith("\n") or not text else "\n") + "\n".join(added) + "\n"
+            )
+    flow = root / "flow.yaml"
+    if flow.is_file():
+        text = flow.read_text(encoding="utf-8")
+        if not any(key in text for key in ("max_calls", "brief_bytes", "group_size")):
+            out["flow.yaml"] = text + ("" if text.endswith("\n") or not text else "\n") + (
+                FLOW_HINTS
+            )
+    sources = root / "paper" / "sources"
+    if sources.is_dir() and not (sources / "manifest.json").exists():
+        out["paper/sources/manifest.json"] = EMPTY_SOURCE_MANIFEST
+    return out

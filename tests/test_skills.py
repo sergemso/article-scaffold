@@ -74,8 +74,8 @@ def test_claim_check_procedure_and_adapter(project: Path) -> None:
     text = _procedure(project, "claim-check")
     assert "scripts.article claims quote-check --all" in text
     assert "scripts.article claims excerpt" in text
-    assert "scripts.article claims cache" in text and "--set" in text
-    assert ".theses/claims-cache.json" in text
+    assert "scripts.article claims record" in text and "--set" in text
+    assert "docs/ledger/claim-verdict" in text
     for verdict in ("supports", "overstates", "contradicts"):
         assert f"`{verdict}`" in text
     assert "small, cheap model" in text
@@ -104,3 +104,25 @@ def test_procedures_are_host_neutral_and_listed(project: Path) -> None:
     assert names == ["blue-team", "claim-check", "lifecycle", "red-team"]
     for name in names:
         assert (project / ".claude" / "skills" / name / "SKILL.md").is_file()
+
+
+def test_procedures_name_the_cost_tooling(project: Path) -> None:
+    claim = _procedure(project, "claim-check")
+    for command in ("sources slice", "sources find", "ledger get"):
+        assert f"scripts.article {command}" in claim, command
+    life = _procedure(project, "lifecycle")
+    for command in ("flow next --brief", "flow handoff", "check NAME", "index slice"):
+        assert command in life, command
+    assert "max_calls" in life and "Never edit `docs/ledger/`" in life
+    for name in ("red-team", "blue-team"):
+        text = _procedure(project, name)
+        for command in ("sources slice", "index slice", "flow handoff"):
+            assert command in text, (name, command)
+    agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert len(agents.splitlines()) <= MAX_LINES
+    for command in ("check", "sources slice", "index slice", "flow next --brief", "flow handoff"):
+        assert command in agents, command
+    assert not MODEL_NAMES.search(agents) and "go-getter" not in agents
+    cli = (project / "docs" / "cli.md").read_text(encoding="utf-8")
+    for command in ("check record NAME", "check --cold", "flow handoff", "N002", "N003"):
+        assert command in cli, command

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/sergemso/article-scaffold/schemas/flow-order.schema.json",
   "title": "Flow work order",
-  "description": "One order from `python3 -m scripts.article flow next` (the `order` field). An order carries ids, paths and names only; it never contains manuscript or source text. The host reads slices through `theses slice` and `index` output.",
+  "description": "One order from `python3 -m scripts.article flow next` (the `order` field). An order carries ids, paths, names and anchor places; it never contains manuscript or source text. The one exception is the optional `brief`, printed by `flow next --brief`: it is compiled from the repo alone (no model call), holds the finding or gap row and the slices of the anchors, and is rebuilt on every call. The host reads further slices through `theses slice` and `index` output.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -131,6 +131,318 @@
     },
     "parallel_safe": {
       "type": "boolean"
+    },
+    "anchors": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "$ref": "#/definitions/anchor"
+      },
+      "description": "Optional. Where the work is, anchored by symbol or section plus slice hash. Resolved through the section index and the code index."
+    },
+    "max_calls": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional. Advisory: hand back state after about this many tool calls. The host counts; nothing enforces it. Set from flow.yaml max_calls by tier."
+    },
+    "max_context": {
+      "type": "integer",
+      "minimum": 1000,
+      "description": "Optional. Advisory: hand back state when the context reaches about this many tokens. The host counts; nothing enforces it. Set from flow.yaml max_context and max_context_ceiling."
+    },
+    "brief": {
+      "$ref": "#/definitions/brief"
+    },
+    "group": {
+      "type": "string",
+      "pattern": "^g-[0-9a-f]{12}$",
+      "description": "Optional. Id of the group this order belongs to; its members go to one agent with the group's combined brief."
+    }
+  },
+  "definitions": {
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "file",
+        "lines",
+        "hash"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "section",
+            "symbol",
+            "lines"
+          ]
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{12}$",
+          "description": "First 12 hex characters of the hash of the slice's lines; a changed slice has a different hash."
+        },
+        "address": {
+          "type": "string",
+          "description": "file:start-end@hash; present in a brief."
+        },
+        "text": {
+          "type": "string",
+          "description": "The slice; present in a brief unless it was replaced by its address to fit the cap."
+        },
+        "mode": {
+          "enum": [
+            "write",
+            "read"
+          ],
+          "description": "Optional. `write` when the order's outputs cover the file, else `read`. Orders whose write anchors share a file are grouped; a shared read anchor does not group."
+        }
+      }
+    },
+    "ledgerHit": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "key",
+        "status"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "check-outcome",
+            "claim-verdict"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "verdict": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "order",
+        "row",
+        "anchors",
+        "guardrails",
+        "ledger",
+        "verify",
+        "notes",
+        "degraded",
+        "bytes"
+      ],
+      "properties": {
+        "version": {
+          "const": "1.0"
+        },
+        "order": {
+          "type": "string",
+          "pattern": "^[og]-[0-9a-f]{12}$",
+          "description": "The order id, or the group id for the combined brief of a group."
+        },
+        "row": {
+          "type": "object",
+          "required": [
+            "source"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "theses gaps",
+                "theses.yaml node",
+                "claims quote-check",
+                "validate",
+                "flow status"
+              ],
+              "description": "Which part of the CLI the finding or gap row was read from."
+            }
+          }
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchor"
+          }
+        },
+        "guardrails": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "line": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "ledger": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ledgerHit"
+          }
+        },
+        "verify": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "check",
+            "command"
+          ],
+          "properties": {
+            "check": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            }
+          }
+        },
+        "handoffs": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Optional. Handoffs recorded by `flow handoff` for the order (or its group's members), sorted by order id; each validates against flow-handoff.schema.json. Anchors reported done are left out of `anchors`."
+        },
+        "max_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_calls_note": {
+          "type": "string"
+        },
+        "max_context": {
+          "type": "integer",
+          "minimum": 1000
+        },
+        "max_context_note": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "degraded": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "slices",
+              "digest",
+              "over-cap"
+            ]
+          }
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Size of the brief without this field, in bytes of its canonical JSON."
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "orders",
+        "files",
+        "anchors"
+      ],
+      "description": "Orders whose write anchors share a file, for one agent. Listed by `flow next` as `group` and by `flow next --open` as `groups`.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^g-[0-9a-f]{12}$"
+        },
+        "orders": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "pattern": "^o-[0-9a-f]{12}$"
+          },
+          "description": "Member order ids, in issue order, at most `group_size` of them."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files written by more than one member."
+        },
+        "max_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sum of the members' advisory caps."
+        },
+        "max_context": {
+          "type": "integer",
+          "minimum": 1000,
+          "description": "Smallest of the members' advisory context thresholds (one agent reads all members)."
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchor"
+          }
+        },
+        "brief": {
+          "$ref": "#/definitions/brief"
+        }
+      }
     }
   }
 }

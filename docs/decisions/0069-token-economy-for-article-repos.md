@@ -19,6 +19,8 @@ accepted-by: Sergey Strebulaev
 
 In a large paper the dominant cost is rereading prose; the index and cache remove it. Tier hints and verdict-only output are host-neutral, so they hold for any agent host (fact 0007). Clarified 2026-11-02: this decision first cited the maintainer's routing classes and delegation rules; those do not ship to article repos.
 
+Clarified 2026-11-08: the cache clause ("Hash-keyed cache") is replaced by the committed results ledger of decision 0079; the section index, tier hints and verdict-only work stand. Section summaries are no longer cached at all (they are a deterministic heuristic).
+
 ## Consequence
 
 The index must be regenerated when sections change (the pre-push hook and `make validate` do it). A stale index is a defect, not a cache miss.

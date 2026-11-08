@@ -1,0 +1,7 @@
+# Generated results; keep them out of diffs and language stats.
+docs/ledger/** linguist-generated=true
+
+# Third-party source bytes stay exactly as retrieved (line endings included): the hashes in
+# paper/sources/manifest.json are of those bytes, and text normalization would change them.
+paper/sources/*.txt -text
+paper/sources/*/*/raw.* -text

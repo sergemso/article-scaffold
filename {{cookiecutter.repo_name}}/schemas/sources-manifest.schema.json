@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/sources-manifest.schema.json",
+  "title": "Source manifest",
+  "description": "paper/sources/manifest.json (decision 0080), written by `sources add` here and by the scholar-mcp source fetch (its decision 0071). The hand-written paper/sources/MANIFEST.md stays readable for bib key to file lookups; `sources add` imports its entries and never deletes it. An address is source-key@hash#locator (see scripts/article/address.py).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "sources"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "sources": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/entry"}
+    }
+  },
+  "definitions": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "origin", "retrieved", "raw_hash", "media_type", "edition"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "origin": {"type": "string", "minLength": 1},
+        "retrieved": {"type": "string", "format": "date-time"},
+        "raw_hash": {"$ref": "#/definitions/hash"},
+        "media_type": {"type": "string", "pattern": "^[a-z]+/[a-z0-9.+-]+$"},
+        "edition": {"type": "string", "minLength": 1},
+        "normalized_hash": {
+          "description": "Absent for a source that could not be normalized; such a source is listed as unreadable, never guessed.",
+          "$ref": "#/definitions/hash"
+        },
+        "normalizer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "version": {"type": "string", "minLength": 1}
+          }
+        },
+        "terms": {"type": "string"}
+      },
+      "dependencies": {
+        "normalized_hash": ["normalizer"],
+        "normalizer": ["normalized_hash"]
+      }
+    }
+  }
+}

@@ -31,3 +31,11 @@ A person starts a round with `python3 -m scripts.article flow round open --revie
 ## Report
 
 After each order: the order id and kind, the node ids you changed, and the result of `flow done`.
+
+## Cost discipline
+
+- Ask for the compiled brief: `python3 -m scripts.article flow next --brief`. It holds the finding, the slices of the order's `anchors`, the guardrail lines, results already in the ledger and the one verify command. Read nothing the brief already shows. `index slice NAME` gives a code symbol and `sources slice` / `sources find` a source passage.
+- Slow checks are read, not re-run: `python3 -m scripts.article check NAME` reports a stored verdict (`hit`), `stale` or `miss`. Only on `stale` or `miss`, run `check record NAME`. Mutation, model-checker and test suites are recorded by CI or a person; never start one yourself. `check --cold` and the `run-cold` order belong to a person or CI.
+- Each order carries `max_calls`. At about that many tool calls, stop, write a handoff and run `python3 -m scripts.article flow handoff <order-id> --file -`: `done` and `remaining` anchors, `files` touched, `ledger_keys` written and `verify`. The next `flow next --brief` leaves the done anchors out. Do not use a handoff to hide unfinished work: say what remains.
+- Orders that write one file arrive as a group (`group` in `flow next`); do the members together, in one session, then close each with `flow done`.
+- Never edit `docs/ledger/`. Entries are written only by `claims record` and `check record`; a wrong entry is removed by a person with `ledger evict`.

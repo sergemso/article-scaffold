@@ -6,22 +6,24 @@ Use this after the quote check, for `source-claim` nodes whose quote was found i
 
 - The output of `python3 -m scripts.article claims quote-check --all`: verdicts and locators, no text.
 - For one node at a time, the output of `python3 -m scripts.article claims excerpt <id>` and the node's one-line `text` (the paper's claim wording) from `theses.yaml`.
+- To find where a source says something, `python3 -m scripts.article sources find <terms>` (addresses only) and `python3 -m scripts.article sources slice <key@hash#locator>` (one capped passage). `ledger get` and `ledger explain` need either `--key` (`get` only) or the full set of inputs plus `--version` and `--tier`. Exact forms for a verdict: `python3 -m scripts.article ledger get claim-verdict --key <key>` (the key printed by `claims record <id> --set <verdict>`), or `python3 -m scripts.article ledger get claim-verdict --text claim="<claim text>" --text excerpt="<excerpt>" --version 1 --tier 2`; `python3 -m scripts.article ledger explain claim-verdict --text claim="<claim text>" --text excerpt="<excerpt>" --version 1 --tier 2` names the input that changed. A file input is `--input NAME=PATH`. A `ledger get` without `--key` counts as a lookup in `ledger stats`; `claims record` does not.
 
-Nothing else. Do not open the source file, the section, or any other part of the paper. Do not send the excerpt or the claim anywhere; judge it yourself in this session.
+Nothing else. Do not open the source file, the section, or any other part of the paper; use `sources slice` for a passage. Do not send the excerpt or the claim anywhere; judge it yourself in this session.
 
 ## Steps
 
 1. Run `python3 -m scripts.article claims quote-check --all`.
-2. List the nodes with verdict `not-found` or `no-local-text`. Do not judge them: a quote that is not in the text, or a source with no local text, cannot be checked here. Report them for the author.
-3. For each node with verdict `found` and `cached` empty (a cache entry is fresh only while the claim wording and the excerpt are unchanged), do:
+2. List the nodes with verdict `not-found` or `no-local-text`, and those marked `stale` (their source address names a superseded edition; `claims rebase <id>` proposes a new address for the author, you do not apply it). Do not judge them: a quote that is not in the text, or a source with no local text, cannot be checked here. Report them for the author.
+3. For each node with verdict `found` and `cached` empty (a recorded verdict is fresh only while the claim wording and the excerpt are unchanged), do:
    1. Run `python3 -m scripts.article claims excerpt <id>`.
    2. Compare the excerpt with the claim wording and answer with exactly one of:
       - `supports`: the excerpt says what the claim says, no more;
       - `overstates`: the claim is stronger, broader or more certain than the excerpt;
       - `contradicts`: the excerpt says the opposite or rules the claim out.
-   3. Record it: `python3 -m scripts.article claims cache <id> --set <verdict>`. The cache is `.theses/claims-cache.json`, keyed by a hash of the claim wording and the excerpt; it stores the verdict and the hash, never text.
-4. Skip nodes whose `cached` verdict is present; the cache already holds an answer for exactly these inputs.
-5. Report, as ids with one line each: every `overstates` and `contradicts`, then every `not-found` and `no-local-text`. The author decides what to change.
+   3. Record it: `python3 -m scripts.article claims record <id> --set <verdict>`. The verdict is stored in the committed ledger (`docs/ledger/claim-verdict/`), keyed by a hash of the claim wording, the excerpt and the procedure version; it holds the verdict and the hashes, never text. A different verdict for the same inputs is refused; to re-judge, a person runs the `ledger evict` command that the error names. (`claims cache <id> --set <verdict>` still works as the same command.)
+4. Skip nodes whose `cached` verdict is present; the ledger already holds an answer for exactly these inputs.
+5. `quote-check` and `excerpt` read the ledger first, so a repeat run is a lookup. `ARTICLE_LEDGER=off` or `--no-ledger` bypasses it; use that only when a person asks.
+6. Report, as ids with one line each: every `overstates` and `contradicts`, then every `not-found` and `no-local-text`. The author decides what to change.
 
 ## Judging
 

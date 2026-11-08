@@ -1,7 +1,8 @@
 ---
 id: 0068-research-tooling-split
 title: Map, index, quote-match and cache ship in the vendored CLI; discovery extends scholar-authors; agent procedures are skills
-status: active
+status: superseded
+superseded-by: 0082-research-tooling-split-redrawn
 date: 2026-11-02
 tags: [theses-map, architecture, scholar-mcp, upgrade]
 track: process

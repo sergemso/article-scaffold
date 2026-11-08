@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sergemso/article-scaffold/schemas/check-result.schema.json",
+  "title": "Check command output",
+  "description": "Stable JSON printed by `python3 -m scripts.article check NAME`, `check record NAME` and `check --cold`. Output is the verdict and capped, redacted failing lines; it never carries file content. `ok` equals the exit code (true, exit 0, only for a stored pass, a pass that just ran, or a clean cold run).",
+  "type": "object",
+  "oneOf": [
+    {"$ref": "#/definitions/read"},
+    {"$ref": "#/definitions/record"},
+    {"$ref": "#/definitions/cold"},
+    {"$ref": "#/definitions/failure"}
+  ],
+  "definitions": {
+    "key": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "verdict": {"enum": ["pass", "fail"]},
+    "failing": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {"type": "string", "maxLength": 200},
+      "description": "The first non-empty output lines, secret patterns masked, cut to a fixed width."
+    },
+    "paths": {"type": "array", "items": {"type": "string"}},
+    "read": {
+      "description": "`check NAME`: a pure read of the ledger. `hit` carries the stored verdict, `stale` the inputs that differ from the nearest entry of this check, `miss` and `uncacheable` neither.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "command", "name", "state"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "command": {"const": "check"},
+        "name": {"$ref": "#/definitions/name"},
+        "state": {"enum": ["hit", "stale", "miss", "uncacheable"]},
+        "reason": {"type": "string"},
+        "key": {"$ref": "#/definitions/key"},
+        "verdict": {"$ref": "#/definitions/verdict"},
+        "failing": {"$ref": "#/definitions/failing"},
+        "changed": {"$ref": "#/definitions/paths"},
+        "added": {"$ref": "#/definitions/paths"},
+        "removed": {"$ref": "#/definitions/paths"}
+      }
+    },
+    "record": {
+      "description": "`check record NAME`: `hit` (the stored entry; nothing ran), `ran` (the check ran; `stored` says whether the outcome was written), or `error` or `unavailable` (never stored).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "command", "name", "state", "stored"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "command": {"const": "check record"},
+        "name": {"$ref": "#/definitions/name"},
+        "state": {"enum": ["hit", "ran", "error", "unavailable"]},
+        "stored": {"type": "boolean"},
+        "verdict": {"$ref": "#/definitions/verdict"},
+        "failing": {"$ref": "#/definitions/failing"}
+      }
+    },
+    "cold": {
+      "description": "`check --cold`: every deterministic check run ignoring lookups.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "command", "recorded", "checks", "differences", "failed", "errors"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "command": {"const": "check --cold"},
+        "recorded": {"type": "boolean", "description": "True when a clean run wrote the cold-run record the release gate reads."},
+        "checks": {
+          "type": "object",
+          "additionalProperties": {"enum": ["pass", "fail", "skipped", "not-applicable", "unavailable", "error"]},
+          "description": "Outcome per table check; `skipped` is a non-deterministic check."
+        },
+        "differences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["check", "ledger", "cold"],
+            "properties": {
+              "check": {"$ref": "#/definitions/name"},
+              "ledger": {"$ref": "#/definitions/verdict"},
+              "cold": {"$ref": "#/definitions/verdict"}
+            }
+          },
+          "description": "Stored outcomes that the cold run disagreed with and evicted."
+        },
+        "failed": {"type": "array", "items": {"$ref": "#/definitions/name"}},
+        "errors": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "failure": {
+      "description": "A command that could not answer (unknown check name, corrupt ledger entry, ledger switched off for `--cold`).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "command", "error"],
+      "properties": {
+        "ok": {"const": false},
+        "command": {"enum": ["check", "check record", "check --cold"]},
+        "error": {"type": "string"}
+      }
+    }
+  }
+}
