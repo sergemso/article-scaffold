@@ -172,6 +172,51 @@ a like-for-like (first 61 calls) reduction of 15% to 27%, with all outcome check
 green. `index slice` was never used in any order, and the ledger was empty in
 all of them.
 
+## E.5 part 1: cheaper handoff, order 3 again
+
+Same order, base (`5aeec5f`), task and brief as order 3. The only change is the
+handoff: when segment 1 hit the cap, the wrapper took `git status`, `git diff
+--stat` and asked a fresh session (2 turns, no resume, no tools wanted) to
+summarize done and remaining work from the task text and those two outputs.
+Fix committed in its worktree as `01f7412`.
+
+| Measure | order 3, resume handoff | order 3 again, cheap handoff |
+|---|---|---|
+| Segment 1 | 62 calls, 4.83M cache-read, 1.32 USD | 60 calls, 4.85M cache-read, 1.34 USD |
+| Handoff | 1.37 USD (resume of 139K context) | **0.015 USD** (1 call, 4K context) |
+| Segment 2 | 13 calls, 0.14M cache-read, 0.15 USD | 15 calls, 0.20M cache-read, 0.13 USD |
+| Total cost (assumed prices) | 2.84 USD | 1.49 USD |
+| Total cache-read, handoff excluded | 4.96M | 5.05M |
+
+The handoff itself is about 90 times cheaper and the total about half. Cache-read
+tokens do not show the handoff cost (the resume reply was mostly cache creation),
+which is why the dollar figure carries this comparison and the token table does
+not. Outcome checks, same script: pytest, both mutant sets, the three vector
+modes, cargo test, `measure_faults.py --check-paper`, `lint-counts` and
+`validate` all pass; 9 test, vector or mutant files changed.
+
+What was lost: **verification of the work done in segment 1.** The summary
+session could only infer from file names, so its `done` list was hedged ("likely
+missing/forged/other-op/replayed") and its `remaining` list turned the earlier
+work into "Confirm ..." items (failing test written before the fix, vectors cover
+the four cases, `--wire` uses real signatures, baseline relay and denominators).
+Segment 2 did the mechanical remainder (regenerate the stale table, fix a count,
+run `make metadata`, run the suites) and said in its report that it confirmed
+three of those points not at all, did not re-read the diff, and did not read the
+result of the Rust mutation run. With the agent-written handoff in the first run,
+the same points were reported as done by the agent that did them. So the cheap
+handoff trades about 1.35 USD for statements nobody checked; the final checks
+still pass, but "failing test first" and "real signatures" are claims, not
+verified facts, in this run.
+
+Reading for C.5: `H` falls from about 2M (cache-read equivalents) to a few
+thousand plus the loss above, so `n*` falls from about 43 toward about 10 calls
+on cost alone. That is not yet a good reason to cut segments that short: the
+handoff must carry the done and remaining state with evidence, which the diff
+alone cannot. A middle option is untested: ask the *capped* agent, before it
+stops, for a short evidence-bearing summary in its last turn (costs one call at
+full context, not a resume), and keep the diff-derived fields from the wrapper.
+
 ## Decision for stage 3
 
 Stop rule: cache-read at least 15% lower with parity. The whole-run figure
