@@ -44,13 +44,22 @@ def test_old_repo_gains_flow(tmp_path: Path, base_template: dict[str, str]) -> N
     assert json.loads(result.stdout)["stages"][0]["stage"] == "frame", result.stderr
 
 
+def _only_comments_added(text: str) -> bool:
+    """The E.1 migration may append commented examples; no value may change."""
+    if not text.startswith(STATE):
+        return False
+    return all(
+        not line.strip() or line.lstrip().startswith("#") for line in text[len(STATE) :].splitlines()
+    )
+
+
 def test_existing_flow_yaml_is_untouched(tmp_path: Path, base_template: dict[str, str]) -> None:
     project = _old_repo(tmp_path, base_template)
     (project / "flow.yaml").write_text(STATE)
     commit_all(project)
     out = _apply(project, base_template["new"])
     assert not out.get("conflicted"), out
-    assert (project / "flow.yaml").read_text() == STATE
+    assert _only_comments_added((project / "flow.yaml").read_text())
     assert "flow.yaml" in {item["path"] for item in out["skipped"]}
     assert "docs/procedures/lifecycle.md" in out["applied"]
     status = run(project, "python3", "-m", "scripts.article", "flow", "status", "--json")
@@ -82,7 +91,7 @@ def test_later_template_edits_to_flow_yaml_are_skipped(
     _tpl_git(tpl, "commit", "--quiet", "-m", "template edits")
     result = _apply(project, _tpl_git(tpl, "rev-parse", "HEAD"))
     assert not result.get("conflicted"), result
-    assert (project / "flow.yaml").read_text() == STATE
+    assert _only_comments_added((project / "flow.yaml").read_text())
     reasons = {i["path"]: i["reason"] for i in result["skipped"]}
     assert "yours after first render" in reasons["flow.yaml"]
     assert yaml.safe_load((project / "flow.yaml").read_text())["round"] == 3

@@ -25,7 +25,7 @@ Clarifications to 0079 (recorded in E.1):
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
 Status (2026-11-08): F.1 to F.4 are done and merged into `feat/token-economy-ledger` (each was built on its own branch and worktree, which are removed). Open: B.4, E.2 (bridge-contract article still to adopt), E.3, E.4. Order for the rest: E.2, then E.4 (decides B.4), then E.3.
-- Full suite on the merged branch: 984 passed, 2 failed. The failures, `tests/test_upgrade_flow.py::test_existing_flow_yaml_is_untouched` and `::test_later_template_edits_to_flow_yaml_are_skipped`, also fail on the pre-merge base (`d724996`): the E.1 migration appends commented `max_calls`, `brief_bytes` and `group_size` lines to an existing `flow.yaml`, and these tests assert the file is untouched. Open decision: change the tests to allow that comment block, or drop the append from `migrations.deliveries` (E.1's note says values are never changed, so the append looks intended).
+- Full suite on the merged branch: 984 passed, 2 failed; fixed since: `tests/test_upgrade_flow.py` now allows the comment block that the E.1 migration appends to an existing `flow.yaml` and still asserts no value changes (decision: the append is intended).
 - `go-getter plan start <id> --worktree <slug>` branches from master, not from the current branch. Create a worktree from `feat/token-economy-ledger` by hand and copy the plan file in.
 - `ruff format --check` fails on 67 files that were already failing; not addressed.
 - `ledger get --no-ledger` sets `ARTICLE_LEDGER=off` for the whole process (`cli.py` `_ledger`). The test now restores it; the code could restore it too.
