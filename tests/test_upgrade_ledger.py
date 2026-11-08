@@ -39,6 +39,8 @@ def test_old_repo_gains_the_ledger_without_touching_author_files(
     attributes = (project / ".gitattributes").read_text().splitlines()
     assert attributes[0] == "*.pdf binary"
     assert "docs/ledger/** linguist-generated=true" in attributes
+    assert "paper/sources/*.txt -text" in attributes
+    assert "paper/sources/*/*/raw.* -text" in attributes
     manifest = json.loads((project / "paper/sources/manifest.json").read_text())
     assert manifest == {"schema_version": "1.0", "sources": []}
     assert (project / "paper/sources/MANIFEST.md").read_text() == "| key | file |\n"

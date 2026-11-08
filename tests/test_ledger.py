@@ -381,6 +381,12 @@ def test_template_ships_the_ledger_directory_and_attributes():
     assert "docs/ledger/**" in (TEMPLATE / ".gitattributes").read_text()
 
 
+def test_template_keeps_source_bytes_out_of_text_normalization() -> None:
+    lines = (TEMPLATE / ".gitattributes").read_text().splitlines()
+    assert "paper/sources/*.txt -text" in lines
+    assert "paper/sources/*/*/raw.* -text" in lines
+
+
 def test_binary_input_is_hashed_as_is_but_text_ignores_crlf(tmp_path):
     pdf = b"%PDF-1.7\n%\xe2\xe3\n1 0 obj\r\n<<>>\r\nendobj\n"
     a, b = tmp_path / "a.pdf", tmp_path / "b.pdf"
