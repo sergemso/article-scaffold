@@ -169,3 +169,4 @@ def test_excerpt_command_prints_local_passage(tmp_path: Path) -> None:
 def test_template_gitignores_the_local_counters(tmp_path: Path) -> None:
     project = render(tmp_path=tmp_path)
     assert ".theses/" in (project / ".gitignore").read_text().splitlines()
+    assert "paper/sources/.manifest.lock" in (project / ".gitignore").read_text().splitlines()
