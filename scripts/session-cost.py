@@ -133,7 +133,8 @@ def main(argv: list[str]) -> int:
             all_cmds.update(c)
     sums = Counter()
     for r in rows:
-        for k in ("calls", "tool_calls", "input", "output", "cache_read", "cache_create_5m", "cache_create_1h"):
+        for k in ("calls", "tool_calls", "input", "output", "cache_read",
+                  "cache_create_5m", "cache_create_1h"):
             sums[k] += r.get(k, 0)
     summary = {"agents": len(rows), **dict(sums),
                "max_context": max((r["max_context"] for r in rows), default=0),
