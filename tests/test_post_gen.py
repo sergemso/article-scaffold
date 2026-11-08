@@ -75,3 +75,10 @@ def test_missing_git_warns_but_does_not_fail_render(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert "git not found" in result.stderr
     assert (project / "LICENSE").is_file()
+
+
+def test_release_hint_prints_the_rendered_version(tmp_path: Path, capfd) -> None:
+    render(tmp_path=tmp_path, version="2.3.4")
+    out = capfd.readouterr().out
+    assert "git tag v2.3.4" in out and "git push origin v2.3.4" in out
+    assert "v1.0.0" not in out

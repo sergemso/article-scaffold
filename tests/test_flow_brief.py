@@ -285,3 +285,11 @@ def test_brief_digest_comes_from_the_repo_guardrails(project: Path) -> None:
     _guardrail(project, "other-rule", "companion", "Not for this order.")
     brief = _flow(project, "--brief")["brief"]
     assert brief["guardrails"] == [{"id": "map-rule", "line": "Do the map thing."}]
+
+
+def test_order_without_anchors_omits_the_field(flow_project: Path) -> None:
+    """Contract in docs/cli.md: `anchors` is omitted when empty (state-thesis names no node)."""
+    order = _flow(flow_project)
+    assert order["kind"] == "state-thesis"
+    assert "anchors" not in order
+    assert _flow(flow_project, "--brief")["brief"]["anchors"] == []

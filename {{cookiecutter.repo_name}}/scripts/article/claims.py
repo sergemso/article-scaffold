@@ -270,8 +270,13 @@ def _provenance(**extra: str) -> dict[str, str]:
     return {"tier": TIER, "author": "agent", "procedure": procedure, **extra}
 
 
-def cached_verdict(root: Path, claim_text: str, excerpt: str) -> str | None:
+def cached_verdict(
+    root: Path, claim_text: str, excerpt: str, count: bool = True
+) -> str | None:
     """The recorded tier 2 verdict for exactly these inputs, or None.
+
+    With ``count=False`` the read does not touch the ``ledger stats`` counters; only a
+    lookup made to skip work counts, not the read-back after a ``claims record``.
 
     A verdict found only in the old untracked cache is moved into the ledger on the
     way (its hash key cannot be converted without the texts, which are in hand here).
@@ -279,7 +284,9 @@ def cached_verdict(root: Path, claim_text: str, excerpt: str) -> str | None:
     """
     keyed = verdict_key(claim_text, excerpt)
     try:
-        entry = ledger.lookup(root, keyed)
+        entry = (
+            ledger.lookup(root, keyed) if count else ledger.get(root, keyed.kind, keyed.key)
+        )
     except ledger.LedgerError:
         return None
     if entry is not None:
@@ -323,7 +330,9 @@ def verdict_for_node(root: Path, node_id: str, verdict: str | None = None) -> di
         key = record_verdict(root, node["text"], excerpt, verdict)
     else:
         key = verdict_key(node["text"], excerpt).key
-    return {"id": node_id, "key": key, "verdict": cached_verdict(root, node["text"], excerpt)}
+    # the read-back after a record is not a lookup; a plain `claims cache <id>` is
+    found = cached_verdict(root, node["text"], excerpt, count=verdict is None)
+    return {"id": node_id, "key": key, "verdict": found}
 
 
 # ------------------------------------------------------------------- rebase

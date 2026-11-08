@@ -179,22 +179,23 @@ Done-when: a note in the article repo states the decision and the evidence, and 
 
 Found by running the whole flow on a synthetic article and on `articles.deterministic-edge` (adoption committed on its branch `adopt/token-economy-ledger`). Repros: `bug-repros.md` in the session scratchpad (may be gone); each item below is self-contained.
 
-### F.1 Cold run must not open the gate on unavailable checks — [ ]
+### F.1 Cold run must not open the gate on unavailable checks — [~]
 Class: implement · Effort: medium · Needs: A.4 · Check: `.venv/bin/python -m pytest tests/test_cold_gate.py -q`
 Do: `check --cold` returns `ok: true` and writes a `cold-run` record when `layout-check` and `lint-counts` are `unavailable` (scripts absent), so a repo lacking them can open the release gate. The plan says `unavailable` never passes. Decide per check whether a missing script means "not applicable" (declared in `CHECK_SPECS`) or a failure, and make an undeclared unavailable check fail the cold run.
 Done-when: a fixture repo without those scripts fails or reports them as not applicable by declaration, and the gate stays closed in the failing case.
 
-### F.2 `sources add` default key and diff quality — [ ]
+### F.2 `sources add` default key and diff quality — [~]
 Class: implement · Effort: medium · Needs: B.1 · Check: `.venv/bin/python -m pytest tests/test_sources_store.py -q`
 Do: (1) `sources add` without `--key` takes the file stem, so `draft-x-01.txt` and `draft-x-02.txt` become separate sources and the old edition is never `superseded`; derive the key without a trailing edition/version suffix, or require `--key` when the stem ends in a version. (2) `sources diff` is positional: one inserted paragraph marks about 14 `para:N` locators changed; match paragraphs by content hash first. (3) `req:KEYWORD:1` resolves to the RFC 2119 boilerplate sentence; exclude it from `req:` numbering.
 Done-when: two editions added without `--key` supersede each other; diff of one inserted paragraph reports one added locator; `req:MUST:1` is the first real requirement.
 
-### F.3 Ledger gc and check-input scope — [ ]
+### F.3 Ledger gc and check-input scope — [~]
 Class: implement · Effort: medium · Needs: A.1, A.3 · Check: `.venv/bin/python -m pytest tests/test_ledger.py tests/test_flow_checks_ledger.py -q`
 Do: `ledger gc` lists any entry whose input hash changed, so every `theses.yaml` edit orphans all check outcomes; the plan says "inputs no longer exist". Restrict to missing inputs, and make `claim-verdict` entries collectable when their claim no longer exists in the map (report-only unless `--apply`). After `sources add` of a new edition, `check` lists every file of every old edition as inputs; use only the current edition's normalized text.
 Done-when: editing `theses.yaml` does not make `gc` list check outcomes; a verdict for a deleted claim is listed; old editions are not check inputs.
 
-### F.4 CLI contract and docs fixes — [ ]
+### F.4 CLI contract and docs fixes — [x]
 Class: implement · Effort: low · Needs: A.3, C.2 · Check: `.venv/bin/python -m pytest tests/test_flow_checks_ledger.py tests/test_flow_brief.py tests/test_docs.py -q`
 Do: (1) `check NAME` exits 1 on miss or stale while printing `ok: true`; make `ok` and the exit code agree (document the chosen contract). (2) `flow next` without `--brief` omits `anchors` when empty or all done, but docs say it is always present; fix code or docs, including the state-thesis order. (3) `ledger get`/`explain` need `--input`, `--text` or `--key`; show the exact form in `docs/procedures/claim-check.md`. (4) The E.2 check line `python3 -m scripts.article claims` is a usage error; it is `claims quote-check --all`. (5) `post_gen_project` prints `git tag v1.0.0` for any version; print the rendered version. (6) `claims record` raises the `ledger stats` hit count unexpectedly (0 to 6 after 3 records plus a repeat run); count only lookups.
 Done-when: each item has a test or a docs assertion; `claims quote-check --all` is used in E.2's check.
+Resolved: (1) `check NAME` now sets `ok` true only for a `hit` with a stored `pass` (exit 0); `miss`, `stale`, `uncacheable` and a stored `fail` are `ok: false` and exit 1, with `state` telling them apart; documented in `docs/cli.md`. (2) Docs now match the code: `anchors` is omitted from a plain order when empty or all reported done (a `state-thesis` order names no node, so it has none); inside `--brief` the `brief.anchors` list is always present, possibly empty. (3) `docs/procedures/claim-check.md` shows `ledger get claim-verdict --key K`, and the `--text claim=... --text excerpt=... --version 1 --tier 2` form for `get` and `explain`. (4) The E.2 check line already reads `claims quote-check --all`; a docs test pins it. (5) `hooks/post_gen_project.py` prints `git tag`/`git push` with the rendered `cookiecutter.version`. (6) `claims.verdict_for_node` reads back a just-recorded verdict with `ledger.get` (`cached_verdict(count=False)`), so `claims record` no longer raises `ledger stats` hits; a plain `claims cache <id>` and `quote-check` still count. Tests: `test_check_ok_agrees_with_the_exit_code`, `test_stored_fail_reads_as_not_ok` (`test_flow_checks_ledger.py`), `test_order_without_anchors_omits_the_field` (`test_flow_brief.py`), `test_record_does_not_count_as_a_lookup` (`test_ledger_claims.py`), `test_release_hint_prints_the_rendered_version` (`test_post_gen.py`), `test_cli_and_claim_check_docs_state_the_f4_contracts` (`test_docs.py`).

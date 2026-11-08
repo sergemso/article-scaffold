@@ -589,7 +589,7 @@ def check_read(root: Path, name: str) -> dict[str, Any]:
     exists for other inputs), ``miss`` or ``uncacheable``. Nothing runs and nothing is written."""
     if name not in CHECKS:
         raise FlowError(f"unknown check name {name!r}")
-    base = {"ok": True, "command": "check", "name": name}
+    base = {"ok": False, "command": "check", "name": name}  # ok: only a stored pass (= exit 0)
     if not CHECK_SPECS[name].deterministic:
         return {**base, "state": "uncacheable"}
     keyed = check_keyed(root, name)
@@ -598,7 +598,8 @@ def check_read(root: Path, name: str) -> dict[str, Any]:
     entry = ledger.lookup(root, keyed)
     if entry is not None:
         return {
-            **base, "state": "hit", "verdict": entry["status"], "key": keyed.key,
+            **base, "ok": entry["status"] == "pass", "state": "hit",
+            "verdict": entry["status"], "key": keyed.key,
             "failing": entry.get("result", {}).get("failing", []),
         }
     nearest = ledger.explain(root, keyed, f"{name}@")
