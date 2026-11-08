@@ -82,7 +82,11 @@ def enabled() -> bool:
 
 
 def hash_input(value: str | bytes | Path) -> str:
-    """SHA-256 of content with CRLF read as LF. A Path is read; never its mtime or name."""
+    """SHA-256 of content with CRLF read as LF. A Path is read; never its mtime or name.
+
+    Content that starts with `%PDF-` or has a NUL byte in its first 8000 bytes is binary and
+    is hashed as is.
+    """
     if isinstance(value, Path):
         try:
             data = value.read_bytes()
@@ -92,7 +96,9 @@ def hash_input(value: str | bytes | Path) -> str:
         data = value.encode("utf-8")
     else:
         data = value
-    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+    if not (data.startswith(b"%PDF-") or b"\0" in data[:8000]):
+        data = data.replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def _digest(
