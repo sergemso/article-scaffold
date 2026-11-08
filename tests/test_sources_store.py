@@ -375,3 +375,15 @@ def test_legacy_key_with_a_colon_is_listed_and_add_refuses_it_clearly(tmp_path, 
     code, out = add(capsys, tmp_path, "draft-agtp-00.txt", "smith-2020", src=sources_dir / "s.txt")
     assert code == 0 and out["key"] == "smith-2020"
 
+
+def test_an_older_locator_index_is_refused_with_a_reindex_hint(store, capsys):
+    run(capsys, store, "index", "agtp")
+    entry = sources.current_edition(store, "agtp")
+    index_path = sources.store_dir(store, "agtp", entry["raw_hash"]) / "locators.json"
+    data = json.loads(index_path.read_text())
+    data["index_version"] = "1"
+    index_path.write_text(json.dumps(data))
+    with pytest.raises(sources.SourcesError, match="run `sources index`"):
+        sources.load_locators(store, entry)
+    sources.index(store, "agtp")  # reindexing restores it
+    sources.load_locators(store, entry)

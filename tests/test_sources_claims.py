@@ -203,3 +203,15 @@ def test_node_citing_a_colon_bib_key_resolves_its_legacy_text(tmp_path, capsys):
     record = out["results"][0]
     assert record["verdict"] == "found" and record["source"] == "paper/sources/s.txt"
 
+
+def test_old_locator_index_is_reported_not_called_not_found(tmp_path, capsys):
+    digest = _store(tmp_path)
+    _map(tmp_path, f"agtp@{digest[:12]}#sec:Requirements/Framing")
+    entry = sources.current_edition(tmp_path, "agtp")
+    index_path = sources.store_dir(tmp_path, "agtp", entry["raw_hash"]) / "locators.json"
+    data = json.loads(index_path.read_text())
+    data["index_version"] = "1"
+    index_path.write_text(json.dumps(data))
+    _, out = _run(capsys, tmp_path, "quote-check", "c1")
+    record = out["results"][0]
+    assert record["verdict"] == "no-local-text" and "run `sources index`" in record["reason"]

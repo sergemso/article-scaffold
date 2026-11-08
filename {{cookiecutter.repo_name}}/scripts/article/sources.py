@@ -627,7 +627,13 @@ def load_locators(root: Path, entry: dict[str, Any]) -> tuple[list[str], dict[st
     lines = text.split("\n")
     if lines and lines[-1] == "":
         lines.pop()
-    return lines, json.loads(index_path.read_text(encoding="utf-8"))
+    index_data = json.loads(index_path.read_text(encoding="utf-8"))
+    if index_data.get("index_version") != INDEX_VERSION:
+        raise SourcesError(
+            f"locator index of {entry['key']} is version {index_data.get('index_version')!r}, "
+            f"this CLI writes {INDEX_VERSION!r}; run `sources index`"
+        )
+    return lines, index_data
 
 
 def _locator_table(index_data: dict[str, Any]) -> dict[str, dict[str, Any]]:

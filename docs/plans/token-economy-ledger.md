@@ -243,10 +243,11 @@ Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m py
 Defect: `handoff._anchor_errors` only needs non-empty strings for `name` and `file`, so an agent can paste a paragraph or a token into the committed `flow.yaml`, against the module's "ids, paths and hashes only"; a hand-edited handoff missing keys makes `done_ids` raise `KeyError`.
 Recommend: `_file_ok` on `file`, a regex and length cap on `name`, a tolerant `done_ids`. Alternative: run `flow.redact` on the strings, weaker because manuscript text is not a secret pattern.
 
-### G.6 Locator index version not checked on load — [ ]
+### G.6 Locator index version not checked on load — [x]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_sources_store.py tests/test_sources_claims.py -q`
 Defect (plausible): `sources.load_locators` serves an older `locators.json` without comparing `index_version`; after a version bump two clones can disagree on `req:MUST:1` and `quote-check` says not-found instead of stale.
 Recommend: refuse with "run `sources index`" when the version differs. Alternative: rebuild in memory on every load (slow on 5 MB files).
+Resolved: took the Recommend option. `sources.load_locators` raises `SourcesError` naming both versions and "run `sources index`" when `index_version` differs from `INDEX_VERSION`; `slice`, `find` and `claims` all go through it, so `quote-check` reports `no-local-text` with that reason instead of `not-found`. Tests: `test_an_older_locator_index_is_refused_with_a_reindex_hint`, `test_old_locator_index_is_reported_not_called_not_found`. `docs/cli.md` names the refusal.
 
 ### G.7 Result schemas missing for `check` and `claims record` — [ ]
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_schemas.py tests/test_docs.py -q`
