@@ -134,6 +134,16 @@
       },
       "description": "Optional advisory tool-call cap per tier, shown in the order; the host counts, nothing enforces it. Defaults: small 40, large 60."
     },
+    "max_context": {
+      "type": "integer",
+      "minimum": 1000,
+      "description": "Optional advisory context threshold in tokens, shown in the order and brief: hand back state when the context reaches it. Fit it with scripts/context-threshold.py from finished runs; when unset, max_calls is the only limit."
+    },
+    "max_context_ceiling": {
+      "type": "integer",
+      "minimum": 1000,
+      "description": "Optional worst-case context limit in tokens. The threshold shown is the smaller of max_context and this. Unset by default."
+    },
     "group_size": {
       "type": "integer",
       "minimum": 1,

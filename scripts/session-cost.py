@@ -8,7 +8,10 @@ shell commands and an estimated cost from a prices file.
 
     python3 -I scripts/session-cost.py PROJECT_DIR [--since YYYY-MM-DD]
         [--until YYYY-MM-DD] [--session ID ...] [--min-repeat N]
-        [--prices FILE] [--json]
+        [--prices FILE] [--json] [--contexts]
+
+--contexts adds each agent's per-call context sizes to the JSON rows, which
+scripts/context-threshold.py reads.
 """
 from __future__ import annotations
 
@@ -59,6 +62,18 @@ def parse(path: Path, since: str | None, until: str | None) -> dict:
             if c.get("type") == "tool_use":
                 calls.append((c.get("name", ""), c.get("input") or {}))
     return {"messages": list(msgs.values()), "tools": calls}
+
+
+def contexts(parsed: dict) -> list[int]:
+    """The context size (input plus cache read and creation) of each call, in order."""
+    out = []
+    for m in parsed["messages"]:
+        u = m["usage"]
+        cc = u.get("cache_creation") or {}
+        c5 = cc.get("ephemeral_5m_input_tokens", u.get("cache_creation_input_tokens", 0))
+        out.append(u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
+                   + c5 + cc.get("ephemeral_1h_input_tokens", 0))
+    return out
 
 
 def totals(parsed: dict, prices: dict) -> dict:
@@ -114,6 +129,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--min-repeat", type=int, default=5)
     ap.add_argument("--prices", type=Path, default=DEFAULT_PRICES)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--contexts", action="store_true")
     a = ap.parse_args(argv)
     prices = load_prices(a.prices)
     rows, all_reads, all_cmds = [], Counter(), Counter()
@@ -127,7 +143,10 @@ def main(argv: list[str]) -> int:
             parsed = parse(p, a.since, a.until)
             if not parsed["messages"]:
                 continue
-            rows.append({"session": sid, "agent": label, **totals(parsed, prices)})
+            row = {"session": sid, "agent": label, **totals(parsed, prices)}
+            if a.contexts:
+                row["contexts"] = contexts(parsed)
+            rows.append(row)
             r, c = repeated(parsed)
             all_reads.update(r)
             all_cmds.update(c)

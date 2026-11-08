@@ -284,6 +284,7 @@ def compile_brief(
     cap: int,
     notes: list[str],
     handoffs: list[dict] = (),  # type: ignore[assignment]
+    max_context: int | None = None,
 ) -> dict:
     """Assemble the brief and keep it within *cap* bytes.
 
@@ -308,6 +309,13 @@ def compile_brief(
         brief["max_calls_note"] = (
             f"advisory: hand back state after about {max_calls} tool calls; "
             "the host counts, nothing here enforces it"
+        )
+    if max_context is not None:
+        brief["max_context"] = max_context
+        brief["max_context_note"] = (
+            f"advisory: hand back state when the context reaches about {max_context} tokens"
+            + (f", or after about {max_calls} tool calls if you cannot see it" if max_calls else "")
+            + "; the host counts, nothing here enforces it"
         )
     if _size(brief) > cap:
         for anchor in brief["anchors"]:

@@ -43,7 +43,8 @@ TIERS = ("script", "small", "large")
 DEFAULT_WEIGHTS = {"script": 0, "small": 1, "large": 5}
 DEFAULT_BUDGET_LIMIT = 20
 DEFAULT_RETRY_CAP = 3
-DEFAULT_MAX_CALLS = {"small": 40, "large": 60}  # advisory; tune from the cost measurement
+DEFAULT_MAX_CALLS = {"small": 40, "large": 60}  # advisory; the fallback when no context is set
+MIN_MAX_CONTEXT = 1000  # tokens; a threshold below this is a typo
 STATE_FIELDS = {
     "version",
     "round",
@@ -57,6 +58,8 @@ STATE_FIELDS = {
     "closed",
     "brief_bytes",
     "max_calls",
+    "max_context",
+    "max_context_ceiling",
     "group_size",
 }
 HEADER = (
@@ -156,6 +159,9 @@ def state_errors(data: object) -> list[str]:
             errors.append("max_calls must be a mapping with only small and large")
         elif not all(_nonneg_int(v) and v >= 1 for v in calls.values()):
             errors.append("max_calls values must be positive integers")
+    for key in ("max_context", "max_context_ceiling"):
+        if key in data and not (_nonneg_int(data[key]) and data[key] >= MIN_MAX_CONTEXT):
+            errors.append(f"{key} must be an integer of at least {MIN_MAX_CONTEXT} (tokens)")
     if "group_size" in data and not (
         _nonneg_int(data["group_size"]) and data["group_size"] >= group.MIN_GROUP_SIZE
     ):
@@ -1382,6 +1388,19 @@ def max_calls_for(order: dict[str, Any], state: dict[str, Any]) -> int | None:
     return int(table[order["tier"]])
 
 
+def max_context_for(order: dict[str, Any], state: dict[str, Any]) -> int | None:
+    """The advisory context threshold, in tokens: the smaller of ``max_context`` and
+    ``max_context_ceiling`` when set, else None (the call cap is then the only limit).
+
+    Orders that carry no call cap (script and human orders) carry none. The host counts
+    context; the CLI never enforces this.
+    """
+    if order["needs_human"] or order["tier"] not in DEFAULT_MAX_CALLS:
+        return None
+    limits = [state[k] for k in ("max_context", "max_context_ceiling") if k in state]
+    return int(min(limits)) if limits else None
+
+
 def _anchored(order: dict[str, Any], f: Facts) -> tuple[dict[str, Any], list[dict]]:
     """The finding row and the anchors of an order, each anchor marked ``write`` or ``read``.
 
@@ -1434,6 +1453,9 @@ def decorate(order: dict[str, Any], f: Facts, with_brief: bool = False) -> None:
     calls = max_calls_for(order, f.state)
     if calls is not None:
         order["max_calls"] = calls
+    context = max_context_for(order, f.state)
+    if context is not None:
+        order["max_context"] = context
     if not with_brief:
         return
     order["brief"] = order_brief.compile_brief(
@@ -1444,6 +1466,7 @@ def decorate(order: dict[str, Any], f: Facts, with_brief: bool = False) -> None:
         ledger_hits=_ledger_hits(order, f),
         verify=_verify_for(order),
         max_calls=calls,
+        max_context=context,
         cap=_brief_cap(f),
         notes=_index_notes(f),
         handoffs=_handoffs(f.state, [order["id"]]),
@@ -1469,6 +1492,9 @@ def group_unit(batch: list[dict[str, Any]], f: Facts, with_brief: bool) -> dict[
     calls = [o["max_calls"] for o in batch if "max_calls" in o]
     if calls:
         unit["max_calls"] = sum(calls)
+    contexts = [o["max_context"] for o in batch if "max_context" in o]
+    if contexts:
+        unit["max_context"] = min(contexts)  # one agent reads all members: one context
     seen: dict[tuple, dict] = {}
     parts = [_anchored(o, f) for o in batch]
     for _, anchors in parts:
@@ -1503,6 +1529,7 @@ def group_unit(batch: list[dict[str, Any]], f: Facts, with_brief: bool) -> dict[
         ledger_hits=[hits[k] for k in sorted(hits)],
         verify=verifies[commands[0]] if commands else None,
         max_calls=unit.get("max_calls"),
+        max_context=unit.get("max_context"),
         cap=_brief_cap(f),
         notes=notes,
         handoffs=_handoffs(f.state, ids),

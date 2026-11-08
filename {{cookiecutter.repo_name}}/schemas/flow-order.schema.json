@@ -145,6 +145,11 @@
       "minimum": 1,
       "description": "Optional. Advisory: hand back state after about this many tool calls. The host counts; nothing enforces it. Set from flow.yaml max_calls by tier."
     },
+    "max_context": {
+      "type": "integer",
+      "minimum": 1000,
+      "description": "Optional. Advisory: hand back state when the context reaches about this many tokens. The host counts; nothing enforces it. Set from flow.yaml max_context and max_context_ceiling."
+    },
     "brief": {
       "$ref": "#/definitions/brief"
     },
@@ -357,6 +362,13 @@
         "max_calls_note": {
           "type": "string"
         },
+        "max_context": {
+          "type": "integer",
+          "minimum": 1000
+        },
+        "max_context_note": {
+          "type": "string"
+        },
         "notes": {
           "type": "array",
           "items": {
@@ -415,6 +427,11 @@
           "type": "integer",
           "minimum": 1,
           "description": "Sum of the members' advisory caps."
+        },
+        "max_context": {
+          "type": "integer",
+          "minimum": 1000,
+          "description": "Smallest of the members' advisory context thresholds (one agent reads all members)."
         },
         "anchors": {
           "type": "array",

@@ -113,6 +113,7 @@ FLOW_HINTS = (
     "# max_calls: {small: 40, large: 60}   # advisory cap on tool calls per order\n"
     "# brief_bytes: 6000                   # byte cap of `flow next --brief`\n"
     "# group_size: 3                       # orders per group that write one file; 1 = off\n"
+    "# max_context: 120000                 # advisory context tokens; unset = call cap only\n"
 )
 EMPTY_SOURCE_MANIFEST = '{\n  "schema_version": "1.0",\n  "sources": []\n}\n'
 
