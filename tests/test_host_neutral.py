@@ -19,6 +19,15 @@ ALLOWED = {
     ("scripts/article/theses.py", "gpt"),
     ("scripts/article/migrations.py", "anthropic"),
     ("companion.yaml", "claude"),
+    ("scripts/article/handoff.py", "claude"),
+    ("scripts/article/handoff.py", "anthropic"),
+    ("scripts/article/handoff.py", "gpt"),
+    ("scripts/article/handoff.py", "openai"),
+    ("scripts/article/handoff.py", "opus"),
+    ("scripts/article/handoff.py", "sonnet"),
+    ("scripts/article/handoff.py", "haiku"),
+    ("scripts/article/handoff.py", "gemini"),
+    ("scripts/article/handoff.py", "llama"),
 }
 ADAPTER_ROOT = Path(".claude") / "skills"
 MAX_ADAPTER_LINES = 15

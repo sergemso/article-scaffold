@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/sergemso/article-scaffold/schemas/flow-handoff.schema.json",
   "title": "Flow handoff",
-  "description": "What an agent hands back when it reaches its call cap (`flow handoff <order> --file`), and the output of that command (`definitions.result`). It names the order, the anchors done and remaining, the files touched, the ledger keys written and the verify outcome. It carries no model or host name and no manuscript text. The CLI validates with scripts/article/handoff.py; this schema states the same rules.",
+  "description": "What an agent hands back when it reaches its call cap (`flow handoff <order> --file`), and the output of that command (`definitions.result`). It names the order, the anchors done and remaining, the files touched, the ledger keys written, the verify outcome and, optionally, one line of evidence per done item. It carries no model or host name and no manuscript text. The CLI validates with scripts/article/handoff.py; this schema states the same rules.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "order", "done", "remaining", "files", "ledger_keys", "verify"],
@@ -22,6 +22,12 @@
       "maxItems": 50,
       "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
       "description": "Keys of the ledger entries the agent wrote."
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[^\\u0000-\\u001f\\u007f]+$"},
+      "description": "Optional. One short line per done item: the command run and its result, or `not-run`. Single-line text; the CLI also refuses a line that names a model or a vendor."
     },
     "verify": {
       "type": "object",
