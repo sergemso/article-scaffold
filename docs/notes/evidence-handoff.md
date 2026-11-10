@@ -1,6 +1,6 @@
 # Evidence-bearing handoff: order 3 at cap 40
 
-Date: 2026-11-10. Plan step 1.3, `docs/plans/token-economy-followup.md`.
+Date: 2026-11-10. Plan step 1.3, `docs/plans/archive/token-economy-followup.md`.
 Status: **one run of the new variant**, compared with runs of the other two variants that
 were made for other reasons. One run per arm; the spread is unmeasured. Read it as an
 indication.

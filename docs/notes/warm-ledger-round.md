@@ -1,6 +1,6 @@
 # Warm-ledger round: order 3 with a warm and an empty ledger
 
-Date: 2026-11-10. Plan step 1.2, `docs/plans/token-economy-followup.md`.
+Date: 2026-11-10. Plan step 1.2, `docs/plans/archive/token-economy-followup.md`.
 Status: **one run per arm, no spread.** Read it as an indication only.
 
 ## What was run

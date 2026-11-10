@@ -1,6 +1,6 @@
 # E.3 pilot: one review order, old flow against the new flow
 
-Date: 2026-11-08. Plan step: E.3 (stage 2), `docs/plans/token-economy-ledger.md`.
+Date: 2026-11-08. Plan step: E.3 (stage 2), `docs/plans/archive/token-economy-ledger.md`.
 Status: **one order, one run per arm, and the `old` arm was not re-run.** The
 comparison is against the historical transcript of the same order. Read it as
 an indication, not a measurement of a saving.

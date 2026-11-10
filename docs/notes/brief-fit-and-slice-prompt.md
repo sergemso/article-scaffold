@@ -1,6 +1,6 @@
 # Brief that fits the cap, and an `index slice` prompt: order 1 at cap 40
 
-Date: 2026-11-10. Plan step 1.4, `docs/plans/token-economy-followup.md`.
+Date: 2026-11-10. Plan step 1.4, `docs/plans/archive/token-economy-followup.md`.
 Status: **one run per arm, no spread.** Read it as an indication only. The arms did
 different amounts of work (see Caveats), so only the first segment is like for like.
 

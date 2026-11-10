@@ -1,6 +1,6 @@
 # E.4: keyword search is enough; no virage, B.4 not started
 
-Date: 2026-11-08. Plan step: E.4 of `docs/plans/token-economy-ledger.md`.
+Date: 2026-11-08. Plan step: E.4 of `docs/plans/archive/token-economy-ledger.md`.
 
 ## Decision
 

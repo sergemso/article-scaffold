@@ -1,6 +1,6 @@
 # What the source store and the ledger add to a repository
 
-Date: 2026-11-09. Plan step: 2.1, `docs/plans/token-economy-followup.md`.
+Date: 2026-11-09. Plan step: 2.1, `docs/plans/archive/token-economy-followup.md`.
 Read-only measurement of `articles.bridge_contract_for_agent_session_governance`
 at `cdaef0d` (master). No code changed.
 

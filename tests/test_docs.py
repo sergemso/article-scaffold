@@ -206,7 +206,7 @@ def test_cli_and_claim_check_docs_state_the_f4_contracts() -> None:
     for form in ("ledger get claim-verdict --key", "--text claim=", "--version 1 --tier 2",
                  "ledger explain claim-verdict"):
         assert form in claim, form
-    plan = (ROOT / "docs" / "plans" / "token-economy-ledger.md").read_text()
+    plan = (ROOT / "docs" / "plans" / "archive" / "token-economy-ledger.md").read_text()
     assert "claims quote-check --all" in plan
     e2 = plan[plan.index("### E.2") : plan.index("### E.3")]
     assert "article claims`" not in e2 and "article claims quote-check --all`" in e2
