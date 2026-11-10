@@ -15,7 +15,7 @@ indication.
   resumes that session once, with no tools and at most two turns, and asks for JSON with
   `done`, `remaining`, `verify` and one `evidence` line per done item (the command run and
   its result, or `not-run`). It adds the diff-derived fields itself. `--continue` resumes an
-  interrupted run from its last saved handoff. `--handoff cheap` stays the default.
+  interrupted run from its last saved handoff. `--handoff evidence` became the default afterwards (2026-11-11).
 - A bug found on the way: a resumed session reports its **cumulative** cost, so the wrapper
   charged each evidence handoff with its whole segment again (0.82 and 0.44 USD recorded
   against 0.023 and 0.020 USD real) and refused segment 3 against the spend limit. The
@@ -84,8 +84,8 @@ modes that its handoff reported as passing; the cheap segments re-ran them 7 to 
    statements; a wrong one would not be caught here.
 
 **Default:** make the evidence handoff the default for capped runs (cost +0.02 USD, closes
-the stated gap, outcome parity). The wrapper default is still `cheap`; changing it is a
-one-line edit, not made here.
+the stated gap, outcome parity). The wrapper default was `cheap` when this note was
+written; it is now `evidence` (2026-11-11), and `--handoff cheap` selects the old one.
 
 ## Refit of the threshold
 

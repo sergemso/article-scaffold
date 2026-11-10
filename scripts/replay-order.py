@@ -10,7 +10,7 @@ order. The article repo and the spend limit come from the command line.
 
     python3 -I scripts/replay-order.py ORDER.json --repo ARTICLE_REPO --out RUN_DIR
         [--dry-run] [--max-usd X --segment-usd Y] [--cap N] [--segments N]
-        [--env-wrapper EXE] [--claude EXE] [--no-check] [--handoff cheap|evidence] [--continue]
+        [--env-wrapper EXE] [--claude EXE] [--no-check] [--handoff evidence|cheap] [--continue]
 
 ``--dry-run`` prints the plan, the task and brief hashes and spends nothing.
 A real run needs ``--max-usd``: the total this invocation may spend, counting
@@ -21,11 +21,10 @@ CLI and is never printed or written here.
 Each segment runs with ``--max-turns`` equal to the cap. A segment that ends at
 the cap (``error_max_turns``, or a ``success`` after at least 75% of the cap whose reply says
 it stopped at the budget; marked ``stopped_early`` in its result) is followed by a handoff.
-``--handoff cheap`` (default) is
-``git status``, ``git diff --stat`` and a fresh two-turn summary, with no resume.
-``--handoff evidence`` asks the capped session for one last turn, without tools, with done,
-remaining, verify and an evidence line per done item; the diff fields are added by the
-wrapper. Results,
+``--handoff evidence`` (default) asks the capped session for one last turn, without tools,
+with done, remaining, verify and an evidence line per done item; the diff fields are added by
+the wrapper. ``--handoff cheap`` is ``git status``, ``git diff --stat`` and a fresh two-turn
+summary, with no resume. Results,
 handoffs and transcript paths are written under RUN_DIR.
 """
 from __future__ import annotations
@@ -201,7 +200,7 @@ def dry_run(order: dict, a: argparse.Namespace, cap: int | None) -> None:
           f"segment limit {a.segment_usd} USD; total limit {a.max_usd}")
     print(f"would: git worktree add --detach {a.out / 'worktree'} {order['base']} "
           f"(in {a.repo})")
-    print(f"would: claude -p --max-turns {cap} per segment, cheap handoff at the cap, "
+    print(f"would: claude -p --max-turns {cap} per segment, {a.handoff} handoff at the cap, "
           f"then {order['outcome_check_path'].name}")
     print("spends nothing")
 
@@ -279,9 +278,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-check", action="store_true")
     ap.add_argument("--continue", dest="cont", action="store_true",
                     help="resume an interrupted run in OUT from its last saved handoff")
-    ap.add_argument("--handoff", choices=("cheap", "evidence"), default="cheap",
-                    help="cheap: diff plus a fresh summary; evidence: the capped agent's last "
-                         "turn with an evidence list")
+    ap.add_argument("--handoff", choices=("cheap", "evidence"), default="evidence",
+                    help="evidence: the capped agent's last turn with an evidence list; "
+                         "cheap: diff plus a fresh summary")
     a = ap.parse_args(argv)
     order = load_order(a.order)
     cap = order["cap"] if a.cap is None else (a.cap or None)

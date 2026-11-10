@@ -142,7 +142,8 @@ def test_segment_at_the_cap_hands_off_to_the_next(tmp_path: Path, repo: Path, or
     exe, state = fake_claude(tmp_path)
     out = tmp_path / "run"
     rc = ro.main([str(order), "--repo", str(repo), "--out", str(out), "--claude", str(exe),
-                  "--max-usd", "10", "--segment-usd", "2", "--env-wrapper", "/w/env"])
+                  "--max-usd", "10", "--segment-usd", "2", "--env-wrapper", "/w/env",
+                  "--handoff", "cheap"])
     assert rc == 0
     calls = json.loads(state.read_text())
     assert [("--max-turns" in c["argv"], c["argv"][c["argv"].index("--max-turns") + 1])
@@ -179,11 +180,13 @@ def test_evidence_handoff_resumes_once_without_tools_and_carries_the_evidence(
     assert json.loads((out / "spend.json").read_text())["total"] == 2.05
 
 
-def test_default_handoff_is_the_cheap_one(tmp_path: Path, repo: Path, order: Path) -> None:
+def test_default_handoff_is_the_evidence_one(tmp_path: Path, repo: Path, order: Path) -> None:
     exe, state = fake_claude(tmp_path)
     ro.main([str(order), "--repo", str(repo), "--out", str(tmp_path / "run"),
              "--claude", str(exe), "--max-usd", "10", "--segment-usd", "2"])
-    assert all("--resume" not in c["argv"] for c in json.loads(state.read_text()))
+    calls = json.loads(state.read_text())
+    assert any("--resume" in c["argv"] for c in calls)
+    assert "evidence" in calls[1]["prompt"]
 
 
 def test_continue_resumes_from_the_last_saved_handoff(
@@ -227,7 +230,7 @@ def test_self_stop_below_the_turn_limit_still_hands_off(
     exe, state = fake_claude(tmp_path)
     out = tmp_path / "run"
     rc = ro.main([str(order), "--repo", str(repo), "--out", str(out), "--claude", str(exe),
-                  "--max-usd", "10", "--segment-usd", "2"])
+                  "--max-usd", "10", "--segment-usd", "2", "--handoff", "cheap"])
     assert rc == 0
     calls = json.loads(state.read_text())
     assert len(calls) == 3
