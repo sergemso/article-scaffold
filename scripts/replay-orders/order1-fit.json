@@ -1,0 +1,11 @@
+{
+ "id": "order1-fit",
+ "title": "Order 1 with a brief that fits the cap (six anchors, slices)",
+ "base": "5aeec5f",
+ "task": "order1/task.txt",
+ "brief": "order1-fit/brief.json",
+ "outcome_check": "outcome_check.sh",
+ "outcome_base": "61f7781",
+ "cap": 40,
+ "baseline_calls": 167
+}

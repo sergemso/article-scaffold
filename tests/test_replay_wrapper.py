@@ -38,11 +38,18 @@ n = len(json.load(open(state))) if __import__("os").path.exists(state) else 0
 calls = json.load(open(state)) if n else []
 calls.append({{"argv": sys.argv[1:], "prompt": prompt}})
 json.dump(calls, open(state, "w"))
-if "stopped at its call limit" in prompt:
+if "--resume" in sys.argv:
+    out = {{"result": '{{"done": ["a"], "remaining": [], "verify": "pass", '
+                      '"evidence": ["pytest: 3 passed"]}}',
+           "total_cost_usd": 1.05, "num_turns": 1, "subtype": "success"}}
+elif "stopped at its call limit" in prompt:
     out = {{"result": '{{"done": ["a"], "remaining": ["b"], "verify": "not-run"}}',
            "total_cost_usd": 0.01, "num_turns": 1, "subtype": "success"}}
 elif "Handoff from the previous segment" in prompt:
     out = {{"subtype": "success", "total_cost_usd": 1.0, "num_turns": 3, "session_id": "s2"}}
+elif __import__("os").environ.get("FAKE_SELF_STOP"):
+    out = {{"subtype": "success", "total_cost_usd": 1.0, "num_turns": 3, "session_id": "s1",
+           "result": "I stopped at the tool-call budget with the work only partly done."}}
 else:
     out = {{"subtype": "error_max_turns", "total_cost_usd": 1.0, "num_turns": 4,
            "session_id": "s1"}}
@@ -150,3 +157,80 @@ def test_segment_at_the_cap_hands_off_to_the_next(tmp_path: Path, repo: Path, or
     assert json.loads((out / "result-1.json").read_text())["transcript"].endswith("s1.jsonl")
     assert json.loads((out / "spend.json").read_text())["total"] == 2.01
     assert (out / "outcome.txt").read_text().strip() == "PASS fake"
+
+
+def test_evidence_handoff_resumes_once_without_tools_and_carries_the_evidence(
+        tmp_path: Path, repo: Path, order: Path) -> None:
+    exe, state = fake_claude(tmp_path)
+    out = tmp_path / "run"
+    rc = ro.main([str(order), "--repo", str(repo), "--out", str(out), "--claude", str(exe),
+                  "--max-usd", "10", "--segment-usd", "2", "--env-wrapper", "/w/env",
+                  "--handoff", "evidence"])
+    assert rc == 0
+    calls = json.loads(state.read_text())
+    assert len(calls) == 3
+    last = calls[1]["argv"]
+    assert last[last.index("--resume") + 1] == "s1"
+    assert "--allowedTools" not in last and last[last.index("--max-turns") + 1] == "2"
+    assert "evidence" in calls[1]["prompt"] and "Do not use tools" in calls[1]["prompt"]
+    saved = json.loads((out / "handoff-1.json").read_text())["handoff"]
+    assert saved["evidence"] == ["pytest: 3 passed"] and saved["verify"] == "pass"
+    assert "pytest: 3 passed" in calls[2]["prompt"]
+    assert json.loads((out / "spend.json").read_text())["total"] == 2.05
+
+
+def test_default_handoff_is_the_cheap_one(tmp_path: Path, repo: Path, order: Path) -> None:
+    exe, state = fake_claude(tmp_path)
+    ro.main([str(order), "--repo", str(repo), "--out", str(tmp_path / "run"),
+             "--claude", str(exe), "--max-usd", "10", "--segment-usd", "2"])
+    assert all("--resume" not in c["argv"] for c in json.loads(state.read_text()))
+
+
+def test_continue_resumes_from_the_last_saved_handoff(
+        tmp_path: Path, repo: Path, order: Path) -> None:
+    exe, state = fake_claude(tmp_path)
+    out = tmp_path / "run"
+    args = [str(order), "--repo", str(repo), "--out", str(out), "--claude", str(exe),
+            "--max-usd", "10", "--segment-usd", "2", "--handoff", "evidence"]
+    assert ro.main(args + ["--segments", "1"]) == 0
+    assert (out / "handoff-1.handoff.json").exists()
+    state.unlink()
+    assert ro.main(args + ["--continue"]) == 0
+    calls = json.loads(state.read_text())
+    assert "Handoff from the previous segment" in calls[0]["prompt"]
+    assert "pytest: 3 passed" in calls[0]["prompt"]
+
+
+@pytest.mark.parametrize("res,expected", [
+    ({"subtype": "error_max_turns", "num_turns": 4}, True),
+    ({"subtype": "success", "num_turns": 37,
+      "result": "I stopped at the tool-call budget."}, True),
+    ({"subtype": "success", "num_turns": 30,
+      "result": "Reached the call limit; Rust half undone."}, True),
+    ({"subtype": "success", "num_turns": 12,
+      "result": "I stopped at the tool-call budget."}, False),
+    ({"subtype": "success", "num_turns": 38,
+      "result": "All done, well inside the budget."}, False),
+    ({"subtype": "error_max_budget_usd", "num_turns": 38,
+      "result": "stopped at the budget"}, False),
+])
+def test_hit_cap_reads_the_turn_limit_or_a_self_stop_near_the_cap(
+        res: dict, expected: bool) -> None:
+    assert ro.hit_cap(res, 40) is expected
+    assert ro.hit_cap({"subtype": "success", "num_turns": 38,
+                       "result": "I stopped at the budget."}, None) is False
+
+
+def test_self_stop_below_the_turn_limit_still_hands_off(
+        tmp_path: Path, repo: Path, order: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FAKE_SELF_STOP", "1")
+    exe, state = fake_claude(tmp_path)
+    out = tmp_path / "run"
+    rc = ro.main([str(order), "--repo", str(repo), "--out", str(out), "--claude", str(exe),
+                  "--max-usd", "10", "--segment-usd", "2"])
+    assert rc == 0
+    calls = json.loads(state.read_text())
+    assert len(calls) == 3
+    assert '"remaining": [\n  "b"\n ]' in calls[2]["prompt"]
+    assert json.loads((out / "result-1.json").read_text())["stopped_early"] is True
+    assert "stopped_early" not in json.loads((out / "result-2.json").read_text())

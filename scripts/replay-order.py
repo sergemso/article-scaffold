@@ -10,7 +10,7 @@ order. The article repo and the spend limit come from the command line.
 
     python3 -I scripts/replay-order.py ORDER.json --repo ARTICLE_REPO --out RUN_DIR
         [--dry-run] [--max-usd X --segment-usd Y] [--cap N] [--segments N]
-        [--env-wrapper EXE] [--claude EXE] [--no-check]
+        [--env-wrapper EXE] [--claude EXE] [--no-check] [--handoff cheap|evidence] [--continue]
 
 ``--dry-run`` prints the plan, the task and brief hashes and spends nothing.
 A real run needs ``--max-usd``: the total this invocation may spend, counting
@@ -19,8 +19,13 @@ before it starts. ``ANTHROPIC_API_KEY`` is read from the environment by the
 CLI and is never printed or written here.
 
 Each segment runs with ``--max-turns`` equal to the cap. A segment that ends at
-the cap (``error_max_turns``) is followed by a cheap handoff: ``git status``,
-``git diff --stat`` and a fresh two-turn summary, with no resume. Results,
+the cap (``error_max_turns``, or a ``success`` after at least 75% of the cap whose reply says
+it stopped at the budget; marked ``stopped_early`` in its result) is followed by a handoff.
+``--handoff cheap`` (default) is
+``git status``, ``git diff --stat`` and a fresh two-turn summary, with no resume.
+``--handoff evidence`` asks the capped session for one last turn, without tools, with done,
+remaining, verify and an evidence line per done item; the diff fields are added by the
+wrapper. Results,
 handoffs and transcript paths are written under RUN_DIR.
 """
 from __future__ import annotations
@@ -29,6 +34,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -40,6 +46,11 @@ TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "Glob"]
 TAIL = ("Read symbols with `python3 -m scripts.article index slice NAME` "
         "instead of whole files.")
 HANDOFF_USD = 0.5
+# An agent told to "stop and say so" at the budget may do it a few calls early and end with
+# `success`; that is a cap, not a finished task.
+SELF_STOP = re.compile(
+    r"(stopp\w*|reach\w*|hit|ran out|exhaust\w*)\W.{0,40}(budget|limit)", re.I | re.S)
+SELF_STOP_SHARE = 0.75
 
 
 def sha(text: str) -> str:
@@ -89,6 +100,17 @@ class Spend:
         self.path.write_text(json.dumps(self.data, indent=1))
 
 
+def hit_cap(res: dict, cap: int | None) -> bool:
+    """True when the segment ended at the cap: by the turn limit, or by the agent saying so."""
+    if res.get("subtype") == "error_max_turns":
+        return True
+    if not cap or res.get("subtype") != "success":
+        return False
+    if (res.get("num_turns") or 0) < cap * SELF_STOP_SHARE:
+        return False
+    return bool(SELF_STOP.search(res.get("result") or ""))
+
+
 def transcript_path(cwd: Path, session: str | None) -> str | None:
     if not session:
         return None
@@ -96,10 +118,15 @@ def transcript_path(cwd: Path, session: str | None) -> str | None:
     return str(Path.home() / ".claude" / "projects" / slug / f"{session}.jsonl")
 
 
-def claude(exe: str, cwd: Path, prompt: str, turns: int, usd: float, env: dict) -> dict:
+def claude(exe: str, cwd: Path, prompt: str, turns: int, usd: float, env: dict,
+           resume: str | None = None, tools: list[str] = TOOLS) -> dict:
     cmd = [exe, "-p", "--bare", "--model", MODEL, "--output-format", "json",
            "--max-turns", str(turns), "--max-budget-usd", str(usd),
-           "--permission-mode", "acceptEdits", "--allowedTools", *TOOLS]
+           "--permission-mode", "acceptEdits"]
+    if resume:
+        cmd += ["--resume", resume]
+    if tools:
+        cmd += ["--allowedTools", *tools]
     r = subprocess.run(cmd, input=prompt, text=True, capture_output=True, cwd=cwd, env=env)
     try:
         return json.loads(r.stdout)
@@ -120,6 +147,39 @@ def cheap_handoff(exe: str, wt: Path, task: str, env: dict) -> dict:
          '{"done": [short items likely finished], "remaining": [short items not yet '
          'evidenced in the diff], "verify": "not-run"}. Each item is one line. Do not use tools.')
     res = claude(exe, wt, p, 2, HANDOFF_USD, env)
+    try:
+        txt = res.get("result", "")
+        summary = json.loads(txt[txt.index("{"): txt.rindex("}") + 1])
+    except ValueError:
+        summary = {"note": "summary was not JSON", "raw": res.get("result", "")[:500]}
+    res["handoff"] = {"files": [ln[3:] for ln in status.splitlines()],
+                      "diff_stat": stat.strip().splitlines()[-1:], **summary}
+    return res
+
+
+def evidence_handoff(exe: str, wt: Path, session: str | None, env: dict,
+                     prior_usd: float = 0.0) -> dict:
+    """Handoff from the capped agent's own last turn: one call at its full context.
+
+    The agent is asked for done, remaining, verify and one evidence line per done item (the
+    command run and its result, or ``not-run``); no tools are allowed, so it cannot start more
+    work. The wrapper adds the diff-derived fields. Without a session id the cheap handoff is
+    used instead.
+    """
+    if not session:
+        return cheap_handoff(exe, wt, "", env)
+    def sh(*c: str) -> str:
+        return subprocess.run(c, cwd=wt, text=True, capture_output=True).stdout
+    status, stat = sh("git", "status", "--short"), sh("git", "diff", "--stat")
+    p = ("You reached your call limit. Reply with only JSON: "
+         '{"done": [short items finished], "remaining": [short items not finished], '
+         '"verify": "pass" or "fail" or "not-run", "evidence": [one short line per done item: '
+         'the command you ran and its result, or "not-run"]}. Each item is one line. '
+         "Do not use tools.")
+    res = claude(exe, wt, p, 2, HANDOFF_USD, env, resume=session, tools=[])
+    # A resumed session reports its cumulative cost; keep only what this call added.
+    res["cumulative_cost_usd"] = res.get("total_cost_usd")
+    res["total_cost_usd"] = round((res.get("total_cost_usd") or 0) - prior_usd, 6)
     try:
         txt = res.get("result", "")
         summary = json.loads(txt[txt.index("{"): txt.rindex("}") + 1])
@@ -154,8 +214,13 @@ def run(order: dict, a: argparse.Namespace, cap: int | None) -> int:
         subprocess.run(["git", "-C", str(a.repo), "worktree", "add", "--detach",
                         str(wt), order["base"]], check=True, capture_output=True)
     env = {**os.environ, "REPLAY_RUN_DIR": str(a.out.resolve()), "REPLAY_ENV": a.env_wrapper}
-    handoff, rc = None, 0
-    for seg in range(1, a.segments + 1):
+    handoff, rc, first = None, 0, 1
+    if a.cont:
+        saved = sorted(a.out.glob("handoff-*.handoff.json"))
+        if saved:
+            handoff = json.loads(saved[-1].read_text())
+            first = int(saved[-1].name.split("-")[1].split(".")[0]) + 1
+    for seg in range(first, a.segments + 1):
         if not spend.allows(a.segment_usd):
             print(f"spend limit: {spend.data['total']} + {a.segment_usd} would pass {a.max_usd}",
                   file=sys.stderr)
@@ -169,15 +234,27 @@ def run(order: dict, a: argparse.Namespace, cap: int | None) -> int:
         (a.out / f"result-{seg}.json").write_text(json.dumps(res, indent=1)[:20000])
         print(f"segment {seg}: {res.get('subtype')} turns={res.get('num_turns')} "
               f"usd={res.get('total_cost_usd')} total={spend.data['total']}")
-        if res.get("subtype") != "error_max_turns":
+        failed = res.get("is_error") and res.get("subtype") != "error_max_turns"
+        if res.get("subtype") == "unparsed" or failed:
+            print(f"segment {seg} failed: {str(res.get('result') or res.get('stderr'))[:200]}",
+                  file=sys.stderr)
+            return 2
+        if not hit_cap(res, cap):
             break
+        res["stopped_early"] = res.get("subtype") == "success"
+        (a.out / f"result-{seg}.json").write_text(json.dumps(res, indent=1)[:20000])
         if not spend.allows(HANDOFF_USD):
             print("spend limit: no room for the handoff", file=sys.stderr)
             return 3
-        hand = cheap_handoff(a.claude, wt, order["task_path"].read_text(), env)
+        if a.handoff == "evidence":
+            hand = evidence_handoff(a.claude, wt, res.get("session_id"), env,
+                                    res.get("total_cost_usd") or 0)
+        else:
+            hand = cheap_handoff(a.claude, wt, order["task_path"].read_text(), env)
         spend.record(f"handoff {seg}", hand)
         handoff = hand["handoff"]
         (a.out / f"handoff-{seg}.json").write_text(json.dumps(hand, indent=1)[:8000])
+        (a.out / f"handoff-{seg}.handoff.json").write_text(json.dumps(handoff, indent=1))
     if not a.no_check:
         r = subprocess.run(["sh", str(order["outcome_check_path"]), str(wt), order["outcome_base"]],
                            text=True, capture_output=True, env=env)
@@ -200,6 +277,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--env-wrapper", default="")
     ap.add_argument("--claude", default="claude")
     ap.add_argument("--no-check", action="store_true")
+    ap.add_argument("--continue", dest="cont", action="store_true",
+                    help="resume an interrupted run in OUT from its last saved handoff")
+    ap.add_argument("--handoff", choices=("cheap", "evidence"), default="cheap",
+                    help="cheap: diff plus a fresh summary; evidence: the capped agent's last "
+                         "turn with an evidence list")
     a = ap.parse_args(argv)
     order = load_order(a.order)
     cap = order["cap"] if a.cap is None else (a.cap or None)

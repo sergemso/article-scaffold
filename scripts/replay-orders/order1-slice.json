@@ -1,0 +1,12 @@
+{
+ "id": "order1-slice",
+ "title": "Order 1, fitting brief, and a prompt step that names index slice",
+ "base": "5aeec5f",
+ "task": "order1/task.txt",
+ "brief": "order1-fit/brief.json",
+ "outcome_check": "outcome_check.sh",
+ "outcome_base": "61f7781",
+ "cap": 40,
+ "baseline_calls": 167,
+ "tail": "Read symbols with `python3 -m scripts.article index slice NAME` instead of whole files. Before you open any source file with sed, cat or Read, read the symbols the brief names with `python3 -m scripts.article index slice NAME` (run `python3 -m scripts.article index` first if it says the index is stale)."
+}
