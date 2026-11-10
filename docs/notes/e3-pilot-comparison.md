@@ -272,3 +272,23 @@ Reading, from one run per arm (variance unmeasured):
    in this one run, consistent with a lower H than the pilot assumed.
 
 Spend: 5.92 USD for this part, 15.54 USD of the 25 USD in total.
+
+## Replay orders and recorded hashes
+
+The scratchpad wrapper is now `scripts/replay-order.py`, with the three orders in
+`scripts/replay-orders/` (`--dry-run` prints the hashes below and spends nothing).
+Bases are the article-repo commits that carry the tooling overlay and an empty
+ledger; the outcome check diffs against the original review base.
+
+| Order | Findings | Base (overlay) | Outcome diff base | Task sha256 | Brief sha256 (bytes) |
+|---|---|---|---|---|---|
+| order1 | G-B1, G-B3, G-M1 | `5aeec5f` | `61f7781` | `f155607d…f6ae6e` | `c3bb89b9…bc934` (6749) |
+| order2 | F-1, F-5 | `44e8818` | `dad3897` | `b4d096f9…6cf8a3` | `e049ace4…e839` (4033) |
+| order3 | G-B2, G-M3, G-M5, minor | `5aeec5f` | `61f7781` | `841fde17…11c6` | `7f1ed1c5…f68a85` (3768) |
+
+Full hashes are in `tests/test_replay_wrapper.py`, which checks the order files
+against them. The task and brief are the files the final pilot runs used; the
+earlier order 1 and 2 runs used a slightly different budget sentence, which the
+order's `tail` and `--cap` reproduce only approximately. The toolchain (python
+venv, rust offline) is supplied with `--env-wrapper`; it is machine-specific and
+not in the repo.

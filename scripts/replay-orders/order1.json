@@ -1,0 +1,3 @@
+{"id": "order1", "title": "Findings G-B1, G-B3 and G-M1 of review 3", "base": "5aeec5f",
+ "task": "order1/task.txt", "brief": "order1/brief.json", "outcome_check": "outcome_check.sh",
+ "outcome_base": "61f7781", "cap": 60, "baseline_calls": 167}

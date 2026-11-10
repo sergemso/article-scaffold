@@ -12,11 +12,11 @@ Constraints for every step:
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
-Status (2026-11-09): not started. Order of work: 1.1 first (it makes 1.2 to 1.4 repeatable); then 1.2, 1.3 and 1.4 in any order, each only after the owner states a budget; 2.1 any time (read-only, costs nothing).
+Status (2026-11-09): 1.1 done (wrapper, three orders, hashes in the pilot note); 1.2 to 1.4 wait for a budget; 2.1 done (`docs/notes/store-costs.md`). Order of work: 1.1 first (it makes 1.2 to 1.4 repeatable); then 1.2, 1.3 and 1.4 in any order, each only after the owner states a budget; 2.1 any time (read-only, costs nothing).
 
 ## 1. Measurements
 
-### 1.1 Commit the replay wrapper — [ ]
+### 1.1 Commit the replay wrapper — [x]
 Class: implement · Effort: medium · Needs: none · Check: `.venv/bin/python -m pytest tests/test_replay_wrapper.py -q`
 Context: The three pilot orders were run with scratchpad scripts (`run_arm.py`, `outcome_check.sh`, `build_brief.py`, per-order task text) described in `docs/notes/e3-pilot-comparison.md`. Steps 1.2 to 1.4 all replay an order, so the wrapper must live in the repo. It is maintainer tooling and is not shipped in the template.
 Do: Add `scripts/replay-order.py` that, for an order described in a small JSON file (base commit, task text, brief, outcome check command, cap), creates a throwaway worktree of the article repo, runs one arm through the Claude CLI in segments, saves each segment's transcript path and the handoff text, and enforces a spend limit passed on the command line. `--dry-run` prints what it would do and spends nothing. The outcome check is a script file named in the order, never a command string taken from the order JSON. Commit the three pilot orders (G-B1/G-B3/G-M1, F-1/F-5, G-B2/G-M3/G-M5) as order files, with the base commits recorded in the pilot note.
@@ -42,7 +42,7 @@ Done-when: a note records the three arms; it states whether the agent used `inde
 
 ## 2. Costs of keeping the stores
 
-### 2.1 Measure what the stores add to a repository — [ ]
+### 2.1 Measure what the stores add to a repository — [x]
 Class: review · Effort: low · Needs: none · Check: `git -C /home/sergei/projects/strebulaev-articles/articles.bridge_contract_for_agent_session_governance count-objects -vH`
 Context: Each stored source keeps its raw file, a normalized text and a locator index, and every re-fetched edition adds another set (`paper/sources/<key>/<raw hash>/`). The ledger adds one file per verdict and per check outcome, and the cold run adds another. Nobody has measured the size, the clone time or the diff noise. Normalized text and locators are regenerable, but they are committed on purpose so machines without `pdftotext` read the same text.
 Do: In the article repo (read-only), report the bytes of `paper/sources/` split into raw, normalized and locators, the number and bytes of `docs/ledger/` files, the repository size and clone time before and after the adoption commit (`bc0fd54`), and the size of a single added edition (use the diff of a draft revision). Estimate the growth for 20 sources with 3 editions each. Check that the companion export leaves both directories out (`companion --plan`).
