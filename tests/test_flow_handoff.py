@@ -180,3 +180,70 @@ def test_done_ids_tolerates_a_hand_edited_handoff() -> None:
     assert handoff.done_ids({"done": [{"name": "n", "file": "f"}, {"name": "m"}]}) == {("f", "n")}
     assert handoff.done_ids({"done": "oops"}) == set()
     assert handoff.done_ids({}) == set() and handoff.done_ids(None) == set()
+
+
+EVIDENCE = ["pytest conformance_suite.py: 152 passed", "mutation_check.py: not-run"]
+BAD_EVIDENCE = {
+    "not-a-list": "pytest: pass",
+    "not-a-string": [1],
+    "empty-line": [""],
+    "too-long": ["x" * 201],
+    "too-many": [f"line {i}" for i in range(51)],
+    "newline": ["pytest: pass\nmutation: pass"],
+    "control": ["pytest:\x07pass"],
+    "model-name": ["checked by Sonnet"],
+    "vendor-name": ["asked anthropic"],
+}
+
+
+def test_evidence_is_optional_normalized_and_stored(issued) -> None:
+    project, order = issued
+    plain = json.loads(_hand(project, order["id"], _doc(order["id"])).stdout)["handoff"]
+    assert "evidence" not in plain
+    doc = _doc(order["id"], evidence=[EVIDENCE[1], EVIDENCE[0], EVIDENCE[0]])
+    result = _hand(project, order["id"], doc)
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    RESULT.validate(payload)
+    assert payload["handoff"]["evidence"] == sorted(EVIDENCE)
+    stored = yaml.safe_load((project / "flow.yaml").read_text())["orders"][order["id"]]
+    assert stored["handoff"]["evidence"] == sorted(EVIDENCE)
+    handoffs = jcli(project, "flow", "next", "--brief")["order"]["brief"]["handoffs"]
+    jsonschema.validate(handoffs[0], SCHEMA)
+    assert handoffs[0]["evidence"] == sorted(EVIDENCE)
+
+
+def test_empty_evidence_list_is_valid_and_not_stored(issued) -> None:
+    project, order = issued
+    stored = json.loads(_hand(project, order["id"], _doc(order["id"], evidence=[])).stdout)
+    assert "evidence" not in stored["handoff"]
+
+
+@pytest.mark.parametrize("case", sorted(BAD_EVIDENCE))
+def test_invalid_evidence_is_rejected_and_not_stored(issued, case: str) -> None:
+    project, order = issued
+    result = _hand(project, order["id"], _doc(order["id"], evidence=BAD_EVIDENCE[case]))
+    assert result.returncode == 1, result.stdout
+    assert "evidence" in json.loads(result.stdout)["error"]
+    stored = yaml.safe_load((project / "flow.yaml").read_text())["orders"][order["id"]]
+    assert "handoff" not in stored
+
+
+def test_evidence_python_validator_agrees_with_the_schema(issued) -> None:
+    sys.path.insert(0, str(TEMPLATE))
+    try:
+        from scripts.article import handoff
+    finally:
+        sys.path.remove(str(TEMPLATE))
+    _, order = issued
+    good = _doc(order["id"], evidence=EVIDENCE)
+    assert handoff.errors(good) == []
+    jsonschema.validate(good, SCHEMA)
+    # The schema states the shape; the vendor-name rule is the CLI's alone.
+    for case in sorted(set(BAD_EVIDENCE) - {"model-name", "vendor-name"}):
+        doc = _doc(order["id"], evidence=BAD_EVIDENCE[case])
+        assert handoff.errors(doc), case
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(doc, SCHEMA)
+    for case in ("model-name", "vendor-name"):
+        assert handoff.errors(_doc(order["id"], evidence=BAD_EVIDENCE[case])), case
