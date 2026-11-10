@@ -12,7 +12,7 @@ Constraints for every step:
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
-Status (2026-11-09): 1.1 done (wrapper, three orders, hashes in the pilot note); 1.2 to 1.4 wait for a budget; 2.1 done (`docs/notes/store-costs.md`). Order of work: 1.1 first (it makes 1.2 to 1.4 repeatable); then 1.2, 1.3 and 1.4 in any order, each only after the owner states a budget; 2.1 any time (read-only, costs nothing).
+Status (2026-11-10): 1.1 done (`scripts/replay-order.py`, three orders in `scripts/replay-orders/`, hashes in the pilot note); 2.1 done (`docs/notes/store-costs.md`). The article repo was upgraded to template `6ffff03` and merged to its `master` (`6eddc76`, local, not pushed); its ledger is still cold (run `claims quote-check --all` and `check record`, then delete `.theses/claims-cache.json`) and `flow.yaml` leaves `max_calls` at the defaults. 1.2 to 1.4 wait for an owner-stated USD budget each; 1.2 needs the cold ledger warmed first (its Do).
 
 ## 1. Measurements
 
