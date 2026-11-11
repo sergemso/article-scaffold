@@ -7,6 +7,19 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+### Added
+
+- Read a source once: PDF text carries `[page N]` markers and is extracted in reading
+  order, scans are OCRed once when `pdftoppm` and `tesseract` are installed,
+  `sources slice KEY --pages A-B|--section N` returns only that part, and `sources read`
+  records which pages or sections were read, by whom and whether verified (`sources list`
+  shows what is unread). New procedure `reading-a-source` and an AGENTS.md rule.
+
+### Fixed
+
+- `companion --build` fails if a file under `paper/sources/` would be published, even
+  when the repo's own `companion.yaml` lacks the `paper/sources/**` exclude.
+
 ## [1.8.0] - 2026-11-11
 
 ### Added

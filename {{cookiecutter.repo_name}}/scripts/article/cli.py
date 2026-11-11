@@ -188,11 +188,31 @@ def _sources(args: argparse.Namespace) -> int:
                 terms=args.terms,
                 retrieved=args.retrieved,
                 media_type=args.media_type,
+                note=args.note,
             )
         elif action == "index":
             result = sources.index(root, args.key, args.force)
         elif action == "slice":
-            result = sources.slice_passage(root, args.address, args.window)
+            if "@" in args.address:
+                if args.pages or args.section:
+                    raise sources.SourcesError("--pages and --section take a key, not an address")
+                result = sources.slice_passage(root, args.address, args.window)
+            elif bool(args.pages) == bool(args.section):
+                raise sources.SourcesError("give an address, or a key with --pages or --section")
+            elif args.pages:
+                result = sources.slice_pages(root, args.address, args.pages)
+            else:
+                result = sources.slice_section(root, args.address, args.section)
+        elif action == "read":
+            result = sources.mark_read(
+                root,
+                args.key,
+                by=args.by,
+                pages=args.pages,
+                section=args.section,
+                verified=args.verified,
+                note=args.note,
+            )
         elif action == "diff":
             result = sources.diff(root, args.key, args.old, args.new)
         elif action == "find":
@@ -1015,13 +1035,18 @@ def build_parser() -> argparse.ArgumentParser:
     s_add.add_argument("--terms", help="a note on the source's terms of use")
     s_add.add_argument("--retrieved", help="retrieval time, UTC ISO 8601 (default: now)")
     s_add.add_argument("--media-type", help="override the media type guessed from the suffix")
+    s_add.add_argument("--note", help="a note on the file, e.g. a scan whose OCR is poor")
     s_index = sources_sub.add_parser(
         "index", help="normalize text and build the locator index (exit 1 if one is unreadable)"
     )
     s_index.add_argument("key", nargs="?", help="only this source")
     s_index.add_argument("--force", action="store_true", help="regenerate normalized text")
-    s_slice = sources_sub.add_parser("slice", help="print the passage an address names")
-    s_slice.add_argument("address", help="source-key@hash#locator")
+    s_slice = sources_sub.add_parser(
+        "slice", help="print the passage an address names, or pages or a section of a key"
+    )
+    s_slice.add_argument("address", help="source-key@hash#locator, or a key with --pages/--section")
+    s_slice.add_argument("--pages", help="pages A-B of the key's current text (PDF only)")
+    s_slice.add_argument("--section", help="section number of the key, e.g. 3 or 3.2 or A.1")
     s_slice.add_argument("--window", type=int, default=sources.DEFAULT_WINDOW, help="context lines")
     s_diff = sources_sub.add_parser("diff", help="locators added, removed and changed")
     s_diff.add_argument("key")
@@ -1033,8 +1058,19 @@ def build_parser() -> argparse.ArgumentParser:
     s_find.add_argument("query", nargs="+", help="terms that must all occur in a passage")
     s_find.add_argument("--key", help="only this source")
     s_find.add_argument("--limit", type=int, default=sources.DEFAULT_FIND_LIMIT)
-    s_list = sources_sub.add_parser("list", help="stored sources and MANIFEST.md rows not imported")
-    for sub in (s_add, s_index, s_slice, s_diff, s_find, s_list):
+    s_read = sources_sub.add_parser(
+        "read", help="record in the manifest that pages or a section of a source were read"
+    )
+    s_read.add_argument("key")
+    s_read.add_argument("--pages", help="pages read, A or A-B")
+    s_read.add_argument("--section", help="section number read, e.g. 3.2")
+    s_read.add_argument("--by", required=True, choices=sources.READ_BY, help="who read it")
+    s_read.add_argument("--verified", action="store_true", help="checked against the text")
+    s_read.add_argument("--note", help="what was and was not covered")
+    s_list = sources_sub.add_parser(
+        "list", help="stored sources, what was read and what is unread, and MANIFEST.md rows"
+    )
+    for sub in (s_add, s_index, s_slice, s_diff, s_find, s_read, s_list):
         _add_common(sub)
         sub.set_defaults(func=_sources)
 

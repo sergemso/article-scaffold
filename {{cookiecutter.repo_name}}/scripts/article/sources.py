@@ -7,8 +7,10 @@ Layout under ``paper/sources/``::
     <key>/<raw hash>/normalized.txt     canonical text, committed, not regenerated
     <key>/<raw hash>/locators.json      locator index derived from the text
 
-Everything is local: no network, and the only program ever run is ``pdftotext`` by its
-fixed name (never a command from a repo file). ``MANIFEST.md`` is read, never written.
+Everything is local: no network, and the only programs ever run are ``pdftotext`` and, for
+a scan with no text layer, ``pdftoppm`` and ``tesseract``, by their fixed names (never a
+command from a repo file). A PDF's text carries ``[page N]`` marker lines.
+``MANIFEST.md`` is read, never written.
 An address is ``source-key@hash#locator`` where ``hash`` is a prefix of the normalized
 text hash (see ``address.py``).
 """
@@ -46,6 +48,10 @@ INDEX_VERSION = "2"
 MAX_SLICE_LINES = 80
 MAX_SLICE_BYTES = 8000
 DEFAULT_WINDOW = 2
+READ_BY = ("model", "owner")
+_PAGE_MARK = re.compile(r"^\[page (\d+)\]$")
+_PAGES = re.compile(r"^(\d+)(?:-(\d+))?$")
+OCR_DPI = "300"
 _KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _MEDIA_TYPES = {
@@ -214,6 +220,7 @@ def add(
     terms: str | None = None,
     retrieved: str | None = None,
     media_type: str | None = None,
+    note: str | None = None,
 ) -> dict[str, Any]:
     """Copy *file* into the store under its raw hash and append a manifest entry."""
     if not origin or not edition:
@@ -255,6 +262,8 @@ def add(
         }
         if terms:
             entry["terms"] = terms
+        if note:
+            entry["note"] = note
         entries.append(entry)
         _save_manifest(root, entries)
         superseded = [e["raw_hash"] for e in entries[:-1] if e["key"] == key]
@@ -268,6 +277,43 @@ def add(
         }
 
 
+def _page_count(root: Path, entry: dict[str, Any]) -> int | None:
+    """Pages found in the locator index, or None when it is absent or has no page markers."""
+    try:
+        _, _, index_path = _paths(root, entry)
+        pages = json.loads(index_path.read_text(encoding="utf-8")).get("pages")
+    except (OSError, ValueError, SourcesError):
+        return None
+    return len(pages) if pages else None
+
+
+def _coverage(root: Path, entry: dict[str, Any]) -> dict[str, Any]:
+    """``read`` ranges, the page count, and pages no ``read`` entry covers."""
+    read = entry.get("read", [])
+    row: dict[str, Any] = {"read": read}
+    count = _page_count(root, entry)
+    if count:
+        seen: set[int] = set()
+        for item in read:
+            if "pages" in item:
+                low, high = _parse_pages(item["pages"])
+                seen.update(range(low, high + 1))
+        gaps: list[str] = []
+        page = 1
+        while page <= count:
+            if page in seen:
+                page += 1
+                continue
+            end = page
+            while end + 1 <= count and end + 1 not in seen:
+                end += 1
+            gaps.append(str(page) if end == page else f"{page}-{end}")
+            page = end + 1
+        row["pages"] = count
+        row["unread_pages"] = gaps
+    return row
+
+
 def list_sources(root: Path) -> dict[str, Any]:
     entries = load_manifest(root)
     current = {e["key"]: e for e in entries}
@@ -279,6 +325,7 @@ def list_sources(root: Path) -> dict[str, Any]:
             "normalized_hash": e.get("normalized_hash"),
             "readable": "normalized_hash" in e,
             "superseded": _is_superseded(e, current[e["key"]]),
+            **_coverage(root, e),
         }
         for e in entries
     ]
@@ -361,6 +408,44 @@ def _html_lines(text: str) -> str:
     )
 
 
+def _paged(pages: list[str]) -> str:
+    """Page texts joined under ``[page N]`` marker lines, so a page range can be sliced."""
+    return _tidy("\n\n".join(f"[page {n}]\n\n{_tidy(p)}" for n, p in enumerate(pages, 1)))
+
+
+def _ocr(raw: Path) -> tuple[str, str, str] | str:
+    """OCR a scan with pdftoppm and tesseract; a reason string when they are unavailable."""
+    pdftoppm, tesseract = shutil.which("pdftoppm"), shutil.which("tesseract")
+    if pdftoppm is None or tesseract is None:
+        return "pdftotext produced no text; install pdftoppm and tesseract to OCR a scan"
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            done = subprocess.run(
+                [pdftoppm, "-r", OCR_DPI, "-png", str(raw), str(Path(tmp) / "p")],
+                capture_output=True,
+                timeout=600,
+                check=False,
+            )
+            if done.returncode != 0:
+                return f"pdftoppm exited {done.returncode}"
+            pages: list[str] = []
+            for image in sorted(Path(tmp).glob("p-*.png")):
+                page = subprocess.run(
+                    [tesseract, str(image), "stdout"],
+                    capture_output=True,
+                    timeout=300,
+                    check=False,
+                )
+                if page.returncode != 0:
+                    return f"tesseract exited {page.returncode} on {image.name}"
+                pages.append(page.stdout.decode("utf-8", errors="replace"))
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return f"OCR failed: {exc}"
+    if not any(page.strip() for page in pages):
+        return "OCR produced no text"
+    return _paged(pages), "tesseract", "1"
+
+
 def normalize(raw: Path, media_type: str) -> tuple[str, str, str] | str:
     """(text, normalizer name, normalizer version), or a reason string when unreadable."""
     if media_type == "application/pdf":
@@ -368,8 +453,9 @@ def normalize(raw: Path, media_type: str) -> tuple[str, str, str] | str:
         if program is None:
             return "pdftotext is not installed"
         try:
+            # Reading order, not -layout: -layout interleaves the columns of a two-column paper.
             done = subprocess.run(
-                [program, "-layout", "-enc", "UTF-8", str(raw), "-"],
+                [program, "-enc", "UTF-8", str(raw), "-"],
                 capture_output=True,
                 timeout=120,
                 check=False,
@@ -378,8 +464,12 @@ def normalize(raw: Path, media_type: str) -> tuple[str, str, str] | str:
             return f"pdftotext failed: {exc}"
         if done.returncode != 0:
             return f"pdftotext exited {done.returncode}"
-        text = _tidy(done.stdout.decode("utf-8", errors="replace"))
-        return (text, "pdftotext", "1") if text.strip() else "pdftotext produced no text"
+        pages = done.stdout.decode("utf-8", errors="replace").split("\f")
+        if pages and not pages[-1].strip():
+            pages.pop()
+        if any(page.strip() for page in pages):
+            return _paged(pages), "pdftotext", "2"
+        return _ocr(raw)
     if media_type == "text/html":
         decoded = raw.read_bytes().decode("utf-8", errors="replace")
         text = _tidy(_html_lines(decoded))
@@ -471,6 +561,7 @@ def build_locators(text: str) -> dict[str, Any]:
     if lines and lines[-1] == "":
         lines.pop()
     headings: list[tuple[int, int, str]] = []  # line, depth, title
+    numbers: dict[int, str] = {}  # line -> "3.2" or "A.1" for numbered headings
     in_fence = False
     for number, line in enumerate(lines, 1):
         if line.startswith("```"):
@@ -480,6 +571,9 @@ def build_locators(text: str) -> dict[str, Any]:
         found = _heading(line)
         if found:
             headings.append((number, found[0], found[1].replace("/", "-")))
+            numbered = _NUMBERED.match(line) or _APPENDIX.match(line)
+            if numbered and not _MD_HEADING.match(line):
+                numbers[number] = numbered.group(1)
     sections: list[dict[str, Any]] = []
     stack: list[tuple[int, str]] = []
     seen: dict[str, int] = {}
@@ -498,16 +592,17 @@ def build_locators(text: str) -> dict[str, Any]:
             if later_depth <= depth:
                 end = later_number - 1
                 break
-        sections.append(
-            {
-                "locator": f"sec:{path}",
-                "title": title,
-                "depth": depth,
-                "start": number,
-                "end": end,
-                "text_hash": _text_hash(lines[number - 1 : end]),
-            }
-        )
+        section = {
+            "locator": f"sec:{path}",
+            "title": title,
+            "depth": depth,
+            "start": number,
+            "end": end,
+            "text_hash": _text_hash(lines[number - 1 : end]),
+        }
+        if number in numbers:
+            section["number"] = numbers[number]
+        sections.append(section)
     paragraphs: list[dict[str, Any]] = []
     start = None
     for number, line in enumerate(lines + [""], 1):
@@ -541,10 +636,24 @@ def build_locators(text: str) -> dict[str, Any]:
                     "text_hash": _text_hash([line]),
                 }
             )
+    marks = [
+        (number, int(found.group(1)))
+        for number, line in enumerate(lines, 1)
+        if (found := _PAGE_MARK.match(line))
+    ]
+    pages = [
+        {
+            "page": page,
+            "start": number,
+            "end": marks[i + 1][0] - 1 if i + 1 < len(marks) else len(lines),
+        }
+        for i, (number, page) in enumerate(marks)
+    ]
     return {
         "index_version": INDEX_VERSION,
         "normalized_hash": _sha256(text.encode("utf-8")),
         "lines": len(lines),
+        "pages": pages,
         "sections": sections,
         "paragraphs": paragraphs,
         "requirements": requirements,
@@ -735,6 +844,137 @@ def passage_for(
         if "normalized_hash" in current:
             payload["current_hash"] = current["normalized_hash"]
     return payload
+
+
+def _parse_pages(text: str) -> tuple[int, int]:
+    found = _PAGES.match(text.strip())
+    if not found:
+        raise SourcesError(f"--pages must look like 3 or 3-5, got {text!r}")
+    low = int(found.group(1))
+    high = int(found.group(2) or low)
+    if low < 1 or high < low:
+        raise SourcesError(f"--pages {text!r} is not an ascending range from page 1")
+    return low, high
+
+
+def _readable_current(root: Path, key: str) -> dict[str, Any]:
+    _check_key(key)
+    entries = [e for e in load_manifest(root) if e["key"] == key]
+    if not entries:
+        raise SourcesError(f"no source with key {key}")
+    entry = entries[-1]
+    if "normalized_hash" not in entry:
+        raise SourcesError(f"{key} has no stored text; run `sources index {key}`")
+    return entry
+
+
+def _capped(lines: list[str], start: int, end: int) -> tuple[str, int, bool]:
+    shown_end, truncated = end, False
+    if end - start + 1 > MAX_SLICE_LINES:
+        shown_end, truncated = start + MAX_SLICE_LINES - 1, True
+    body = "\n".join(lines[start - 1 : shown_end])
+    if len(body.encode("utf-8")) > MAX_SLICE_BYTES:
+        body = body.encode("utf-8")[:MAX_SLICE_BYTES].decode("utf-8", errors="ignore")
+        shown_end, truncated = start + body.count("\n"), True
+    return body, shown_end, truncated
+
+
+def slice_pages(root: Path, key: str, pages: str) -> dict[str, Any]:
+    """The text of pages A-B of the current edition of *key* (PDF text with page markers)."""
+    low, high = _parse_pages(pages)
+    entry = _readable_current(root, key)
+    lines, index_data = load_locators(root, entry)
+    table = {p["page"]: p for p in index_data.get("pages", [])}
+    if not table:
+        raise SourcesError(
+            f"{key} has no page markers; only PDF text extracted by this CLI has them "
+            "(`sources index --force` re-extracts and replaces the stored text)"
+        )
+    if high not in table:
+        raise SourcesError(f"{key} has {max(table)} pages, not {high}")
+    start, end = table[low]["start"], table[high]["end"]
+    body, shown_end, truncated = _capped(lines, start, end)
+    return {
+        "key": key,
+        "normalized_hash": entry["normalized_hash"],
+        "locator": f"pages:{low}-{high}",
+        "start": start,
+        "end": shown_end,
+        "truncated": truncated,
+        "superseded": False,
+        "text": body,
+    }
+
+
+def slice_section(root: Path, key: str, section: str) -> dict[str, Any]:
+    """A section of the current edition of *key*, picked by its number (``3``, ``3.2``, ``A.1``)."""
+    entry = _readable_current(root, key)
+    _, index_data = load_locators(root, entry)
+    wanted = section.strip().rstrip(".")
+    hits = [
+        item["locator"]
+        for item in index_data["sections"]
+        if item.get("number") == wanted
+    ]
+    if not hits:
+        raise SourcesError(f"{key} has no section {section!r}; `sources find` locates one")
+    text = f"{key}@{entry['normalized_hash'][:12]}#{hits[0]}"
+    return slice_passage(root, text)
+
+
+def mark_read(
+    root: Path,
+    key: str,
+    *,
+    by: str,
+    pages: str | None = None,
+    section: str | None = None,
+    verified: bool = False,
+    note: str | None = None,
+    date: str | None = None,
+) -> dict[str, Any]:
+    """Record that pages or a section of *key* were read, by whom, and whether checked.
+
+    Refused unless the text is stored: coverage of something that cannot be re-read is noise.
+    """
+    if by not in READ_BY:
+        raise SourcesError(f"--by must be one of {', '.join(READ_BY)}")
+    if (pages is None) == (section is None):
+        raise SourcesError("give exactly one of --pages and --section")
+    with _manifest_lock(root):
+        entries = load_manifest(root)
+        _check_key(key)
+        mine = [e for e in entries if e["key"] == key]
+        if not mine:
+            raise SourcesError(f"no source with key {key}")
+        entry = mine[-1]
+        if "normalized_hash" not in entry:
+            raise SourcesError(f"{key} has no stored text; run `sources index {key}`")
+        record: dict[str, Any] = {}
+        if pages is not None:
+            low, high = _parse_pages(pages)
+            count = _page_count(root, entry)
+            if count is None:
+                raise SourcesError(f"{key} has no page markers; record --section instead")
+            if high > count:
+                raise SourcesError(f"{key} has {count} pages, not {high}")
+            record["pages"] = f"{low}-{high}" if high != low else str(low)
+        else:
+            _, index_data = load_locators(root, entry)
+            wanted = section.strip().rstrip(".")
+            if not any(i.get("number") == wanted for i in index_data["sections"]):
+                raise SourcesError(f"{key} has no section {section!r}")
+            record["section"] = wanted
+        record["by"] = by
+        record["date"] = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        record["verified"] = bool(verified)
+        if note:
+            record["note"] = note
+        read = entry.setdefault("read", [])
+        if record not in read:
+            read.append(record)
+            _save_manifest(root, entries)
+        return {"key": key, "raw_hash": entry["raw_hash"], **_coverage(root, entry)}
 
 
 def current_edition(root: Path, key: str) -> dict[str, Any] | None:
