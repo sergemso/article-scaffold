@@ -60,7 +60,7 @@ Done-when: `flow status` on an existing repo is unchanged; a repo with an unmove
 
 ## 3. Procedure
 
-### 3.1 Dialectic procedure and skill adapter — [ ]
+### 3.1 Dialectic procedure and skill adapter — [x]
 Class: implement · Effort: medium · Needs: 2.1 · Check: `.venv/bin/python -m pytest tests/test_theses_cli.py -q`
 Decision: 0083. Scope: `{{cookiecutter.repo_name}}/docs/procedures/dialectic.md`, `{{cookiecutter.repo_name}}/.claude/skills/dialectic/SKILL.md`.
 Do: Write the host-neutral procedure: niche scan and topic scan over sources already in `paper/sources/`, propose contradictions (with poles anchored), propose moves, leave everything `proposed`, ask a human to accept. Keep the skill a thin pointer like `lifecycle`. Note that `add_nodes` writes flat scalar fields only (see 1.1 of the theses plan), so state how proposals are written until that is fixed.
