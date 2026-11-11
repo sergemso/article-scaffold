@@ -97,7 +97,7 @@ def test_move_without_opening_when_the_chain_ends_in_a_synthesis() -> None:
     assert not any(k == "move-without-opening" and i != "m4" for k, i in _kinds(data))
 
 
-def test_a_opening_closes_the_chain() -> None:
+def test_an_opening_closes_the_chain() -> None:
     assert not [g for g in _kinds(VALID) if g[0] == "move-without-opening"]
 
 
@@ -123,7 +123,7 @@ def test_thesis_untraced_until_opened_or_explained() -> None:
     assert not theses.structure_errors(data).items
 
 
-def test_thesis_traced_by_a_opening() -> None:
+def test_thesis_traced_by_an_opening() -> None:
     data = _mutated(lambda d: _move(d, "m5").update(opens="t1"))
     assert ("thesis-untraced", "t1") not in _kinds(data)
 

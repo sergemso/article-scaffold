@@ -119,7 +119,7 @@ def _check_contradictions(items: list, node_types: dict, ids: set, err) -> set[s
         if "principle" in item:
             if kind == "dialectical":
                 err("T076", f"{where}: principle belongs to a technical or physical contradiction")
-            if item["principle"] not in known:
+            if not isinstance(item["principle"], str) or item["principle"] not in known:
                 err("T077", f"{where}: principle {item['principle']!r} is not a listed tag")
         if "ideal-result" in item and not _line(item["ideal-result"]):
             err("T007", f"{where}: ideal-result must be a non-empty single line")
@@ -147,7 +147,8 @@ def _check_poles(poles: object, where: str, node_types: dict, err) -> None:
         if has_claim == has_niche:
             err("T081", f"{where}: pole {number} must be anchored to exactly one of claim or niche")
         elif has_claim:
-            if node_types.get(pole["claim"]) != "source-claim":
+            claim = pole["claim"]
+            if not isinstance(claim, str) or node_types.get(claim) != "source-claim":
                 err("T082", f"{where}: pole {number}: {pole['claim']!r} is not a source-claim node")
         elif not _line(pole["niche"]):
             err("T081", f"{where}: pole {number}: niche must be a non-empty single line")
@@ -188,7 +189,7 @@ def _check_moves(items: list, node_types: dict, c_ids: set, ids: set, err) -> di
             target = item.get("opens")
             if target is None:
                 err("T089", f"{where}: an opening must name the node it opens")
-            elif node_types.get(target) not in OPENABLE:
+            elif not isinstance(target, str) or node_types.get(target) not in OPENABLE:
                 err("T090", f"{where}: opens {target!r}, which is not a thesis or hypothesis node")
         elif "opens" in item:
             err("T091", f"{where}: opens belongs to an opening move")
