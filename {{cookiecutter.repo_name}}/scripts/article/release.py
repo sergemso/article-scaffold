@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from .build import docx_plan, pdf_plan
 
 # Import from sibling modules (no circular imports - these are leaf functions)
@@ -158,8 +160,8 @@ def _compute_dry_run_diff(root: Path) -> list[str]:
         expected = collect_expected(root, normalize_metadata(metadata))
         drift = compare_outputs(root, expected)
         return [f"would update {item.path}" for item in drift]
-    except Exception:
-        return ["(could not compute diff)"]
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        return [f"(could not compute diff: {exc})"]
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ from typing import Any
 
 from . import claims, code_index, companion, core, dialectic, flow, ledger, sources, terms, theses
 from . import index as section_index
+from .version import installed_template_version
 
 
 class UsageError(Exception):
@@ -277,7 +278,10 @@ def _theses(args: argparse.Namespace) -> int:
                 {"ok": True, "command": "theses accept", "id": args.id, "changed": changed}
             )
             return core.ExitCode.OK
-        data = theses.load_map(root)
+        try:
+            data = theses.load_map(root)
+        except theses.MapYamlError as exc:
+            raise theses.AcceptError(str(exc)) from exc
         if data is None:
             raise theses.AcceptError("theses.yaml not found")
         if not theses.structure_errors(data).ok:
@@ -516,7 +520,7 @@ def _basic_status(root: Path) -> dict[str, Any]:
     }
     return {
         "schema_version": "1.0",
-        "template_version": core.CORE_VERSION,
+        "template_version": installed_template_version(root),
         "repo": {"root": str(root), "branch": branch, "dirty": dirty},
         "metadata": {"valid": valid, "drift": drift},
         "diagnostics": {

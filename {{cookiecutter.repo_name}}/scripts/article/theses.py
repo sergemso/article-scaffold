@@ -14,6 +14,7 @@ import yaml
 
 from . import address, dialectic
 from .diagnostics import Diagnostics
+from .fsutil import atomic_write
 from .latex import strip_comments
 
 MAP_FILE = "theses.yaml"
@@ -169,12 +170,19 @@ def structure_errors(data: object) -> Diagnostics:
     return diagnostics
 
 
+class MapYamlError(ValueError, yaml.YAMLError):
+    """theses.yaml is not valid YAML (a ValueError for new callers, a YAMLError for old ones)."""
+
+
 def load_map(root: Path) -> dict | None:
-    """Return the parsed map, or None when the file is absent."""
+    """Return the parsed map, or None when the file is absent. Raises MapYamlError."""
     path = root / MAP_FILE
     if not path.is_file():
         return None
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise MapYamlError(f"{MAP_FILE} is not valid YAML: {exc}") from exc
 
 
 def validate_map(
@@ -894,7 +902,7 @@ def accept(root: Path, node_id: str, by: str) -> bool:
     validate_map(yaml.safe_load(new), None, check)
     if not check.ok:
         raise AcceptError("the result would not validate; fix `theses lint` first")
-    path.write_text(new, encoding="utf-8")
+    atomic_write(path, new)
     return True
 
 
@@ -956,4 +964,4 @@ def add_nodes(root: Path, new_nodes: list[dict]) -> None:
     validate_map(yaml.safe_load(new), None, check)
     if not check.ok:
         raise AcceptError("the result would not validate; fix `theses lint` first")
-    path.write_text(new, encoding="utf-8")
+    atomic_write(path, new)

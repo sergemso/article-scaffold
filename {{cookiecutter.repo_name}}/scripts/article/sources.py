@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from . import address
+from .fsutil import atomic_write
 
 try:  # POSIX only; where it is missing the lock is skipped and the writes stay atomic
     import fcntl
@@ -76,18 +77,6 @@ class SourcesError(ValueError):
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def _atomic_write(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-")
-    try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -146,7 +135,7 @@ def _manifest_lock(root: Path) -> Iterator[None]:
 
 
 def _save_manifest(root: Path, entries: list[dict[str, Any]]) -> None:
-    _atomic_write(
+    atomic_write(
         manifest_path(root), _json_bytes({"schema_version": SCHEMA_VERSION, "sources": entries})
     )
 
@@ -251,7 +240,7 @@ def add(
                 return {"key": key, "raw_hash": raw_hash, "added": False, "entry": entry}
         target = store_dir(root, key, raw_hash) / f"raw.{ext}"
         if not (target.exists() and target.read_bytes() == data):
-            _atomic_write(target, data)
+            atomic_write(target, data)
         entry = {
             "key": key,
             "origin": origin,
@@ -704,7 +693,7 @@ def index(root: Path, key: str | None = None, force: bool = False) -> dict[str, 
                     results.append(row)
                     continue
                 text, name, version = outcome
-                _atomic_write(text_path, text.encode("utf-8"))
+                atomic_write(text_path, text.encode("utf-8"))
                 digest = _sha256(text.encode("utf-8"))
                 normalizer = {"name": name, "version": version}
                 row["status"] = "indexed"
@@ -714,7 +703,7 @@ def index(root: Path, key: str | None = None, force: bool = False) -> dict[str, 
                 changed = True
             locators = _json_bytes(build_locators(text))
             if not index_path.is_file() or index_path.read_bytes() != locators:
-                _atomic_write(index_path, locators)
+                atomic_write(index_path, locators)
             row.update(normalized_hash=digest, normalizer=normalizer)
             results.append(row)
         if changed:

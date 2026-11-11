@@ -11,6 +11,7 @@ import json
 import re
 from pathlib import Path
 
+from .fsutil import atomic_write
 from .latex import strip_comments
 
 INDEX_PATH = Path("paper") / "build" / "section-index.json"
@@ -151,10 +152,9 @@ def build_index(root: Path) -> dict:
 def write_index(root: Path) -> dict:
     index = build_index(root)
     target = root / INDEX_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
+    atomic_write(
+        target,
         json.dumps(index, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     return index
 

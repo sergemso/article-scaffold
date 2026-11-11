@@ -25,6 +25,7 @@ from . import brief as order_brief
 from . import claims, companion, core, dialectic, group, ledger, sources, theses
 from . import handoff as order_handoff
 from . import index as section_index
+from .fsutil import atomic_write
 
 STATE_FILE = "flow.yaml"
 STATUS_SCHEMA_VERSION = "1.0"
@@ -231,7 +232,7 @@ def save_state(root: Path, state: dict[str, Any]) -> None:
     if errors:
         raise FlowError("refusing to write an invalid flow.yaml: " + "; ".join(errors))
     body = yaml.safe_dump(state, sort_keys=False, allow_unicode=True, default_flow_style=False)
-    (root / STATE_FILE).write_text(HEADER + body, encoding="utf-8")
+    atomic_write(root / STATE_FILE, HEADER + body)
 
 
 # --------------------------------------------------------------------- facts
@@ -1791,7 +1792,10 @@ def round_open(root: Path, review: str, today: date | None = None) -> dict[str, 
     items = split_review(text)
     if not items:
         raise FlowError("no items found: use a numbered list or headings")
-    data = theses.load_map(root)
+    try:
+        data = theses.load_map(root)
+    except theses.MapYamlError as exc:
+        raise FlowError(str(exc)) from exc
     if data is None or not theses.structure_errors(data).ok:
         raise FlowError("theses.yaml is missing or invalid; run `theses lint`")
     known = {n["id"] for n in data.get("nodes") or []}
