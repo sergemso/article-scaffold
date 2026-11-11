@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from conftest import render, run
@@ -194,14 +195,14 @@ def test_release_apply_leaves_no_tag_when_the_pdf_build_fails(tmp_path: Path) ->
     import shutil
     bindir = tmp_path / "bin"
     bindir.mkdir()
-    for tool in ("git", "python3"):
-        (bindir / tool).symlink_to(shutil.which(tool))
+    (bindir / "git").symlink_to(shutil.which("git"))
     env = {**os.environ, "PATH": str(bindir)}
+    # Run the venv's interpreter by its real path: a symlink elsewhere loses its site-packages.
     result = subprocess.run(
-        [str(bindir / "python3"), "-m", "scripts.article", "release", "--json",
-         "--apply", "--yes"],
+        [sys.executable, "-m", "scripts.article", "release", "--json", "--apply", "--yes"],
         cwd=project, text=True, capture_output=True, env=env,
     )
+    assert result.stdout, result.stderr
     out = json.loads(result.stdout)
     assert out["ok"] is False and "PDF build" in out["error"]
     assert run(project, "git", "tag", "-l", "v1.0.0", check=True).stdout.strip() == ""
