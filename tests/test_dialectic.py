@@ -459,3 +459,96 @@ def test_rendered_project_rejects_a_broken_dialectic_map(tmp_path) -> None:
     (project / "theses.yaml").write_text(yaml.safe_dump(broken, sort_keys=False))
     result = run(project, "python3", "scripts/validate-paper.py")
     assert "T094" in result.stdout + result.stderr
+
+
+# ------------------------------------------------------------------ edge cases
+
+EDGE_CODES = {
+    "multi-line contradiction text": ("T007", lambda d: _contradiction(d).update(text="a\nb")),
+    "multi-line move text": ("T007", lambda d: _move(d, "m1").update(text="a\nb")),
+    "blank ideal-result": ("T007", lambda d: _contradiction(d, "c2").update({"ideal-result": " "})),
+    "agent named on an accepted move": (
+        "T013", lambda d: _move(d, "m1").update(status="accepted", **{"accepted-by": "claude"})
+    ),
+    "accepted move without accepted-by": (
+        "T012", lambda d: _move(d, "m1").update(status="accepted")
+    ),
+    "cites not a list": ("T092", lambda d: _move(d, "m1").update(cites="c1")),
+    "cites holds a non-string": ("T092", lambda d: _move(d, "m1").update(cites=[1])),
+    "resources with a multi-line item": (
+        "T078", lambda d: _contradiction(d, "c2").update(resources=["ok", "a\nb"])
+    ),
+    "blank niche anchor": (
+        "T081", lambda d: _contradiction(d)["poles"][1].update(niche=" ")
+    ),
+    "pole not a mapping": ("T079", lambda d: _contradiction(d)["poles"].__setitem__(0, "x")),
+    "unknown pole field": ("T002", lambda d: _contradiction(d)["poles"][0].update(weight=1)),
+    "opening of a source-claim": ("T090", lambda d: _move(d, "m5").update(opens="o1")),
+    "move without id": ("T070", lambda d: _move(d, "m1").pop("id")),
+}
+
+
+@pytest.mark.parametrize("name", sorted(EDGE_CODES))
+def test_edge_case_is_reported_with_its_code(name: str) -> None:
+    code, mutate = EDGE_CODES[name]
+    assert code in _codes(_mutated(mutate))
+
+
+def test_a_move_cannot_reuse_a_contradiction_id() -> None:
+    assert "T071" in _codes(_mutated(lambda d: _move(d, "m1").update(id="c1")))
+
+
+def test_a_human_acceptance_is_not_an_agent_error() -> None:
+    data = _mutated(
+        lambda d: _move(d, "m1").update(status="accepted", **{"accepted-by": "Sergei Strebulaev"})
+    )
+    assert _codes(data) == set()
+
+
+def test_a_bad_move_type_does_not_cascade_into_field_errors() -> None:
+    codes = _codes(_mutated(lambda d: _move(d, "m1").update(type="sublation", opens="q1")))
+    assert "T083" in codes
+    assert not codes & {"T084", "T091"}
+
+
+def test_principles_are_keyed_by_tag_and_complete() -> None:
+    known = dialectic.principles()
+    assert len(known) == 40
+    assert set(known) == {p["id"] for p in PRINCIPLES["principles"]}
+
+
+def test_development_of_a_map_without_moves_is_empty() -> None:
+    assert dialectic.development(PLAIN) == []
+    assert dialectic.development({"moves": None}) == []
+
+
+def test_every_declared_gap_kind_is_documented_in_the_procedure() -> None:
+    text = (TEMPLATE / "docs" / "procedures" / "dialectic.md").read_text()
+    for kind in dialectic.GAP_KINDS:
+        assert kind in text.replace("`", "")
+
+
+def test_every_move_type_is_documented_in_the_procedure_and_decision() -> None:
+    procedure = (TEMPLATE / "docs" / "procedures" / "dialectic.md").read_text()
+    decision = next((ROOT / "docs" / "decisions").glob("0083-*.md")).read_text()
+    for kind in dialectic.MOVE_TYPES:
+        assert f"`{kind}`" in procedure
+        assert f"`{kind}`" in decision
+
+
+# ------------------------------------------- wrong types are reported, never raised
+
+WRONG_TYPES = {
+    "opens as a list": ("T090", lambda d: _move(d, "m5").update(opens=["t1"])),
+    "opens as a mapping": ("T090", lambda d: _move(d, "m5").update(opens={"id": "t1"})),
+    "claim as a list": ("T082", lambda d: _contradiction(d)["poles"][0].update(claim=["o1"])),
+    "claim as a mapping": ("T082", lambda d: _contradiction(d)["poles"][0].update(claim={"a": 1})),
+    "principle as a list": ("T077", lambda d: _contradiction(d, "c2").update(principle=["x"])),
+    "principle as a mapping": ("T077", lambda d: _contradiction(d, "c2").update(principle={})),
+}
+
+
+@pytest.mark.parametrize("name", sorted(WRONG_TYPES))
+def test_a_wrong_typed_field_gets_its_code_and_no_crash(name: str) -> None:
+    code, mutate = WRONG_TYPES[name]
+    assert code in _codes(_mutated(mutate))
