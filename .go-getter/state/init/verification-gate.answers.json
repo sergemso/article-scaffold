@@ -16,7 +16,7 @@
     "review-bar": "reviewer-verdict",
     "gate": "block"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"

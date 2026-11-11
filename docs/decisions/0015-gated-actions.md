@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, hooks, guardrail]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   generated-by: hitl@0.6.0
   pack-answer: gated-classes

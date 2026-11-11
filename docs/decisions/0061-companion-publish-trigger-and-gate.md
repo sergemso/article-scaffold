@@ -6,7 +6,7 @@ superseded-by: 0063-publish-and-track-from-the-scaffold
 date: 2026-10-29
 tags: [companion, zenodo, release, ci]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

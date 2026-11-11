@@ -6,7 +6,7 @@
     "pii-extra": [],
     "mcp-argument-scan": "on"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"

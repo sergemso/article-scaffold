@@ -5,7 +5,7 @@ status: active
 date: 2026-10-31
 tags: [metadata, zenodo, series]
 track: product
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

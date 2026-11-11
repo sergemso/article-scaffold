@@ -7,7 +7,7 @@
     "compaction": "task-boundaries",
     "watcher-noise": "quiet"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"

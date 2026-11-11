@@ -5,7 +5,7 @@ status: active
 date: 2026-11-07
 tags: [cost, orchestration, flow, host-neutral]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

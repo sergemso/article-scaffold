@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, agent-roles, harness]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   escalation: Stop and hand over to a human only when you cannot proceed.
   generated-by: orchestration@0.1.1

@@ -5,7 +5,7 @@ status: active
 date: 2026-11-03
 tags: [orchestration, formal-methods, host-neutral]
 track: product
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

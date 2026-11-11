@@ -5,7 +5,7 @@ status: active
 date: 2026-11-07
 tags: [cost, cache, ledger, sources, orchestration]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 governed-facts: [0010-virage-is-semantic-and-injects-on-every-prompt]
 ---
 

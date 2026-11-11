@@ -5,7 +5,7 @@ status: active
 date: 2026-11-02
 tags: [theses-map, argument, cost]
 track: product
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

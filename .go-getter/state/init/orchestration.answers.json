@@ -8,7 +8,7 @@
     "escalation": "only-when-blocked",
     "handoff": "brief-result-evidence"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"

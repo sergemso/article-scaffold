@@ -5,7 +5,7 @@ status: active
 date: 2026-10-31
 tags: [companion, ci, security, bootstrap, github-app]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

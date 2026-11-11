@@ -5,7 +5,7 @@ status: active
 date: 2026-11-02
 tags: [orchestration, architecture, scholar-mcp, host-neutral]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 governed-facts: [0007-go-getter-is-maintainer-tooling]
 ---
 

@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [mcp, architecture, scope]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

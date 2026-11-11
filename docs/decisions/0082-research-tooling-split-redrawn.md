@@ -5,7 +5,7 @@ status: active
 date: 2026-11-07
 tags: [architecture, scholar-mcp, theses-map, cost]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 governed-facts: [0006-scholar-mcp-checks-bibliographic-facts-only]
 ---
 

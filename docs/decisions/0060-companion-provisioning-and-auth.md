@@ -6,7 +6,7 @@ superseded-by: 0062-github-app-as-scaffold-identity
 date: 2026-10-29
 tags: [companion, ci, security, bootstrap]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

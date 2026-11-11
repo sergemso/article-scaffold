@@ -5,7 +5,7 @@ status: active
 date: 2026-10-29
 tags: [companion, zenodo, release, privacy]
 track: product
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

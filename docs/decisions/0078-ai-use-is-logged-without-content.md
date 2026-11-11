@@ -5,7 +5,7 @@ status: active
 date: 2026-11-03
 tags: [provenance, privacy, host-neutral, orchestration]
 track: product
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

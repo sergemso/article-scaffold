@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, hooks]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   generated-by: checkpointing@0.2.0
   pack-answer: retention

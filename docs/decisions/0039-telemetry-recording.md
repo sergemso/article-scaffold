@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, observability, harness]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   telemetry-recording: off
   generated-by: telemetry@0.1.0
