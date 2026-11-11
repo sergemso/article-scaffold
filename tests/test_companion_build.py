@@ -105,6 +105,23 @@ def test_deny_beats_allow(project: Path, tmp_path: Path) -> None:
     assert "analysis/__pycache__/x.pyc" not in paths
 
 
+def test_sources_never_reach_the_snapshot_even_without_the_exclude(
+    project: Path, tmp_path: Path
+) -> None:
+    config = project / "companion.yaml"
+    data = yaml.safe_load(config.read_text())
+    data["exclude"].remove("paper/sources/**")
+    config.write_text(yaml.safe_dump(data))
+    (project / "paper" / "sources" / "local").mkdir(parents=True)
+    (project / "paper" / "sources" / "local" / "x.pdf").write_bytes(b"%PDF-1.4")
+    snap = tmp_path / "snap"
+    result, payload = _companion(project, "--build", str(snap))
+
+    assert result.returncode == 1
+    assert "paper/sources/local/x.pdf" in payload["error"]
+    assert not snap.exists()
+
+
 def test_theses_map_and_cache_never_reach_the_snapshot(project: Path, tmp_path: Path) -> None:
     config = project / "companion.yaml"
     data = yaml.safe_load(config.read_text())

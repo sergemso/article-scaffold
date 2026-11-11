@@ -8,6 +8,15 @@ repo. `companion.yaml` at the repo root controls it:
 
 The file is yours after the first render; `upgrade` never overwrites it.
 
+## `paper/sources/` is private
+
+`paper/` is published, but `paper/sources/` is not: the template excludes
+`paper/sources/**`, and `--build` fails if any file under it would be copied, even when your
+`companion.yaml` lacks the exclude. The source store may only hold text you may keep (for
+example CC BY); third-party PDFs you may not redistribute belong in a private repo, never in a
+published one. `refs.bib` is published, so a note there such as "full text stored in
+`paper/sources`" points at files readers cannot see.
+
 ## Check what would be published
 
 ```bash

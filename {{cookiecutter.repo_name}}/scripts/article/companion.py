@@ -74,6 +74,10 @@ SECRET_PATTERNS = (
 )
 
 
+# Never public whatever companion.yaml says: third-party source texts and PDFs.
+PRIVATE_PREFIXES = ("paper/sources/",)
+
+
 class CompanionError(ValueError):
     """A snapshot cannot be built; the message says why."""
 
@@ -197,6 +201,11 @@ def leak_scan(
     for path in paths:
         if denied(path):
             problems.append(f"{path}: excluded path is in the snapshot")
+        elif path.startswith(PRIVATE_PREFIXES):
+            problems.append(
+                f"{path}: third-party source text is never public; "
+                'add "paper/sources/**" to the exclude list of companion.yaml'
+            )
         data = (Path(snapshot) / path).read_bytes()
         if private and private.search(data):
             problems.append(f"{path}: names the private repository")
