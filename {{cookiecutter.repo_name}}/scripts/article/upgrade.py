@@ -166,6 +166,17 @@ def _metadata_is_v1(root: Path) -> bool:
 def _notices(root: Path) -> list[dict[str, str]]:
     """Advice that does not block an upgrade (never changes ``ok``)."""
     notices: list[dict[str, str]] = []
+    if not (root / DIALECTIC_PROCEDURE).is_file():
+        notices.append({
+            "code": N_DIALECTIC,
+            "message": "this upgrade adds the optional dialectic stage: contradictions and typed "
+            "moves in theses.yaml (hand-written proposals), `theses dialectic`, and an advisory "
+            "`dialectic` stage in `flow status` that shows only once the map uses them. It closes "
+            "with `flow attest dialectic --by NAME --why TEXT`. To make it a gate, add "
+            "`required_stages: [dialectic]` to flow.yaml yourself. Live theses may carry a "
+            "one-line `untraced-reason`. theses.yaml and flow.yaml are never changed; see "
+            "docs/procedures/dialectic.md",
+        })
     if (root / LEGACY_CLAIMS_CACHE).is_file():
         notices.append({
             "code": N_LEGACY_CACHE,
@@ -431,6 +442,9 @@ N_COMPANION_DENY = "N001"
 _COMPANION_PRIVATE = ("paper/sources/**",)
 N_COMPANION_PRIVATE = "N002"
 N_LEGACY_CACHE = "N003"
+# Shown once per repo: until the dialectic procedure has arrived, the stage is new to the author.
+N_DIALECTIC = "N004"
+DIALECTIC_PROCEDURE = Path("docs") / "procedures" / "dialectic.md"
 LEGACY_CLAIMS_CACHE = Path(".theses") / "claims-cache.json"
 
 

@@ -68,8 +68,8 @@ Done-when: the procedure covers each move type; no shipped file names go-getter,
 
 ## 4. Delivery
 
-### 4.1 Upgrade note, companion check, full suite — [ ]
+### 4.1 Upgrade note, companion check, full suite — [x]
 Class: verify · Effort: low · Needs: 3.1, 2.2 · Check: `make test && make lint`
-Human: tagging and pushing needs the owner's explicit go-ahead.
+Human: tagging and pushing needs the owner's explicit go-ahead. Status: tagging/push awaiting owner; version not bumped, CHANGELOG item is under Unreleased.
 Do: Add the adoption note (once per feature), confirm `upgrade` leaves `theses.yaml` alone and the companion excludes nothing new that it should keep out, then run the whole suite and lint and prepare the version bump.
 Done-when: `make test` and `make lint` pass and the release notes list decision 0083.
