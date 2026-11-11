@@ -99,9 +99,21 @@ def test_lifecycle_procedure_and_adapter(project: Path) -> None:
     assert "docs/procedures/lifecycle.md" in pointer and "flow next" in pointer
 
 
+def test_reading_a_source_procedure_and_adapter(project: Path) -> None:
+    text = _procedure(project, "reading-a-source")
+    for command in ("sources list", "sources slice", "sources find", "sources read"):
+        assert f"scripts.article {command}" in text, command
+    assert "--pages" in text and "--section" in text and "--by" in text
+    assert "Never fetch" in text and "OCR" in text
+    assert "paper/sources/` is private" in text
+    _adapter(project, "reading-a-source")
+    pointer = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "docs/procedures/reading-a-source.md" in pointer
+
+
 def test_procedures_are_host_neutral_and_listed(project: Path) -> None:
     names = sorted(p.stem for p in (project / "docs" / "procedures").glob("*.md"))
-    assert names == ["blue-team", "claim-check", "lifecycle", "red-team"]
+    assert names == ["blue-team", "claim-check", "lifecycle", "reading-a-source", "red-team"]
     for name in names:
         assert (project / ".claude" / "skills" / name / "SKILL.md").is_file()
 

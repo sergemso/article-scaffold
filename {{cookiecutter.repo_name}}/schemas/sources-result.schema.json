@@ -10,7 +10,7 @@
     "ok": {"type": "boolean"},
     "command": {
       "type": "string",
-      "enum": ["sources add", "sources index", "sources slice", "sources diff", "sources find", "sources list"]
+      "enum": ["sources add", "sources index", "sources slice", "sources diff", "sources find", "sources read", "sources list"]
     },
     "error": {"type": "string"},
     "candidates": {
@@ -68,6 +68,9 @@
     "current_raw_hash": {"$ref": "#/definitions/hash"},
     "current_hash": {"$ref": "#/definitions/hash"},
     "text": {"type": "string"},
+    "pages": {"description": "read: the page count of the stored text, when it has page markers.", "type": "integer", "minimum": 1},
+    "read": {"description": "read: the entry's coverage records (sources-manifest.schema.json).", "type": "array", "items": {"type": "object"}},
+    "unread_pages": {"description": "read: page ranges no coverage record names.", "type": "array", "items": {"type": "string"}},
     "old": {"$ref": "#/definitions/hash"},
     "new": {"$ref": "#/definitions/hash"},
     "query": {"type": "string"},
