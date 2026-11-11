@@ -12,6 +12,13 @@ looked up in ``paper/sources/MANIFEST.md`` (a table row ``| key | file |`` or
 a bullet ``- key: file``), then as ``paper/sources/<key>.txt``. Only ``.txt``
 and ``.md`` files are read; extract PDFs to text first.
 
+A ``locator`` may also be a mapping (decision 0075): ``edition`` names the text file
+``paper/sources/<edition>.txt`` (or ``.md``, or the MANIFEST row), ``page`` and ``section``
+are labels. A named edition with no file is ``no-local-text`` and is listed; no other file is
+guessed in its place. ``translation.original-quote`` is matched in the original's file when it
+exists, else reported ``original-unavailable`` (advice). A found quote reports how it matched:
+``exact``, or ``normalised`` with the folds that were needed.
+
 A node whose ``locator`` is a source address (``key@hash#locator``, decision 0080)
 is checked against that passage of the source store only: the quote is matched in
 the slice, the tier 2 ledger key is built from the slice, and a node whose hash
@@ -22,6 +29,7 @@ address of the quote in the current edition; it never edits the map.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import re
 import unicodedata
@@ -74,22 +82,76 @@ def _segments(quote: str) -> list[str]:
     return [part for part in parts if part]
 
 
-def find_quote(source: str, quote: str) -> tuple[int, int] | None:
-    """Original-text span covering *quote* (segments split at ellipses, in order)."""
+def find_segments(source: str, quote: str) -> list[tuple[int, int]] | None:
+    """Original-text span of each segment of *quote* (split at ellipses, in order)."""
     folded, origin = normalise(source)
-    first = last = None
+    spans: list[tuple[int, int]] = []
     cursor = 0
     for segment in _segments(quote):
         at = folded.find(segment, cursor)
         if at < 0:
             return None
-        if first is None:
-            first = origin[at]
-        last = origin[at + len(segment) - 1] + 1
+        spans.append((origin[at], origin[at + len(segment) - 1] + 1))
         cursor = at + len(segment)
-    if first is None:
+    return spans or None
+
+
+def find_quote(source: str, quote: str) -> tuple[int, int] | None:
+    """Original-text span covering *quote* (segments split at ellipses, in order)."""
+    spans = find_segments(source, quote)
+    return (spans[0][0], spans[-1][1]) if spans else None
+
+
+def _fold_whitespace(text: str) -> str:
+    return "".join(ch for ch in text if not ch.isspace())
+
+
+def _fold_dashes(text: str) -> str:
+    return "".join(ch for ch in text if ch not in _DROPPED)
+
+
+def _fold_quotes(text: str) -> str:
+    return "".join(_QUOTES.get(ch, ch) for ch in text)
+
+
+def _fold_unicode(text: str) -> str:
+    return unicodedata.normalize("NFKC", text)
+
+
+FOLDS = (
+    ("whitespace", _fold_whitespace),
+    ("dashes", _fold_dashes),
+    ("quotes", _fold_quotes),
+    ("unicode", _fold_unicode),
+)
+
+
+def normalisation_used(source: str, quote: str) -> list[str] | None:
+    """The folds a match needed: ``[]`` for a verbatim match, else the smallest set of
+    ``whitespace``, ``dashes``, ``quotes`` and ``unicode`` that makes each segment equal
+    to the text it matched. None when the quote is not found."""
+    spans = find_segments(source, quote)
+    if spans is None:
         return None
-    return first, last
+    parts = [p for p in ELLIPSIS_RE.split(quote) if _fold(p)]
+    pairs = [(source[a:b], part.strip()) for (a, b), part in zip(spans, parts, strict=True)]
+    if all(found == part for found, part in pairs):
+        return []
+    for size in range(1, len(FOLDS) + 1):
+        for combo in itertools.combinations(FOLDS, size):
+            if all(_apply(combo, found) == _apply(combo, part) for found, part in pairs):
+                return [name for name, _ in combo]
+    return [name for name, _ in FOLDS]
+
+
+def _fold(text: str) -> str:
+    return normalise(text)[0]
+
+
+def _apply(combo, text: str) -> str:
+    for _, fold in combo:
+        text = fold(text)
+    return text
 
 
 def _manifest_map(root: Path) -> dict[str, str]:
@@ -122,6 +184,43 @@ def source_path(root: Path, node: dict) -> Path | None:
     return None
 
 
+def edition_path(root: Path, key: str) -> Path | None:
+    """Text file of the edition *key* (``paper/sources/<key>.txt|.md`` or its MANIFEST row)."""
+    base = (root / SOURCES_DIR).resolve()
+    names = [_manifest_map(root).get(key), *(f"{key}{suffix}" for suffix in TEXT_SUFFIXES)]
+    for name in filter(None, names):
+        candidate = (root / SOURCES_DIR / name).resolve()
+        if (
+            candidate.is_file()
+            and candidate.is_relative_to(base)
+            and candidate.suffix.lower() in TEXT_SUFFIXES
+        ):
+            return candidate
+    return None
+
+
+def named_edition(node: dict) -> str | None:
+    """The edition a structured locator names, else None."""
+    locator = node.get("locator")
+    edition = locator.get("edition") if isinstance(locator, dict) else None
+    return edition if isinstance(edition, str) and edition else None
+
+
+def locator_label(node: dict) -> str:
+    """The locator as one line: the string itself, or the mapping's parts."""
+    locator = node["locator"]
+    if isinstance(locator, str):
+        return locator
+    parts = []
+    if "edition" in locator:
+        parts.append(f"ed. {locator['edition']}")
+    if "page" in locator:
+        parts.append(f"p. {locator['page']}")
+    if "section" in locator:
+        parts.append(f"§ {locator['section']}")
+    return ", ".join(parts)
+
+
 def address_of(node: dict) -> str | None:
     """The node's locator when it is written as a source address, else None."""
     locator = node.get("locator")
@@ -142,19 +241,65 @@ def _addressed(root: Path, text: str) -> tuple[str, dict]:
 
 def check_node(root: Path, node: dict) -> dict:
     """Verdict record for one source-claim node (no text)."""
-    record = {"id": node["id"], "locator": node["locator"], "verdict": "no-local-text"}
+    record = {"id": node["id"], "locator": locator_label(node), "verdict": "no-local-text"}
     text_address = address_of(node)
     if text_address is not None:
-        return _check_addressed(root, node, text_address, record)
-    path = source_path(root, node)
+        record = _check_addressed(root, node, text_address, record)
+    else:
+        record = _check_file(root, node, record)
+    _check_fidelity(root, node, record)
+    return record
+
+
+def _check_file(root: Path, node: dict, record: dict) -> dict:
+    edition = named_edition(node)
+    if edition is not None:
+        record["edition"] = edition
+        path = edition_path(root, edition)  # a named edition is never swapped for another file
+    else:
+        path = source_path(root, node)
     if path is None:
+        if edition is not None:
+            record["missing_editions"] = [edition]
         return record
     record["source"] = path.relative_to(root).as_posix()
-    span = find_quote(path.read_text(encoding="utf-8", errors="replace"), node["quote"])
+    text = path.read_text(encoding="utf-8", errors="replace")
+    span = find_quote(text, node["quote"])
     record["verdict"] = "found" if span else "not-found"
     if span:
+        record["match"] = _match(text, node["quote"])
         record["cached"] = cached_verdict(root, node["text"], excerpt_text(path, span))
     return record
+
+
+def _match(text: str, quote: str) -> dict:
+    """How the quote matched: verbatim, or after the named folds."""
+    folds = normalisation_used(text, quote) or []
+    return {"how": "normalised", "folds": folds} if folds else {"how": "exact"}
+
+
+def _check_fidelity(root: Path, node: dict, record: dict) -> None:
+    """Edition and translation facts that need no judgment: which files exist, whether the
+    original's wording is local. Advice only; it never changes the verdict."""
+    editions = []
+    emap = node.get("edition-map")
+    if isinstance(emap, dict):
+        editions = [key for key in emap if edition_path(root, key) is None]
+    missing = sorted({*record.get("missing_editions", []), *editions})
+    if missing:
+        record["missing_editions"] = missing
+    translation = node.get("translation")
+    if not isinstance(translation, dict) or "original-quote" not in translation:
+        return
+    original = translation.get("original")
+    path = edition_path(root, original) if isinstance(original, str) else None
+    if path is None:
+        record["original"] = "unavailable"
+        record.setdefault("advice", []).append("original-unavailable")
+        return
+    text = path.read_text(encoding="utf-8", errors="replace")
+    found = find_quote(text, translation["original-quote"])
+    record["original"] = "found" if found else "not-found"
 
 
 def _check_addressed(root: Path, node: dict, text_address: str, record: dict) -> dict:
@@ -172,6 +317,7 @@ def _check_addressed(root: Path, node: dict, text_address: str, record: dict) ->
         if "current_hash" in payload:
             record["current_hash"] = payload["current_hash"]
     if span:
+        record["match"] = _match(core, node["quote"])
         record["cached"] = cached_verdict(root, node["text"], _windowed(payload, span))
     return record
 
@@ -238,7 +384,8 @@ def excerpt_for(root: Path, node_id: str) -> str:
         if span is None:
             raise ValueError(f"quote of {node_id!r} is not found in local text")
         return _windowed(payload, span)
-    path = source_path(root, node)
+    edition = named_edition(node)
+    path = edition_path(root, edition) if edition else source_path(root, node)
     span = None
     if path is not None:
         text = path.read_text(encoding="utf-8", errors="replace")

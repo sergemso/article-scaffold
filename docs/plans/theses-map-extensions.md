@@ -33,11 +33,12 @@ Resolved: the `terms` section, its schema and structural lint (codes T039 to T04
 
 ## 2. Source-claim fidelity and claim checks
 
-### 2.1 Source-claim fields and tier 1 — [ ]
+### 2.1 Source-claim fields and tier 1 — [x]
 Class: implement · Effort: high · Needs: none · Check: `.venv/bin/python -m pytest tests/test_claims.py tests/test_theses_schema.py -q`
 Decision: 0075. Scope: `schemas/theses.schema.json`, `scripts/article/claims.py`.
 Do: Add the optional `source-claim` fields (structured `locator`, `bib`, `rests-on`, `edition-map`, `translation`, `context`, `reading`); a string `locator` stays valid. The quote matcher reads the named edition's file under `paper/sources/`, matches `original-quote` when the original is local (otherwise reports `original-unavailable` as advice), checks the structure of the new fields and reports quote drift with the normalisation used.
 Done-when: tests cover a string locator, an edition file, a missing edition (listed, not guessed), a translation with and without a local original, and each normalisation.
+Resolved: fields are in the schema (`edition-key` definition; the six new fields are source-claim only) and in `theses.py` (T050 locator mapping, T051 `rests-on`, T052 `reading`, T053 `edition-map`, T054 `translation`, T055 `context`, T056 `bib`, T057 an edition key that is not a file stem); tests are in `tests/test_claims_fidelity.py`. `claims.py` gains `edition_path`, `find_segments` and `normalisation_used`. Interpretations worth knowing: (1) a named edition wins over `source:` and is never swapped for the bib-key file; a missing one is `no-local-text` with `missing_editions`; (2) `edition-map` is structure-checked, and its editions without a file are listed as advice; (3) `translation.original-quote` not found in a local original is `original: not-found` and exits 1, an absent original is `unavailable` (advice, exit 0); (4) `match` reports the smallest set of folds that makes each ellipsis segment equal to the text it matched; (5) `context` and `reading` are only validated here; tier 2 and tier 3 use them in 2.2.
 
 ### 2.2 Tier 2 verdicts, window and tier 3 — [ ]
 Class: implement · Effort: medium · Needs: 2.1 · Check: `.venv/bin/python -m pytest tests/test_claims.py tests/test_no_network_in_claim_code.py -q`

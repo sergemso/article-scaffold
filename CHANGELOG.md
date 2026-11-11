@@ -7,6 +7,15 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+### Added
+
+- Source-claim fidelity, tier 1 (decision 0075): optional `locator` mapping (`edition`,
+  `page`, `section`), `bib`, `rests-on`, `edition-map`, `translation`, `context` and `reading`
+  on a `source-claim` (lint T050 to T057). `claims quote-check` reads the named edition's file
+  only, lists missing editions, reports how a quote matched (`exact`, or the folds a
+  `normalised` match needed) and matches `translation.original-quote` in a local original
+  (`original-unavailable` is advice). Maps without the fields are unchanged.
+
 ### Fixed
 
 - `status` and `doctor` report the version stamped in `template.json` (they showed the

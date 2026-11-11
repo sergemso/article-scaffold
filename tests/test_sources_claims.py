@@ -154,8 +154,10 @@ def test_legacy_locator_nodes_are_unchanged(tmp_path, capsys):
     _map(tmp_path, "p. 3")
     code, out = _run(capsys, tmp_path, "quote-check", "c1")
     assert code == 0
-    assert out["results"] == [{"id": "c1", "locator": "p. 3", "verdict": "found",
-                               "source": "paper/sources/agtp.txt", "cached": None}]  # fmt: skip
+    assert out["results"] == [
+        {"id": "c1", "locator": "p. 3", "verdict": "found", "source": "paper/sources/agtp.txt",
+         "match": {"how": "exact"}, "cached": None}
+    ]
 
 
 def test_manifest_md_is_parsed_by_the_store_parser(tmp_path):

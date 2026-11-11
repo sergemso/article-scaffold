@@ -50,9 +50,23 @@ NODE_FIELDS = {
     "cost",
     "needs-rival-objection",
     "untraced-reason",
+    "bib",
+    "rests-on",
+    "edition-map",
+    "translation",
+    "context",
+    "reading",
 }
 TOP_LEVEL_FIELDS = {"version", "nodes", "edges", "terms", "contradictions", "moves"}
 ARGUMENT_FIELDS = ("conclusion", "inference", "premises", "steps")
+SOURCE_CLAIM_FIELDS = ("bib", "rests-on", "edition-map", "translation", "context", "reading")
+RESTS_ON = ("wording", "argument", "doctrine", "fact")
+READINGS = ("direct", "paraphrase", "interpretive")
+STANCES = ("asserts", "reports", "concedes", "rejects", "example", "ironic")
+LOCATOR_FIELDS = ("edition", "page", "section")
+TRANSLATION_FIELDS = ("original", "translator", "original-quote", "load-bearing-terms")
+CONTEXT_FIELDS = ("stance", "scope-note", "window")
+EDITION_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 # Fields that only make sense on one node type; anywhere else they are an error.
 OBJECTION_FIELDS = (
     "target",
@@ -70,6 +84,7 @@ TYPE_FIELDS = {
     "objection": OBJECTION_FIELDS,
     "defense": DEFENSE_FIELDS,
     "thesis": ("needs-rival-objection", "untraced-reason"),
+    "source-claim": SOURCE_CLAIM_FIELDS,
 }
 AUTHORS = ("agent", "human")
 FORMS = ("strongest", "standard")
@@ -275,16 +290,93 @@ def _check_node(index, node, ids, labels, err) -> None:
                 if field in node:
                     err("T017", f"{where}: {field} belongs to {_article(owner)} node")
     if node.get("type") == "source-claim":
-        for field in ("quote", "locator"):
-            value = node.get(field)
-            if not isinstance(value, str) or not value.strip():
-                err("T014", f"{where}: source-claim requires {field}")
+        quote = node.get("quote")
+        if not isinstance(quote, str) or not quote.strip():
+            err("T014", f"{where}: source-claim requires quote")
         locator = node.get("locator")
-        if isinstance(locator, str) and address.looks_like(locator):
+        if isinstance(locator, dict):
+            _check_locator_mapping(where, locator, err)
+        elif not isinstance(locator, str) or not locator.strip():
+            err("T014", f"{where}: source-claim requires locator")
+        elif address.looks_like(locator):
             try:
                 address.parse(locator.strip())
             except address.AddressError as exc:
                 err("T049", f"{where}: locator is not a valid source address: {exc}")
+        _check_source_claim_fields(where, node, err)
+
+
+def _edition_key(where: str, label: str, value: object, err) -> None:
+    if not isinstance(value, str) or not EDITION_KEY_RE.match(value):
+        err("T057", f"{where}: {label} must be a file stem (letters, digits, '.', '_', '-')")
+
+
+def _check_locator_mapping(where: str, locator: dict, err) -> None:
+    unknown = sorted(set(locator) - set(LOCATOR_FIELDS), key=str)
+    if unknown or not locator:
+        err("T050", f"{where}: locator mapping takes {', '.join(LOCATOR_FIELDS)} (at least one)")
+    for field in ("page", "section"):
+        if field in locator:
+            value = locator[field]
+            ok = isinstance(value, str) and value.strip() or (
+                isinstance(value, int) and not isinstance(value, bool)
+            )
+            if not ok:
+                err("T050", f"{where}: locator {field} must be a non-empty string or a number")
+    if "edition" in locator:
+        _edition_key(where, "locator edition", locator["edition"], err)
+
+
+def _check_source_claim_fields(where: str, node: dict, err) -> None:
+    for field, allowed, code in (("rests-on", RESTS_ON, "T051"), ("reading", READINGS, "T052")):
+        if field in node and node[field] not in allowed:
+            err(code, f"{where}: {field} must be one of {', '.join(allowed)}")
+    if "bib" in node and (not isinstance(node["bib"], str) or not node["bib"].strip()):
+        err("T056", f"{where}: bib must be a non-empty string")
+    if "edition-map" in node:
+        emap = node["edition-map"]
+        if not isinstance(emap, dict) or not emap:
+            err("T053", f"{where}: edition-map must map edition keys to locator strings")
+        else:
+            for key, value in emap.items():
+                _edition_key(where, f"edition-map key {key!r}", key, err)
+                if not isinstance(value, str) or not value.strip():
+                    err("T053", f"{where}: edition-map[{key!r}] must be a locator string")
+    if "translation" in node:
+        _check_block(where, "translation", node["translation"], TRANSLATION_FIELDS, "T054", err)
+        block = node["translation"] if isinstance(node["translation"], dict) else {}
+        if "original" in block:
+            _edition_key(where, "translation original", block["original"], err)
+        for field in ("translator", "original-quote"):
+            if field in block and (not isinstance(block[field], str) or not block[field].strip()):
+                err("T054", f"{where}: translation {field} must be a non-empty string")
+        terms = block.get("load-bearing-terms")
+        if "load-bearing-terms" in block and (
+            not isinstance(terms, list)
+            or not all(isinstance(t, str) and t.strip() for t in terms)
+        ):
+            err("T054", f"{where}: translation load-bearing-terms must be a list of strings")
+    if "context" in node:
+        _check_block(where, "context", node["context"], CONTEXT_FIELDS, "T055", err)
+        block = node["context"] if isinstance(node["context"], dict) else {}
+        if "stance" in block and block["stance"] not in STANCES:
+            err("T055", f"{where}: context stance must be one of {', '.join(STANCES)}")
+        note = block.get("scope-note")
+        if "scope-note" in block and (not isinstance(note, str) or not note.strip()):
+            err("T055", f"{where}: context scope-note must be a non-empty string")
+        window = block.get("window")
+        if "window" in block and (
+            not isinstance(window, int) or isinstance(window, bool) or window < 0
+        ):
+            err("T055", f"{where}: context window must be a non-negative integer")
+
+
+def _check_block(where: str, name: str, block: object, fields: tuple[str, ...], code: str, err):
+    if not isinstance(block, dict):
+        err(code, f"{where}: {name} must be a mapping")
+        return
+    for key in sorted(set(block) - set(fields), key=str):
+        err(code, f"{where}: {name} has unknown field {key!r}")
 
 
 def _check_edge(index, edge, ids, err) -> None:

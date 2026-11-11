@@ -236,7 +236,11 @@ def _claims(args: argparse.Namespace) -> int:
             if args.id is None and not args.all:
                 raise ValueError("give a node id or --all")
             results = claims.quote_check(root, None if args.all else args.id)
-            bad = [r["id"] for r in results if r["verdict"] == "not-found" or r.get("stale")]
+            bad = [
+                r["id"]
+                for r in results
+                if r["verdict"] == "not-found" or r.get("stale") or r.get("original") == "not-found"
+            ]
             _emit_json({"ok": not bad, "command": "claims quote-check", "results": results})
             return core.ExitCode.DIAGNOSTICS if bad else core.ExitCode.OK
         if action == "excerpt":
