@@ -16,6 +16,7 @@
   },
   "definitions": {
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+    "edition-key": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "description": "Names a text file under paper/sources/ (without its suffix)." },
     "node": {
       "type": "object",
       "additionalProperties": false,
@@ -31,7 +32,50 @@
         "bib_keys": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "accepted-by": { "type": "string", "minLength": 1 },
         "quote": { "type": "string", "minLength": 1 },
-        "locator": { "type": "string", "minLength": 1, "description": "Free text such as `p. 3`, or a source address `key@hash#locator` (decision 0080) that the claim check resolves in the source store." },
+        "locator": {
+          "description": "Free text such as `p. 3`, a source address `key@hash#locator` (decision 0080) that the claim check resolves in the source store, or a mapping naming the edition (its text file under paper/sources/), page and section (decision 0075).",
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "properties": {
+                "edition": { "$ref": "#/definitions/edition-key" },
+                "page": { "type": ["string", "integer"], "minLength": 1 },
+                "section": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        },
+        "bib": { "type": "string", "minLength": 1, "description": "The bibliography key the quote is cited under, when `bib_keys` lists several." },
+        "rests-on": { "enum": ["wording", "argument", "doctrine", "fact"] },
+        "edition-map": {
+          "type": "object",
+          "description": "Author-supplied: the locator of the same passage in other editions, keyed by edition. Nothing maps editions by itself.",
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "propertyNames": { "$ref": "#/definitions/edition-key" }
+        },
+        "translation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "original": { "$ref": "#/definitions/edition-key" },
+            "translator": { "type": "string", "minLength": 1 },
+            "original-quote": { "type": "string", "minLength": 1 },
+            "load-bearing-terms": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "stance": { "enum": ["asserts", "reports", "concedes", "rejects", "example", "ironic"] },
+            "scope-note": { "type": "string", "minLength": 1 },
+            "window": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "reading": { "enum": ["direct", "paraphrase", "interpretive"] },
         "source": { "type": "string", "minLength": 1 },
         "conclusion": { "$ref": "#/definitions/id" },
         "inference": { "enum": ["deduction", "modus-ponens", "modus-tollens", "disjunctive-syllogism", "induction", "abduction", "analogy", "authority"] },
@@ -95,6 +139,21 @@
         {
           "if": { "properties": { "type": { "const": "source-claim" } } },
           "then": { "required": ["quote", "locator"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "source-claim" } } },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["bib"] },
+                { "required": ["rests-on"] },
+                { "required": ["edition-map"] },
+                { "required": ["translation"] },
+                { "required": ["context"] },
+                { "required": ["reading"] }
+              ]
+            }
+          }
         },
         {
           "if": { "properties": { "type": { "const": "argument" } } },

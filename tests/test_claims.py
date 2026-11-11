@@ -53,7 +53,7 @@ def test_exact_match(tmp_path: Path) -> None:
     assert code == 0
     assert payload["results"] == [
         {"id": "c1", "locator": "p. 3", "verdict": "found",
-         "source": "paper/sources/smith2020.txt", "cached": None}
+         "source": "paper/sources/smith2020.txt", "match": {"how": "exact"}, "cached": None}
     ]
 
 

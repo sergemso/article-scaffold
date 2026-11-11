@@ -25,7 +25,20 @@
           "cached": {"enum": ["supports", "overstates", "contradicts", null], "description": "Recorded tier 2 verdict for exactly these inputs."},
           "stale": {"const": true, "description": "The address names a superseded edition."},
           "current_hash": {"$ref": "#/definitions/hash", "description": "Normalized hash of the current edition, when stale."},
-          "reason": {"type": "string", "description": "Why an address could not be resolved."}
+          "reason": {"type": "string", "description": "Why an address could not be resolved."},
+          "edition": {"type": "string", "description": "The edition a structured locator names."},
+          "missing_editions": {"type": "array", "items": {"type": "string"}, "description": "Editions the node names (locator or edition-map) with no text file; listed, never guessed. Advice."},
+          "match": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["how"],
+            "properties": {
+              "how": {"enum": ["exact", "normalised"], "description": "Verbatim, or only after the folds listed."},
+              "folds": {"type": "array", "items": {"enum": ["whitespace", "dashes", "quotes", "unicode"]}}
+            }
+          },
+          "original": {"enum": ["found", "not-found", "unavailable"], "description": "translation.original-quote in the original's local text."},
+          "advice": {"type": "array", "items": {"enum": ["original-unavailable"]}}
         }
       }
     },
