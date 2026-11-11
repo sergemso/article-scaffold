@@ -7,6 +7,51 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-11
+
+### Added
+
+- Theses map tooling: argument nodes with numbered premises, objection and defense
+  fields with an adversarial lint, a terms section with tier 0 term checks, and a gap
+  report per article repo (`track-articles.yml`).
+- The flow: `flow.yaml` (user-owned), `flow status`, `flow next` (one order per stage
+  kind, parallel-safe marks, review rounds), `flow done` with named checks, retry caps
+  and a budget, and a lifecycle procedure.
+- A hash-keyed, append-only results ledger (`ledger` commands, `docs/ledger/`) holding
+  tier 2 claim verdicts and named check outcomes. A release is gated on a cold run
+  recorded for the current inputs. Neither the ledger nor the source store reaches the
+  public companion.
+- A local source store (`sources add | index | slice | find | diff`) under
+  `paper/sources/`, source addresses in claims (`claims rebase`, stale-edition report)
+  and an index of supplementary Python and Rust symbols for anchors.
+- `flow next --brief`: a compiled brief and a call cap, orders that write the same
+  file grouped under one brief, a handoff at the cap with optional `evidence` lines,
+  and an advisory `max_context` threshold (`scripts/context-threshold.py`).
+- `upgrade` delivers the theses tooling, the flow, the ledger and the source store to
+  existing repos.
+
+### Changed
+
+- `make test` runs the template tests in parallel (`pytest-xdist`, `-n auto`): about
+  4 minutes instead of 16.
+- `release apply` builds the PDF and DOCX before it creates the tag. A failed build, or
+  a missing `latexmk` or `pandoc`, leaves no tag behind; a missing `pandoc` only warns.
+- Ledger hit and miss counters are written once per process instead of once per lookup.
+- `code_index` prunes skipped directories (`target`, `node_modules`, venvs, dot
+  directories) before walking them.
+
+### Fixed
+
+- A corrupt ledger entry closes the gate instead of exiting 3; a cold run fails on
+  unavailable checks unless they are declared optional.
+- Source handling: third-party bytes are kept out of text normalization, bib keys with
+  `:` resolve from `MANIFEST.md`, a locator index from another version is refused, and
+  the manifest lock is shared with scholar-mcp.
+
+### Removed
+
+- Unused helpers `tools.arxiv_list`, `release._semver_compare` and `metadata._q`.
+
 ## [1.7.0] - 2026-10-31
 
 ### Added
