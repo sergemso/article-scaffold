@@ -5,7 +5,7 @@ status: active
 date: 2026-11-11
 tags: [theses-map, lifecycle, dialectic, triz]
 track: product
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision
