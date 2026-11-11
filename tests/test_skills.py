@@ -158,7 +158,7 @@ def test_dialectic_procedure_and_adapter(project: Path) -> None:
         "sources slice",
     ):
         assert f"scripts.article {command}" in text, command
-    for move in ("negation", "negation-of-negation", "synthesis", "aufhebung", "new-beginning"):
+    for move in ("negation", "negation-of-negation", "synthesis", "aufhebung", "opening"):
         assert f"`{move}`" in text, move
     for field in ("preserved", "cancelled", "lifted", "untraced-reason", "proposed"):
         assert field in text, field

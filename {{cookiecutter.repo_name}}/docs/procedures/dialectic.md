@@ -27,12 +27,12 @@ Do not read `paper/article.tex` or whole section files.
 6. Propose moves that cover each of the five types, where the material supports them. Do not invent a move to fill a type; say in your report which type you could not ground.
    - `negation`: cites a contradiction and rejects one pole.
    - `negation-of-negation`: cites a prior `negation` and rejects its rejection.
-   - `synthesis`: cites at least two contradictions or moves and joins them.
+   - `synthesis`: cites at least two contradictions or moves and joins them. Use `aufhebung` instead when you can say what is kept, dropped and lifted.
    - `aufhebung`: cites at least two and records all three of `preserved`, `cancelled` and `lifted`: what is kept, what is dropped, what rises to a higher level.
-   - `new-beginning`: opens a thesis or hypothesis through `opens: <id>`, and cites the move it follows.
+   - `opening`: opens a thesis or hypothesis through `opens: <id>`, and cites the move it follows.
 7. Write everything by hand into `theses.yaml` under `contradictions:` and `moves:`. `add_nodes` and `theses accept` do not handle these sections yet, so nothing else writes them. Each item needs an `id` (one namespace with all node ids), `text` as one line, `status: proposed`, `author`. Add no field the schema (`schemas/theses.schema.json`) does not list.
 8. Run `python3 -m scripts.article theses lint` and fix your own items until it passes.
-9. Run `python3 -m scripts.article theses gaps` and `theses dialectic`. A `new-beginning` must cite the move it follows, or `move-without-opening` fires for that move. A thesis with no `new-beginning` needs a one-line `untraced-reason`; do not write one for the author.
+9. Run `python3 -m scripts.article theses gaps` and `theses dialectic`. An `opening` must cite the move it follows, or `move-without-opening` fires for that move. A thesis with no `opening` needs a one-line `untraced-reason`; do not write one for the author.
 10. Stop. Report the ids you added and the gaps left. Ask a human to accept them.
 
 ## Closing the stage

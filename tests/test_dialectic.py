@@ -68,7 +68,7 @@ VALID["moves"] = [
     {"id": "m4", "type": "aufhebung", "text": "Keep rigour, drop the universality.",
      "status": "proposed", "author": "agent", "cites": ["m2", "m3"],
      "preserved": "the evidence", "cancelled": "the universal claim", "lifted": "a scoped claim"},
-    {"id": "m5", "type": "new-beginning", "text": "Ask about scale.", "status": "proposed",
+    {"id": "m5", "type": "opening", "text": "Ask about scale.", "status": "proposed",
      "author": "agent", "cites": ["m4"], "opens": "q1"},
 ]
 
@@ -188,7 +188,7 @@ SCHEMA_FAILURES = {
     "aufhebung without cancelled": lambda d: _move(d, "m4").pop("cancelled"),
     "aufhebung without lifted": lambda d: _move(d, "m4").pop("lifted"),
     "preserved on a synthesis": lambda d: _move(d, "m3").update(preserved="x"),
-    "new-beginning without opens": lambda d: _move(d, "m5").pop("opens"),
+    "opening without opens": lambda d: _move(d, "m5").pop("opens"),
     "opens on a negation": lambda d: _move(d, "m1").update(opens="q1"),
     "unknown move field": lambda d: _move(d, "m1").update(extra=1),
     "accepted move without accepted-by": lambda d: _move(d, "m1").update(status="accepted"),
@@ -299,7 +299,7 @@ MOVE_VALID = {
     "aufhebung": {"id": "mv", "type": "aufhebung", "text": "Lift them.", "status": "proposed",
                   "author": "agent", "cites": ["c1", "m1"], "preserved": "p",
                   "cancelled": "c", "lifted": "l"},
-    "new-beginning": {"id": "mv", "type": "new-beginning", "text": "Begin again.",
+    "opening": {"id": "mv", "type": "opening", "text": "Begin again.",
                       "status": "proposed", "author": "agent", "opens": "t1"},
 }
 MOVE_INVALID = {
@@ -307,7 +307,7 @@ MOVE_INVALID = {
     "negation-of-negation": ({"cites": ["c1"]}, "T086"),
     "synthesis": ({"cites": ["c1"]}, "T085"),
     "aufhebung": ({"lifted": ""}, "T087"),
-    "new-beginning": ({"opens": "o1"}, "T090"),
+    "opening": ({"opens": "o1"}, "T090"),
 }
 
 
@@ -344,14 +344,14 @@ def test_synthesis_may_cite_moves() -> None:
     assert _diagnostics(data).items == []
 
 
-def test_new_beginning_may_open_a_thesis_or_a_hypothesis() -> None:
+def test_opening_may_open_a_thesis_or_a_hypothesis() -> None:
     for target in ("t1", "q1"):
-        data = _with_move({**MOVE_VALID["new-beginning"], "opens": target})
+        data = _with_move({**MOVE_VALID["opening"], "opens": target})
         assert _diagnostics(data).items == []
 
 
-def test_new_beginning_cannot_open_a_missing_node() -> None:
-    data = _with_move({**MOVE_VALID["new-beginning"], "opens": "ghost"})
+def test_opening_cannot_open_a_missing_node() -> None:
+    data = _with_move({**MOVE_VALID["opening"], "opens": "ghost"})
     assert "T090" in _codes(data)
 
 
