@@ -9,8 +9,8 @@ generated repo as `template_version` in `template.json`.
 
 ### Added
 
-- Dialectic stage (decision 0083, draft): optional `contradictions` and typed `moves` in
-  `theses.yaml` (hand-written proposals; structural lint T070-T094), `theses dialectic [--json]`,
+- Dialectic stage (decision 0083): optional `contradictions` and typed `moves` (`negation`,
+  `negation-of-negation`, `synthesis`, `aufhebung`, `opening`) in `theses.yaml` (hand-written proposals; structural lint T070-T094), `theses dialectic [--json]`,
   new gap kinds (`contradiction-unmoved`, `move-without-opening`, `thesis-untraced`),
   a thesis `untraced-reason` field, an advisory `dialectic` stage in `flow status` closed by
   `flow attest dialectic`, optional `required_stages: [dialectic]` in `flow.yaml`, and a
