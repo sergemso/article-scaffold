@@ -46,13 +46,13 @@ Done-when: every move type has a valid and an invalid fixture; the cycle check h
 
 ## 2. Gaps, gate and CLI
 
-### 2.1 Gap kinds and `theses dialectic` view — [ ]
+### 2.1 Gap kinds and `theses dialectic` view — [x]
 Class: implement · Effort: medium · Needs: 1.2 · Check: `.venv/bin/python -m pytest tests/test_dialectic.py tests/test_theses_cli.py -q`
 Decision: 0083. Scope: `scripts/article/theses.py` (`gaps`), `scripts/article/cli.py`, `scripts/article/dialectic.py`.
 Do: Add the gap kinds `contradiction-unmoved`, `move-without-opening`, `thesis-untraced` (only for maps that use the section). Add a read-only `theses dialectic` command printing contradictions and the move chain, with `--json`.
 Done-when: gaps appear only when the section is used; output is deterministic.
 
-### 2.2 Advisory lifecycle gate — [ ]
+### 2.2 Advisory lifecycle gate — [x]
 Class: implement · Effort: medium · Needs: 2.1 · Check: `.venv/bin/python -m pytest tests/test_flow.py -q`
 Decision: 0083 with 0070. Scope: `scripts/article/flow.py`, `schemas/flow.schema.json`.
 Do: Add stage `dialectic` before `map`, advisory by default, computed from the gap kinds plus a human attestation; `flow.yaml` can promote it to required. A repo without contradictions skips the stage.

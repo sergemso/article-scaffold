@@ -272,3 +272,138 @@ def development(data: dict) -> list[dict]:
         }
         for mid in order
     ]
+
+
+# ------------------------------------------------------------------ gaps, view
+
+GAP_KINDS = ("contradiction-unmoved", "move-without-opening", "thesis-untraced")
+UNTRACED_FIELD = "untraced-reason"
+
+
+def _live(items: object) -> list[dict]:
+    return [
+        i for i in items or []
+        if isinstance(i, dict) and isinstance(i.get("id"), str) and i.get("status") != "retired"
+    ]
+
+
+def _label(item: dict) -> str:
+    text = item.get("text")
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+    poles = [p.get("text", "") for p in item.get("poles") or [] if isinstance(p, dict)]
+    return " / ".join(p for p in poles if isinstance(p, str)) or item["id"]
+
+
+def _cited_by(moves: list[dict]) -> dict[str, list[str]]:
+    cited: dict[str, list[str]] = {}
+    for move in moves:
+        for target in move.get("cites") or []:
+            if isinstance(target, str):
+                cited.setdefault(target, []).append(move["id"])
+    return cited
+
+
+def _opened_by(moves: list[dict]) -> dict[str, list[str]]:
+    opened: dict[str, list[str]] = {}
+    for move in moves:
+        if move.get("type") == "new-beginning" and isinstance(move.get("opens"), str):
+            opened.setdefault(move["opens"], []).append(move["id"])
+    return opened
+
+
+def gaps(data: dict, kinds=GAP_KINDS) -> list[dict]:
+    """Dialectic gaps of a valid map; empty unless the map uses the section (decision 0083).
+
+    ``contradiction-unmoved``: a live contradiction no live move cites.
+    ``move-without-opening``: a live move no live move cites that is not a new-beginning (the
+    chain ends without opening a thesis or question).
+    ``thesis-untraced``: a live thesis no live new-beginning opens and with no ``untraced-reason``.
+    Sorted by kind then id.
+    """
+    if not uses_section(data):
+        return []
+    moves = _live(data.get("moves"))
+    cited = _cited_by(moves)
+    opened = _opened_by(moves)
+    found: list[dict] = []
+    if "contradiction-unmoved" in kinds:
+        for item in _live(data.get("contradictions")):
+            if item["id"] not in cited:
+                found.append(
+                    {"kind": "contradiction-unmoved", "id": item["id"], "text": _label(item)}
+                )
+    if "move-without-opening" in kinds:
+        for move in moves:
+            if move.get("type") != "new-beginning" and move["id"] not in cited:
+                found.append(
+                    {"kind": "move-without-opening", "id": move["id"], "text": _label(move)}
+                )
+    if "thesis-untraced" in kinds:
+        for node in _live(data.get("nodes")):
+            if (
+                node.get("type") == "thesis"
+                and node["id"] not in opened
+                and not _line(node.get(UNTRACED_FIELD))
+            ):
+                found.append({"kind": "thesis-untraced", "id": node["id"], "text": _label(node)})
+    return sorted(found, key=lambda g: (g["kind"], g["id"]))
+
+
+def view(data: dict) -> dict:
+    """The read-only dialectic view: contradictions, the derived move chain, theses, gaps.
+
+    Deterministic: contradictions and theses keep file order, moves follow ``development``.
+    """
+    moves = _live(data.get("moves"))
+    cited = _cited_by(moves)
+    opened = _opened_by(moves)
+    return {
+        "used": uses_section(data),
+        "contradictions": [
+            {
+                "id": c["id"],
+                "kind": c.get("kind"),
+                "status": c.get("status"),
+                "text": _label(c),
+                "poles": [
+                    {k: p[k] for k in ("text", "claim", "niche") if k in p}
+                    for p in c.get("poles") or []
+                    if isinstance(p, dict)
+                ],
+                "moved-by": sorted(cited.get(c["id"], [])),
+            }
+            for c in data.get("contradictions") or []
+            if isinstance(c, dict) and isinstance(c.get("id"), str)
+        ],
+        "moves": development(data),
+        "theses": [
+            {
+                "id": n["id"],
+                "status": n.get("status"),
+                "opened-by": sorted(opened.get(n["id"], [])),
+                "untraced-reason": n.get(UNTRACED_FIELD),
+            }
+            for n in data.get("nodes") or []
+            if isinstance(n, dict) and n.get("type") == "thesis" and isinstance(n.get("id"), str)
+        ],
+        "gaps": gaps(data),
+    }
+
+
+def format_text(report: dict) -> str:
+    """Plain-text rendering of :func:`view` (one line per item)."""
+    if not report["used"]:
+        return "No contradictions or moves declared; the dialectic stage is off."
+    lines = ["Contradictions:"]
+    for c in report["contradictions"]:
+        moved = ", ".join(c["moved-by"]) or "unmoved"
+        lines.append(f"  {c['id']} [{c['kind']}, {c['status']}] {c['text']} -> {moved}")
+    lines.append("Moves:")
+    for m in report["moves"]:
+        tail = f" opens {m['opens']}" if m["opens"] else ""
+        cites = f" cites {', '.join(m['cites'])}" if m["cites"] else ""
+        lines.append(f"  {m['id']} [{m['type']}, {m['status']}]{cites}{tail}: {m['text']}")
+    lines.append("Gaps:")
+    lines += [f"  {g['kind']} {g['id']}: {g['text']}" for g in report["gaps"]] or ["  none"]
+    return "\n".join(lines)

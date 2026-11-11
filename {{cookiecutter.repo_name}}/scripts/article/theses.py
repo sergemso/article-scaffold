@@ -48,6 +48,7 @@ NODE_FIELDS = {
     "move",
     "cost",
     "needs-rival-objection",
+    "untraced-reason",
 }
 TOP_LEVEL_FIELDS = {"version", "nodes", "edges", "terms", "contradictions", "moves"}
 ARGUMENT_FIELDS = ("conclusion", "inference", "premises", "steps")
@@ -67,7 +68,7 @@ TYPE_FIELDS = {
     "argument": ARGUMENT_FIELDS,
     "objection": OBJECTION_FIELDS,
     "defense": DEFENSE_FIELDS,
-    "thesis": ("needs-rival-objection",),
+    "thesis": ("needs-rival-objection", "untraced-reason"),
 }
 AUTHORS = ("agent", "human")
 FORMS = ("strongest", "standard")
@@ -516,6 +517,8 @@ def _check_adversarial(raw_nodes: list, raw_edges: list, bib, err, warn) -> None
     for node in nodes.values():
         if "author" in node and node["author"] not in AUTHORS:
             err("T029", f"node {node['id']!r}: author must be one of {', '.join(AUTHORS)}")
+        if "untraced-reason" in node and not _one_line(node["untraced-reason"]):
+            err("T029", f"node {node['id']!r}: untraced-reason must be a one-line string")
         if "needs-rival-objection" in node and not isinstance(node["needs-rival-objection"], bool):
             err("T029", f"node {node['id']!r}: needs-rival-objection must be true or false")
         if node.get("type") == "objection":
@@ -652,6 +655,7 @@ DEFAULT_GAP_KINDS = (
     "defense-no-anchor",
     "thesis-no-rival",
     "term-unregistered",
+    *dialectic.GAP_KINDS,
 )
 GAP_KINDS = DEFAULT_GAP_KINDS + ("thesis-unattacked",)
 
@@ -770,6 +774,7 @@ def gaps(data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS) -> list[d
         anchor = node.get("anchor")
         if anchor and labels is not None and anchor not in labels:
             add("anchor-missing", node)
+    found += [g for g in dialectic.gaps(data, kinds)]
     # A fatal objection with no answer comes first, then kind and id.
     return sorted(
         found,

@@ -84,7 +84,8 @@
           ]
         },
         "cost": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
-        "needs-rival-objection": { "type": "boolean" }
+        "needs-rival-objection": { "type": "boolean" },
+        "untraced-reason": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" }
       },
       "allOf": [
         {
@@ -140,7 +141,10 @@
         },
         {
           "if": { "properties": { "type": { "const": "thesis" } } },
-          "else": { "not": { "required": ["needs-rival-objection"] } }
+          "else": { "not": { "anyOf": [
+            { "required": ["needs-rival-objection"] },
+            { "required": ["untraced-reason"] }
+          ] } }
         },
         {
           "if": { "properties": { "form": { "const": "strongest" } }, "required": ["form"] },

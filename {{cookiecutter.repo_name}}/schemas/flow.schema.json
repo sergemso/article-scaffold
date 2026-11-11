@@ -144,6 +144,12 @@
       "minimum": 1000,
       "description": "Optional worst-case context limit in tokens. The threshold shown is the smaller of max_context and this. Unset by default."
     },
+    "required_stages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["dialectic"] },
+      "description": "Optional. Advisory stages the author promotes to required. The dialectic stage (only for a map that declares a contradiction or move) is advisory by default: while open it shows as advisory and blocks nothing; listed here it fails `flow status` like any gate. It passes when `theses gaps` has no dialectic gap and a person has run `flow attest dialectic`."
+    },
     "group_size": {
       "type": "integer",
       "minimum": 1,
@@ -198,6 +204,7 @@
         "stage": {
           "enum": [
             "frame",
+            "dialectic",
             "map",
             "discover",
             "draft",
