@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV ?= .venv
 BIN := $(VENV)/bin
 PIP := $(BIN)/python -m pip
-PYTEST_ARGS ?=
+PYTEST_ARGS ?= -n auto
 
 .PHONY: setup test lint clean
 

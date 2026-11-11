@@ -396,3 +396,17 @@ def test_binary_input_is_hashed_as_is_but_text_ignores_crlf(tmp_path):
     nul = b"\0\x01" + b"x\r\ny"
     assert ledger.hash_input(nul) != ledger.hash_input(nul.replace(b"\r\n", b"\n"))
     assert ledger.hash_input("a\r\nb") == ledger.hash_input("a\nb")
+
+
+def test_stat_counters_are_buffered_and_flushed_once(tmp_path):
+    ledger.stats(tmp_path, reset=True)
+    for _ in range(3):
+        ledger._bump(tmp_path, "hits")
+    ledger._bump(tmp_path, "misses")
+    assert not (tmp_path / ledger.STATS_PATH).exists()  # nothing written per lookup
+    assert ledger.stats(tmp_path) == {"hits": 3, "misses": 1, "conflicts": 0, "bypassed": 0}
+    assert (tmp_path / ledger.STATS_PATH).is_file()
+    ledger._bump(tmp_path, "hits")
+    assert ledger.stats(tmp_path)["hits"] == 4  # a second flush adds to the file
+    assert ledger.stats(tmp_path, reset=True)["hits"] == 4
+    assert ledger.stats(tmp_path)["hits"] == 0

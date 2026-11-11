@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from conftest import render, run
@@ -184,3 +185,24 @@ def test_release_cli_help_includes_apply_and_yes(tmp_path: Path) -> None:
     assert "--apply" in result.stdout
     assert "--yes" in result.stdout
     assert "--dry-run" in result.stdout
+
+def test_release_apply_leaves_no_tag_when_the_pdf_build_fails(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    run(project, "git", "add", "-A", check=True)
+    run(project, "git", "commit", "-qm", "initial", check=True)
+    # A PATH with git and python but no latexmk or make: the build cannot start.
+    import os
+    import shutil
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    (bindir / "git").symlink_to(shutil.which("git"))
+    env = {**os.environ, "PATH": str(bindir)}
+    # Run the venv's interpreter by its real path: a symlink elsewhere loses its site-packages.
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.article", "release", "--json", "--apply", "--yes"],
+        cwd=project, text=True, capture_output=True, env=env,
+    )
+    assert result.stdout, result.stderr
+    out = json.loads(result.stdout)
+    assert out["ok"] is False and "PDF build" in out["error"]
+    assert run(project, "git", "tag", "-l", "v1.0.0", check=True).stdout.strip() == ""

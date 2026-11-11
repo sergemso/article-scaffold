@@ -11,6 +11,7 @@ Nothing here opens a network connection or runs a command.
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import os
@@ -341,19 +342,42 @@ def _read_stats(root: Path) -> dict[str, int]:
     return {k: v for k, v in data.items() if isinstance(v, int)} if isinstance(data, dict) else {}
 
 
+_PENDING: dict[Path, dict[str, int]] = {}
+_EXIT_HOOK: list[bool] = []
+
+
 def _bump(root: Path, name: str) -> None:
-    """Counters only (hits, misses, conflicts, bypassed); never content. Local, untracked."""
-    stats = _read_stats(root)
-    stats[name] = stats.get(name, 0) + 1
-    try:
+    """Counters only (hits, misses, conflicts, bypassed); never content. Local, untracked.
+
+    Held in memory and written once per process (at exit, or when ``stats`` reads them), so a
+    lookup costs no disk write and a long check run does not rewrite the file per entry."""
+    if not _EXIT_HOOK:
+        _EXIT_HOOK.append(True)
+        atexit.register(flush_stats)
+    counts = _PENDING.setdefault(root, {})
+    counts[name] = counts.get(name, 0) + 1
+
+
+def flush_stats() -> None:
+    """Add this process's pending counters to the stats file with one atomic replace."""
+    for root, counts in list(_PENDING.items()):
+        stats = _read_stats(root)
+        for name, count in counts.items():
+            stats[name] = stats.get(name, 0) + count
         path = root / STATS_PATH
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(stats, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    except OSError:
-        pass
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=".tmp-stats-")
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(stats, indent=1, sort_keys=True) + "\n")
+            os.replace(tmp_name, path)
+        except OSError:
+            pass
+        del _PENDING[root]
 
 
 def stats(root: Path, reset: bool = False) -> dict[str, int]:
+    flush_stats()
     found = _read_stats(root)
     if reset:
         try:
