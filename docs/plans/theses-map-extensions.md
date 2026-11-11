@@ -6,6 +6,8 @@ This plan implements decisions 0073 to 0078 (they hold the why; this file holds 
 
 Constraints that apply to every step: every new field is optional so an existing `version: 1` map stays valid; claim, index, map and term code makes no network call (`tests/test_no_network_in_claim_code.py`); nothing shipped to an article repo names go-getter, a model or one agent host (guardrail `article-tooling-is-host-neutral`); agents propose and humans promote (0066, guardrail `agent-nodes-need-human-promotion`); `theses.yaml` and `flow.yaml` belong to the author and `upgrade` never overwrites them. Commit messages follow Conventional Commits with a `Refs:` trailer naming the decision ids. Stay out of `AGENTS.md`'s generated guardrail section; `go-getter apply` writes it. Never run `agentctl` or resume the archived T-queue.
 
+Status (2026-11-11): done 1.1, 1.2, 1.3, 2.1. Partly done 3.1 (the red-team and blue-team procedures carry the 0074 checklist; `claim-check` still lacks the 0075 fields and verdicts, so it waits for 2.2). Open 2.2, 2.3, 4.1, 5.1, 5.2, 6.1, 6.2, 7.1. Independent next steps: 2.2 (needs 2.1, now done) and 4.1; 5.1 then 5.2 and 6.1 form a chain. Audited against the code on 2026-11-11.
+
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
 ## 1. Schema and structural lint
