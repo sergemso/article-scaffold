@@ -2,13 +2,13 @@
 
 Repo: `/home/sergei/projects/sergemso/article-scaffold` (a cookiecutter template; run Python from the venv: `make setup`, then `.venv/bin/python -m pytest <file>`; `make lint` runs ruff). Template tree is `{{cookiecutter.repo_name}}/` (quote it in shells). Code lives in `{{cookiecutter.repo_name}}/scripts/article/`, schemas in `{{cookiecutter.repo_name}}/schemas/`, tests in `tests/`.
 
-This plan implements **draft decision 0083 (below), which is not yet accepted**. Do not start step 1.1 until the owner has accepted it and moved it to `docs/decisions/` with `accepted-by` and an INDEX row. It extends 0065 to 0076 and follows the pattern of 0073.
+This plan implements decision 0083 (below), accepted by the owner on 2026-11-11. It extends 0065 to 0076 and follows the pattern of 0073.
 
 Constraints for every step: every new field is optional so a `version: 1` map stays valid; the stage is off unless `theses.yaml` declares a contradiction; no network in the new code (`tests/test_no_network_in_claim_code.py`); nothing shipped to an article repo names go-getter, a model or one agent host, and philosophers appear only as vocabulary (guardrail `article-tooling-is-host-neutral`); agents propose and humans promote (guardrail `agent-nodes-need-human-promotion`); `theses.yaml` and `flow.yaml` belong to the author and `upgrade` never overwrites them. Commit messages are Conventional Commits with a `Refs:` trailer. Stay out of `AGENTS.md`'s generated guardrail section.
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
-## Draft decision 0083: a dialectic stage maps contradictions and typed moves before the thesis is fixed
+## Decision 0083: a dialectic stage maps contradictions and typed moves before the thesis is fixed
 
 Status: draft, awaiting the owner. Tags: theses-map, lifecycle, dialectic, triz. Track: product.
 

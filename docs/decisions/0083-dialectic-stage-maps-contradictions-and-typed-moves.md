@@ -1,10 +1,11 @@
 ---
 id: 0083-dialectic-stage-maps-contradictions-and-typed-moves
 title: A dialectic stage maps contradictions and typed moves before the thesis is fixed
-status: draft
+status: active
 date: 2026-11-11
 tags: [theses-map, lifecycle, dialectic, triz]
 track: product
+accepted-by: Sergey Strebulaev
 ---
 
 ## Decision
