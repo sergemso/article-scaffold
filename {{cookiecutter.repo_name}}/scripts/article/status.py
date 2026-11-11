@@ -12,9 +12,9 @@ from typing import Any
 import yaml
 
 from . import core
+from .version import installed_template_version
 
 STATUS_SCHEMA_VERSION = "1.0"
-TEMPLATE_VERSION = "1.5.1"
 
 _VERSION_RE = re.compile(r"\b(\d+\.\d+(?:\.\d+)*)\b")
 
@@ -75,7 +75,7 @@ def _metadata_state(root: Path) -> tuple[bool, bool, str]:
     try:
         metadata = core.load_metadata(path)
     except (OSError, ValueError, yaml.YAMLError):
-        return False, True, TEMPLATE_VERSION
+        return False, True, installed_template_version(root)
 
     valid = True
     try:
@@ -83,7 +83,7 @@ def _metadata_state(root: Path) -> tuple[bool, bool, str]:
         drift = bool(core.compare_outputs(root, expected))
     except (OSError, ValueError, yaml.YAMLError):
         drift = True
-    template_version = str(metadata.get("template_version") or TEMPLATE_VERSION)
+    template_version = installed_template_version(root, metadata)
     return valid, drift, template_version
 
 

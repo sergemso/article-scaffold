@@ -4,7 +4,7 @@ BIN := $(VENV)/bin
 PIP := $(BIN)/python -m pip
 PYTEST_ARGS ?= -n auto
 
-.PHONY: setup test lint clean
+.PHONY: setup test test-fast lint clean
 
 setup:
 	@test -d $(VENV) || $(PYTHON) -m venv $(VENV)
@@ -14,6 +14,10 @@ setup:
 test:
 	@test -x $(BIN)/python || { echo "error: run 'make setup' first" >&2; exit 1; }
 	$(BIN)/python -m pytest $(PYTEST_ARGS)
+
+test-fast:
+	@test -x $(BIN)/python || { echo "error: run 'make setup' first" >&2; exit 1; }
+	$(BIN)/python -m pytest $(PYTEST_ARGS) -m "not slow"
 
 lint:
 	@test -x $(BIN)/ruff || { echo "error: run 'make setup' first" >&2; exit 1; }

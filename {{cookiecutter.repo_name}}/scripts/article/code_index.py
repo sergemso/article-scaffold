@@ -15,6 +15,8 @@ import os
 import re
 from pathlib import Path
 
+from .fsutil import atomic_write
+
 INDEX_PATH = Path("paper") / "build" / "code-index.json"
 CODE_ROOT = Path("paper") / "supplementary"
 SUFFIXES = {".py": "python", ".rs": "rust"}
@@ -369,10 +371,9 @@ def write_index(root: Path) -> dict | None:
     if not code_files(root) and not target.is_file():
         return None
     index = build_index(root)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
+    atomic_write(
+        target,
         json.dumps(index, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     return index
 
