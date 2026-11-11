@@ -7,6 +7,8 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-11
+
 ### Added
 
 - Read a source once: PDF text carries `[page N]` markers and is extracted in reading
