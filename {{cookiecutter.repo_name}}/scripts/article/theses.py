@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from . import address
+from . import address, dialectic
 from .diagnostics import Diagnostics
 from .latex import strip_comments
 
@@ -48,7 +48,9 @@ NODE_FIELDS = {
     "move",
     "cost",
     "needs-rival-objection",
+    "untraced-reason",
 }
+TOP_LEVEL_FIELDS = {"version", "nodes", "edges", "terms", "contradictions", "moves"}
 ARGUMENT_FIELDS = ("conclusion", "inference", "premises", "steps")
 # Fields that only make sense on one node type; anywhere else they are an error.
 OBJECTION_FIELDS = (
@@ -66,7 +68,7 @@ TYPE_FIELDS = {
     "argument": ARGUMENT_FIELDS,
     "objection": OBJECTION_FIELDS,
     "defense": DEFENSE_FIELDS,
-    "thesis": ("needs-rival-objection",),
+    "thesis": ("needs-rival-objection", "untraced-reason"),
 }
 AUTHORS = ("agent", "human")
 FORMS = ("strongest", "standard")
@@ -195,7 +197,7 @@ def validate_map(
     if not isinstance(data, dict):
         err("T001", "theses.yaml must be a mapping")
         return
-    for key in sorted(set(data) - {"version", "nodes", "edges", "terms"}, key=str):
+    for key in sorted(set(data) - TOP_LEVEL_FIELDS, key=str):
         err("T002", f"unknown top-level field {key!r}")
     if data.get("version") != 1:
         err("T003", "version must be 1")
@@ -216,6 +218,7 @@ def validate_map(
     _check_arguments(nodes, err, warn)
     _check_adversarial(nodes, edges, bib, err, warn)
     _check_terms(data.get("terms"), labels, err)
+    dialectic.check({**data, "nodes": nodes}, err)
 
 
 def _check_node(index, node, ids, labels, err) -> None:
@@ -514,6 +517,8 @@ def _check_adversarial(raw_nodes: list, raw_edges: list, bib, err, warn) -> None
     for node in nodes.values():
         if "author" in node and node["author"] not in AUTHORS:
             err("T029", f"node {node['id']!r}: author must be one of {', '.join(AUTHORS)}")
+        if "untraced-reason" in node and not _one_line(node["untraced-reason"]):
+            err("T029", f"node {node['id']!r}: untraced-reason must be a one-line string")
         if "needs-rival-objection" in node and not isinstance(node["needs-rival-objection"], bool):
             err("T029", f"node {node['id']!r}: needs-rival-objection must be true or false")
         if node.get("type") == "objection":
@@ -650,6 +655,7 @@ DEFAULT_GAP_KINDS = (
     "defense-no-anchor",
     "thesis-no-rival",
     "term-unregistered",
+    *dialectic.GAP_KINDS,
 )
 GAP_KINDS = DEFAULT_GAP_KINDS + ("thesis-unattacked",)
 
@@ -668,6 +674,11 @@ def lint(root: Path) -> Diagnostics:
         return diagnostics
     validate_map(data, paper_labels(root), diagnostics, paper_bib_keys(root))
     return diagnostics
+
+
+def development(data: dict) -> list[dict]:
+    """The derived chain of moves in order (decision 0083); empty without a ``moves`` section."""
+    return dialectic.development(data)
 
 
 def _nodes(data: dict) -> dict[str, dict]:
@@ -763,6 +774,7 @@ def gaps(data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS) -> list[d
         anchor = node.get("anchor")
         if anchor and labels is not None and anchor not in labels:
             add("anchor-missing", node)
+    found += [g for g in dialectic.gaps(data, kinds)]
     # A fatal objection with no answer comes first, then kind and id.
     return sorted(
         found,

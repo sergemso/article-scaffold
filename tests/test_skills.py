@@ -113,7 +113,14 @@ def test_reading_a_source_procedure_and_adapter(project: Path) -> None:
 
 def test_procedures_are_host_neutral_and_listed(project: Path) -> None:
     names = sorted(p.stem for p in (project / "docs" / "procedures").glob("*.md"))
-    assert names == ["blue-team", "claim-check", "lifecycle", "reading-a-source", "red-team"]
+    assert names == [
+        "blue-team",
+        "claim-check",
+        "dialectic",
+        "lifecycle",
+        "reading-a-source",
+        "red-team",
+    ]
     for name in names:
         assert (project / ".claude" / "skills" / name / "SKILL.md").is_file()
 
@@ -138,3 +145,40 @@ def test_procedures_name_the_cost_tooling(project: Path) -> None:
     cli = (project / "docs" / "cli.md").read_text(encoding="utf-8")
     for command in ("check record NAME", "check --cold", "flow handoff", "N002", "N003"):
         assert command in cli, command
+
+
+def test_dialectic_procedure_and_adapter(project: Path) -> None:
+    text = _procedure(project, "dialectic")
+    for command in (
+        "theses lint",
+        "theses gaps",
+        "theses dialectic",
+        "flow attest dialectic",
+        "sources find",
+        "sources slice",
+    ):
+        assert f"scripts.article {command}" in text, command
+    for move in ("negation", "negation-of-negation", "synthesis", "aufhebung", "new-beginning"):
+        assert f"`{move}`" in text, move
+    for field in ("preserved", "cancelled", "lifted", "untraced-reason", "proposed"):
+        assert field in text, field
+    assert "reading-a-source" in text and "by hand" in text
+    assert "must cite the move it follows" in text
+    _adapter(project, "dialectic")
+
+
+def test_dialectic_vocabulary_matches_the_cli(project: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(project))
+    from scripts.article import dialectic
+
+    text = _procedure(project, "dialectic")
+    for move in dialectic.MOVE_TYPES:
+        assert f"`{move}`" in text
+    for kind in dialectic.CONTRADICTION_KINDS:
+        assert f"`{kind}`" in text
+    for kind in ("contradiction-unmoved", "move-without-opening", "thesis-untraced"):
+        assert kind in dialectic.GAP_KINDS and kind in text
+    cli = (project / "scripts" / "article" / "cli.py").read_text(encoding="utf-8")
+    assert '"dialectic"' in cli

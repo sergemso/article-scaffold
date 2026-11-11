@@ -22,7 +22,7 @@ from typing import Any, NamedTuple
 import yaml
 
 from . import brief as order_brief
-from . import claims, companion, core, group, ledger, sources, theses
+from . import claims, companion, core, dialectic, group, ledger, sources, theses
 from . import handoff as order_handoff
 from . import index as section_index
 
@@ -30,6 +30,7 @@ STATE_FILE = "flow.yaml"
 STATUS_SCHEMA_VERSION = "1.0"
 STAGES = (
     "frame",
+    "dialectic",
     "map",
     "discover",
     "draft",
@@ -39,6 +40,10 @@ STAGES = (
     "release-gate",
     "publish",
 )
+# Advisory by default (decision 0083): an open one does not fail `flow status`, block the
+# next stage or issue orders, unless flow.yaml lists it under `required_stages`.
+ADVISORY_STAGES = ("dialectic",)
+DIALECTIC_ATTESTATION = "dialectic"
 TIERS = ("script", "small", "large")
 DEFAULT_WEIGHTS = {"script": 0, "small": 1, "large": 5}
 DEFAULT_BUDGET_LIMIT = 20
@@ -61,6 +66,7 @@ STATE_FIELDS = {
     "max_context",
     "max_context_ceiling",
     "group_size",
+    "required_stages",
 }
 HEADER = (
     "# Flow state: decisions the repo cannot derive (round, attestations, waivers, budget).\n"
@@ -166,6 +172,15 @@ def state_errors(data: object) -> list[str]:
         _nonneg_int(data["group_size"]) and data["group_size"] >= group.MIN_GROUP_SIZE
     ):
         errors.append("group_size must be a positive integer (1 turns grouping off)")
+    if "required_stages" in data:
+        required = data["required_stages"]
+        if not isinstance(required, list) or not all(r in ADVISORY_STAGES for r in required):
+            errors.append(
+                "required_stages must be a list of advisory stages "
+                f"({', '.join(ADVISORY_STAGES)})"
+            )
+        elif len(set(required)) != len(required):
+            errors.append("required_stages lists a stage twice")
     closed = data.get("closed", [])
     if not isinstance(closed, list) or not all(
         isinstance(c, dict) and set(c) == {"round", "at"} and _nonneg_int(c["round"])
@@ -359,6 +374,31 @@ def _gate_map(f: Facts) -> dict[str, Any]:
     return result
 
 
+def dialectic_applies(f: Facts) -> bool:
+    """The dialectic stage exists only for a valid map that declares a contradiction or move."""
+    data, _ = f.map
+    return data is not None and dialectic.uses_section(data)
+
+
+def _gate_dialectic(f: Facts) -> dict[str, Any]:
+    found = f.gap_ids(*dialectic.GAP_KINDS)
+    kinds = " ".join(f"--kind {k}" for k in dialectic.GAP_KINDS)
+    if found:
+        ids = ", ".join(sorted({g["id"] for g in found})[:5])
+        names = ", ".join(sorted({g["kind"] for g in found}))
+        return _verdict(
+            False, f"dialectic gaps remain ({names}): {ids}", f"{CMD} theses gaps {kinds}"
+        )
+    if not f.attested(DIALECTIC_ATTESTATION):
+        return _verdict(
+            False, "no person has attested the dialectic stage",
+            f"{CMD} flow attest {DIALECTIC_ATTESTATION}",
+        )
+    return _verdict(
+        True, "no dialectic gaps and a person attested the stage", f"{CMD} theses dialectic"
+    )
+
+
 def _gate_discover(f: Facts) -> dict[str, Any]:
     return _gap_gate(f, ("single-source",), "no single-source gaps")
 
@@ -454,6 +494,7 @@ def _gate_publish(f: Facts) -> dict[str, Any]:
 
 GATES = {
     "frame": _gate_frame,
+    "dialectic": _gate_dialectic,
     "map": _gate_map,
     "discover": _gate_discover,
     "draft": _gate_draft,
@@ -815,9 +856,16 @@ def active_waiver(state: dict[str, Any], stage: str, today: date) -> dict | None
 
 
 def evaluate(facts: Facts, today: date) -> list[dict[str, Any]]:
-    """Per-stage results: stage, status (pass|fail|waived|human), reason, command."""
+    """Per-stage results: stage, status (pass|fail|waived|human|advisory), reason, command.
+
+    ``dialectic`` is left out when the map declares no contradiction or move, and shows
+    ``advisory`` rather than ``fail`` while open unless flow.yaml requires it.
+    """
     results = []
+    required = facts.state.get("required_stages") or []
     for stage in STAGES:
+        if stage == "dialectic" and not dialectic_applies(facts):
+            continue  # off unless the map declares a contradiction or move
         verdict = GATES[stage](facts)
         if stage == "publish":
             results.append(
@@ -830,6 +878,9 @@ def evaluate(facts: Facts, today: date) -> list[dict[str, Any]]:
         entry = {"stage": stage, "status": status, "reason": reason, "command": verdict["command"]}
         if "relied_on" in verdict:
             entry["relied_on"] = verdict["relied_on"]
+        if not verdict["ok"] and stage in ADVISORY_STAGES and stage not in required:
+            entry["status"] = "advisory"
+            entry["reason"] = f"advisory: {reason}"
         waiver = None if verdict["ok"] else active_waiver(facts.state, stage, today)
         if waiver is not None:
             entry["status"] = "waived"

@@ -7,6 +7,16 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+### Added
+
+- Dialectic stage (decision 0083, draft): optional `contradictions` and typed `moves` in
+  `theses.yaml` (hand-written proposals; structural lint T070-T094), `theses dialectic [--json]`,
+  new gap kinds (`contradiction-unmoved`, `move-without-opening`, `thesis-untraced`),
+  a thesis `untraced-reason` field, an advisory `dialectic` stage in `flow status` closed by
+  `flow attest dialectic`, optional `required_stages: [dialectic]` in `flow.yaml`, and a
+  `dialectic` procedure with its skill adapter. Maps without the section are unchanged.
+  `upgrade --plan` prints notice `N004` once; `theses.yaml` and `flow.yaml` are never touched.
+
 ## [1.9.0] - 2026-11-11
 
 ### Added

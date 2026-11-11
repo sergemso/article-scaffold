@@ -29,7 +29,7 @@
         "required": ["stage", "status", "reason", "command"],
         "properties": {
           "stage": { "type": "string" },
-          "status": { "enum": ["pass", "fail", "waived", "human"] },
+          "status": { "enum": ["pass", "fail", "waived", "human", "advisory"] },
           "reason": { "type": "string", "minLength": 1 },
           "command": { "type": "string", "minLength": 1 },
           "relied_on": {

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import claims, code_index, companion, core, flow, ledger, sources, terms, theses
+from . import claims, code_index, companion, core, dialectic, flow, ledger, sources, terms, theses
 from . import index as section_index
 
 
@@ -284,6 +284,15 @@ def _theses(args: argparse.Namespace) -> int:
             raise theses.AcceptError("theses.yaml does not validate; run `theses lint`")
         if action == "slice":
             _emit_json(theses.slice_map(data, args.id, args.depth))
+            return core.ExitCode.OK
+        if action == "dialectic":
+            report = dialectic.view(data)
+            if args.json:
+                _emit_json(
+                    {"ok": not report["gaps"], "command": "theses dialectic", **report}
+                )
+            else:
+                print(dialectic.format_text(report))
             return core.ExitCode.OK
         if action == "terms":
             report = terms.check(root, data)
@@ -1098,11 +1107,15 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(t_accept)
     t_accept.add_argument("id")
     t_accept.add_argument("--by", required=True, help="name of the accepting person")
+    t_dialectic = theses_sub.add_parser(
+        "dialectic", help="contradictions, the chain of moves and their gaps (read-only)"
+    )
+    _add_common(t_dialectic)
     t_terms = theses_sub.add_parser(
         "terms", help="tier 0 term checks, including the informational notes"
     )
     _add_common(t_terms)
-    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept):
+    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept, t_dialectic):
         sub.set_defaults(func=_theses, command="theses")
 
     check_cmd = subparsers.add_parser(

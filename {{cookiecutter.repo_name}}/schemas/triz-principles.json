@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "description": "The 40 inventive principles of TRIZ, a closed list of tags for the `principle` field of a theses-map contradiction. Names are vocabulary only; no parameter or principle matrix is shipped.",
+  "principles": [
+    {
+      "id": "segmentation",
+      "number": 1,
+      "name": "Segmentation"
+    },
+    {
+      "id": "taking-out",
+      "number": 2,
+      "name": "Taking out"
+    },
+    {
+      "id": "local-quality",
+      "number": 3,
+      "name": "Local quality"
+    },
+    {
+      "id": "asymmetry",
+      "number": 4,
+      "name": "Asymmetry"
+    },
+    {
+      "id": "merging",
+      "number": 5,
+      "name": "Merging"
+    },
+    {
+      "id": "universality",
+      "number": 6,
+      "name": "Universality"
+    },
+    {
+      "id": "nested-doll",
+      "number": 7,
+      "name": "Nested doll"
+    },
+    {
+      "id": "anti-weight",
+      "number": 8,
+      "name": "Anti-weight"
+    },
+    {
+      "id": "preliminary-anti-action",
+      "number": 9,
+      "name": "Preliminary anti-action"
+    },
+    {
+      "id": "preliminary-action",
+      "number": 10,
+      "name": "Preliminary action"
+    },
+    {
+      "id": "beforehand-cushioning",
+      "number": 11,
+      "name": "Beforehand cushioning"
+    },
+    {
+      "id": "equipotentiality",
+      "number": 12,
+      "name": "Equipotentiality"
+    },
+    {
+      "id": "the-other-way-round",
+      "number": 13,
+      "name": "The other way round"
+    },
+    {
+      "id": "spheroidality-curvature",
+      "number": 14,
+      "name": "Spheroidality - curvature"
+    },
+    {
+      "id": "dynamics",
+      "number": 15,
+      "name": "Dynamics"
+    },
+    {
+      "id": "partial-or-excessive-actions",
+      "number": 16,
+      "name": "Partial or excessive actions"
+    },
+    {
+      "id": "another-dimension",
+      "number": 17,
+      "name": "Another dimension"
+    },
+    {
+      "id": "mechanical-vibration",
+      "number": 18,
+      "name": "Mechanical vibration"
+    },
+    {
+      "id": "periodic-action",
+      "number": 19,
+      "name": "Periodic action"
+    },
+    {
+      "id": "continuity-of-useful-action",
+      "number": 20,
+      "name": "Continuity of useful action"
+    },
+    {
+      "id": "skipping",
+      "number": 21,
+      "name": "Skipping"
+    },
+    {
+      "id": "blessing-in-disguise",
+      "number": 22,
+      "name": "Blessing in disguise"
+    },
+    {
+      "id": "feedback",
+      "number": 23,
+      "name": "Feedback"
+    },
+    {
+      "id": "intermediary",
+      "number": 24,
+      "name": "Intermediary"
+    },
+    {
+      "id": "self-service",
+      "number": 25,
+      "name": "Self-service"
+    },
+    {
+      "id": "copying",
+      "number": 26,
+      "name": "Copying"
+    },
+    {
+      "id": "cheap-short-living-objects",
+      "number": 27,
+      "name": "Cheap short-living objects"
+    },
+    {
+      "id": "mechanics-substitution",
+      "number": 28,
+      "name": "Mechanics substitution"
+    },
+    {
+      "id": "pneumatics-and-hydraulics",
+      "number": 29,
+      "name": "Pneumatics and hydraulics"
+    },
+    {
+      "id": "flexible-shells-and-thin-films",
+      "number": 30,
+      "name": "Flexible shells and thin films"
+    },
+    {
+      "id": "porous-materials",
+      "number": 31,
+      "name": "Porous materials"
+    },
+    {
+      "id": "color-changes",
+      "number": 32,
+      "name": "Color changes"
+    },
+    {
+      "id": "homogeneity",
+      "number": 33,
+      "name": "Homogeneity"
+    },
+    {
+      "id": "discarding-and-recovering",
+      "number": 34,
+      "name": "Discarding and recovering"
+    },
+    {
+      "id": "parameter-changes",
+      "number": 35,
+      "name": "Parameter changes"
+    },
+    {
+      "id": "phase-transitions",
+      "number": 36,
+      "name": "Phase transitions"
+    },
+    {
+      "id": "thermal-expansion",
+      "number": 37,
+      "name": "Thermal expansion"
+    },
+    {
+      "id": "strong-oxidants",
+      "number": 38,
+      "name": "Strong oxidants"
+    },
+    {
+      "id": "inert-atmosphere",
+      "number": 39,
+      "name": "Inert atmosphere"
+    },
+    {
+      "id": "composite-materials",
+      "number": 40,
+      "name": "Composite materials"
+    }
+  ]
+}

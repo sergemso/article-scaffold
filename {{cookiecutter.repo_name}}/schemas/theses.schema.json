@@ -10,7 +10,9 @@
     "version": { "type": "integer", "const": 1 },
     "nodes": { "type": "array", "items": { "$ref": "#/definitions/node" } },
     "edges": { "type": "array", "items": { "$ref": "#/definitions/edge" } },
-    "terms": { "type": "array", "items": { "$ref": "#/definitions/term" } }
+    "terms": { "type": "array", "items": { "$ref": "#/definitions/term" } },
+    "contradictions": { "type": "array", "items": { "$ref": "#/definitions/contradiction" } },
+    "moves": { "type": "array", "items": { "$ref": "#/definitions/move" } }
   },
   "definitions": {
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
@@ -82,7 +84,8 @@
           ]
         },
         "cost": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" },
-        "needs-rival-objection": { "type": "boolean" }
+        "needs-rival-objection": { "type": "boolean" },
+        "untraced-reason": { "type": "string", "minLength": 1, "pattern": "^[^\\n]+$" }
       },
       "allOf": [
         {
@@ -138,7 +141,10 @@
         },
         {
           "if": { "properties": { "type": { "const": "thesis" } } },
-          "else": { "not": { "required": ["needs-rival-objection"] } }
+          "else": { "not": { "anyOf": [
+            { "required": ["needs-rival-objection"] },
+            { "required": ["untraced-reason"] }
+          ] } }
         },
         {
           "if": { "properties": { "form": { "const": "strongest" } }, "required": ["form"] },
@@ -236,6 +242,388 @@
         "forms": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "definition": { "$ref": "#/definitions/line" }
       }
+    },
+    "pole": {
+      "description": "One side of a contradiction, anchored to a source-claim node (`claim`) or to a one-line niche statement (`niche`); exactly one of the two.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "$ref": "#/definitions/line"
+        },
+        "claim": {
+          "$ref": "#/definitions/id"
+        },
+        "niche": {
+          "$ref": "#/definitions/line"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "claim"
+          ]
+        },
+        {
+          "required": [
+            "niche"
+          ]
+        }
+      ]
+    },
+    "contradiction": {
+      "description": "A tension between two poles (decision 0083). technical needs improving and worsening; principle is a tag from schemas/triz-principles.json.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "poles",
+        "kind",
+        "status",
+        "author"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "text": {
+          "$ref": "#/definitions/line"
+        },
+        "poles": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/definitions/pole"
+          }
+        },
+        "kind": {
+          "enum": [
+            "dialectical",
+            "technical",
+            "physical"
+          ]
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "retired"
+          ]
+        },
+        "author": {
+          "enum": [
+            "agent",
+            "human"
+          ]
+        },
+        "accepted-by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "improving": {
+          "$ref": "#/definitions/line"
+        },
+        "worsening": {
+          "$ref": "#/definitions/line"
+        },
+        "principle": {
+          "enum": [
+            "segmentation",
+            "taking-out",
+            "local-quality",
+            "asymmetry",
+            "merging",
+            "universality",
+            "nested-doll",
+            "anti-weight",
+            "preliminary-anti-action",
+            "preliminary-action",
+            "beforehand-cushioning",
+            "equipotentiality",
+            "the-other-way-round",
+            "spheroidality-curvature",
+            "dynamics",
+            "partial-or-excessive-actions",
+            "another-dimension",
+            "mechanical-vibration",
+            "periodic-action",
+            "continuity-of-useful-action",
+            "skipping",
+            "blessing-in-disguise",
+            "feedback",
+            "intermediary",
+            "self-service",
+            "copying",
+            "cheap-short-living-objects",
+            "mechanics-substitution",
+            "pneumatics-and-hydraulics",
+            "flexible-shells-and-thin-films",
+            "porous-materials",
+            "color-changes",
+            "homogeneity",
+            "discarding-and-recovering",
+            "parameter-changes",
+            "phase-transitions",
+            "thermal-expansion",
+            "strong-oxidants",
+            "inert-atmosphere",
+            "composite-materials"
+          ]
+        },
+        "ideal-result": {
+          "$ref": "#/definitions/line"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/line"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "accepted"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "accepted-by"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "technical"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "improving",
+              "worsening"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "improving"
+                  ]
+                },
+                {
+                  "required": [
+                    "worsening"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "dialectical"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "principle"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "move": {
+      "description": "A typed step over contradictions (decision 0083). synthesis and aufhebung cite two or more; aufhebung records preserved, cancelled and lifted; new-beginning names the node it opens.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "text",
+        "status",
+        "author"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "type": {
+          "enum": [
+            "negation",
+            "negation-of-negation",
+            "synthesis",
+            "aufhebung",
+            "new-beginning"
+          ]
+        },
+        "text": {
+          "$ref": "#/definitions/line"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "retired"
+          ]
+        },
+        "author": {
+          "enum": [
+            "agent",
+            "human"
+          ]
+        },
+        "accepted-by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cites": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/id"
+          }
+        },
+        "preserved": {
+          "$ref": "#/definitions/line"
+        },
+        "cancelled": {
+          "$ref": "#/definitions/line"
+        },
+        "lifted": {
+          "$ref": "#/definitions/line"
+        },
+        "opens": {
+          "$ref": "#/definitions/id"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "accepted"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "accepted-by"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "negation",
+                  "negation-of-negation",
+                  "synthesis",
+                  "aufhebung"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "cites"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "synthesis",
+                  "aufhebung"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "cites": {
+                "minItems": 2
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "aufhebung"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "preserved",
+              "cancelled",
+              "lifted"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "preserved"
+                  ]
+                },
+                {
+                  "required": [
+                    "cancelled"
+                  ]
+                },
+                {
+                  "required": [
+                    "lifted"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "new-beginning"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "opens"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "opens"
+              ]
+            }
+          }
+        }
+      ]
     }
   }
 }

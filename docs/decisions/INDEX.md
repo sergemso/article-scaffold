@@ -83,3 +83,4 @@ id,title,tags,status
 0080-sources-are-fetched-once-normalized-and-addressed,"An external source is fetched once into a store, normalized and indexed, and agents read only addressed excerpts","sources, cost, retrieval, scholar-mcp, theses-map",active
 0081-flow-orders-carry-a-compiled-brief-and-a-call-cap,"Each flow order is handed over with a deterministic brief and a tool-call cap","cost, orchestration, flow, host-neutral",active
 0082-research-tooling-split-redrawn,"The vendored CLI owns everything derived and cached; scholar-mcp owns only what leaves the machine","architecture, scholar-mcp, theses-map, cost",active
+0083-dialectic-stage-maps-contradictions-and-typed-moves,"A dialectic stage maps contradictions and typed moves before the thesis is fixed","theses-map, lifecycle, dialectic, triz",active
