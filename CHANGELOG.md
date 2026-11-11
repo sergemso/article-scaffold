@@ -7,6 +7,8 @@ generated repo as `template_version` in `template.json`.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-11
+
 ### Added
 
 - Dialectic stage (decision 0083): optional `contradictions` and typed `moves` (`negation`,
