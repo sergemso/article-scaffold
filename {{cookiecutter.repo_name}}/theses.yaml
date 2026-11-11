@@ -9,6 +9,11 @@
 # An optional top-level `terms` list registers defined terms (kind defined, external or
 # acronym); `theses lint` checks use before definition and second definitions, and
 # `theses terms` lists orphans and drift.
+# Optional `contradictions` (two anchored poles; kind dialectical, technical or physical; a
+# technical one adds improving and worsening, and an optional `principle` tag from
+# schemas/triz-principles.json) and `moves` (negation, negation-of-negation, synthesis,
+# aufhebung with preserved/cancelled/lifted, new-beginning with `opens`) record the niche's
+# tensions before the thesis is fixed (decision 0083). Leave them out and nothing changes.
 # Edge types: supports, attacks, rebuts (edge goes from -> to).
 version: 1
 nodes: []

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from . import address
+from . import address, dialectic
 from .diagnostics import Diagnostics
 from .latex import strip_comments
 
@@ -49,6 +49,7 @@ NODE_FIELDS = {
     "cost",
     "needs-rival-objection",
 }
+TOP_LEVEL_FIELDS = {"version", "nodes", "edges", "terms", "contradictions", "moves"}
 ARGUMENT_FIELDS = ("conclusion", "inference", "premises", "steps")
 # Fields that only make sense on one node type; anywhere else they are an error.
 OBJECTION_FIELDS = (
@@ -195,7 +196,7 @@ def validate_map(
     if not isinstance(data, dict):
         err("T001", "theses.yaml must be a mapping")
         return
-    for key in sorted(set(data) - {"version", "nodes", "edges", "terms"}, key=str):
+    for key in sorted(set(data) - TOP_LEVEL_FIELDS, key=str):
         err("T002", f"unknown top-level field {key!r}")
     if data.get("version") != 1:
         err("T003", "version must be 1")
@@ -216,6 +217,7 @@ def validate_map(
     _check_arguments(nodes, err, warn)
     _check_adversarial(nodes, edges, bib, err, warn)
     _check_terms(data.get("terms"), labels, err)
+    dialectic.check({**data, "nodes": nodes}, err)
 
 
 def _check_node(index, node, ids, labels, err) -> None:
@@ -668,6 +670,11 @@ def lint(root: Path) -> Diagnostics:
         return diagnostics
     validate_map(data, paper_labels(root), diagnostics, paper_bib_keys(root))
     return diagnostics
+
+
+def development(data: dict) -> list[dict]:
+    """The derived chain of moves in order (decision 0083); empty without a ``moves`` section."""
+    return dialectic.development(data)
 
 
 def _nodes(data: dict) -> dict[str, dict]:

@@ -32,13 +32,13 @@ Schema, linter, gap kinds, the shipped principle list, one procedure, one skill 
 
 ## 1. Schema and structural lint
 
-### 1.1 Contradictions section — [ ]
+### 1.1 Contradictions section — [x]
 Class: implement · Effort: medium · Needs: decision 0083 accepted · Check: `.venv/bin/python -m pytest tests/test_theses_schema.py tests/test_dialectic.py -q`
 Decision: 0083. Scope: `schemas/theses.schema.json`, `scripts/article/theses.py`, new `scripts/article/dialectic.py`, `schemas/triz-principles.json`, `theses.yaml` template comments.
 Do: Add the `contradictions` section and its TRIZ fields; ship the closed list of 40 principles; lint pole anchors, kind rules and `principle` membership.
 Done-when: each rule has a failing and a passing test, and an existing map validates unchanged.
 
-### 1.2 Moves section — [ ]
+### 1.2 Moves section — [x]
 Class: implement · Effort: medium · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_dialectic.py -q`
 Decision: 0083. Scope: same files as 1.1.
 Do: Add `moves` with the five types and their required fields (`preserved`/`cancelled`/`lifted` for `aufhebung`, citations for `synthesis`, a prior `negation` for `negation-of-negation`, an opened node for `new-beginning`). Lint references and cycles. Derive the development chain.
