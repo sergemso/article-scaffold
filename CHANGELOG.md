@@ -13,6 +13,7 @@ generated repo as `template_version` in `template.json`.
   stale constants `1.5.1` and `1.0.0`).
 - `flow.yaml`, `theses.yaml` and the section and code indexes are written atomically.
 - An invalid `theses.yaml` stops `theses accept` and `flow round` with a message, not a traceback.
+- `make test-fast` skips the slow upgrade tests (`-m "not slow"`).
 - `release` plan diff says why it could not compute the diff.
 
 ## [1.10.0] - 2026-11-11

@@ -16,7 +16,8 @@ propose changes, run the test suite, and what standards we expect.
 make setup
 
 # Run the full test suite
-make test
+make test        # everything
+make test-fast   # skips the slow upgrade tests; CI and review still need `make test`
 
 # Lint only
 make lint
