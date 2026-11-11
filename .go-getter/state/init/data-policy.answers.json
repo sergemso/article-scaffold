@@ -4,7 +4,7 @@
     "confidential-zdr": "zdr-not-required",
     "prompt-logging": "disable-everywhere"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"

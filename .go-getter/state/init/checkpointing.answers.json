@@ -6,7 +6,7 @@
     ],
     "retention": "10"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"

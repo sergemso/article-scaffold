@@ -14,7 +14,7 @@
     "sink-sources": [],
     "restricted-hosts": "hook-hosts"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"

@@ -6,7 +6,7 @@
     "spend-cap": "1",
     "cache-ttl": "main-1h-sub-5m"
   },
-  "acceptedBy": "Sergey Strebulaev",
+  "acceptedBy": "Sergei Strebulaev",
   "detect": {
     "languages": [
       "python"
