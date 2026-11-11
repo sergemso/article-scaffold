@@ -5,7 +5,7 @@ status: active
 date: 2026-11-02
 tags: [theses-map, agents, cost, review]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

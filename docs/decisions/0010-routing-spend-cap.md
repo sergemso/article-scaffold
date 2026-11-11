@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, model-routing, cost]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   headless-spend-cap-usd: "1"
   generated-by: cost-routing@0.2.0

@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, agent-roles, harness]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   roles:
     - id: implementer

@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, agent-roles, harness]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   worktree-location: in-repo
   generated-by: orchestration@0.1.1

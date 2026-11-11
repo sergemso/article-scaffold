@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, verification, harness, ci]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   verify-profile: thin
   verify-where:

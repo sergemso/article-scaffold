@@ -5,7 +5,7 @@ status: active
 date: 2026-11-02
 tags: [cost, practice-packs, theses-map]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

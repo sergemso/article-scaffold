@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, agent-roles, harness]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   handoff: "The brief gives goal, scope and done-when. Reply with the result, then the evidence: commands run with their outcome, and file references."
   generated-by: orchestration@0.1.1

@@ -6,7 +6,7 @@ superseded-by: 0082-research-tooling-split-redrawn
 date: 2026-11-02
 tags: [theses-map, architecture, scholar-mcp, upgrade]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 governed-facts: [0006-scholar-mcp-checks-bibliographic-facts-only]
 ---
 

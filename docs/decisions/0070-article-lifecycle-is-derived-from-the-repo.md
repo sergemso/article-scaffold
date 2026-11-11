@@ -5,7 +5,7 @@ status: active
 date: 2026-11-02
 tags: [orchestration, lifecycle, theses-map]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision

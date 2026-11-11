@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, model-routing, cost]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   routing-classes:
     explore: explore

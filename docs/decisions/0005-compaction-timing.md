@@ -5,7 +5,7 @@ status: active
 date: 2026-10-24
 tags: [practice-packs, harness, cost]
 track: process
-accepted-by: Sergey Strebulaev
+accepted-by: Sergei Strebulaev
 go-getter:
   generated-by: context@0.3.1
   pack-answer: compaction
