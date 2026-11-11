@@ -755,11 +755,6 @@ def zenodo_license_id(value: object) -> str | None:
     return None
 
 
-def _q(value: object) -> str:
-    """A JSON/YAML string literal, safe for quotes and unicode."""
-    return json.dumps(str(value), ensure_ascii=False)
-
-
 def _authors(metadata: dict) -> list[dict]:
     """Return the normalized author list, with a manual-dict fallback."""
     authors = metadata.get("_authors")

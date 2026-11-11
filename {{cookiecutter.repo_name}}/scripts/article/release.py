@@ -101,22 +101,6 @@ def _tag_exists(tag: str, root: Path) -> bool:
     return result.returncode == 0
 
 
-def _semver_compare(a: str, b: str) -> int:
-    """Compare two semantic versions. Returns -1 if a < b, 0 if equal, 1 if a > b."""
-    def parse(v: str) -> tuple:
-        v = v.lstrip('v')
-        main = v.split('-')[0].split('+')[0]
-        parts = tuple(int(x) for x in main.split('.'))
-        return parts
-    a_parts = parse(a)
-    b_parts = parse(b)
-    if a_parts < b_parts:
-        return -1
-    elif a_parts > b_parts:
-        return 1
-    return 0
-
-
 def _is_valid_semver(version: str) -> bool:
     """Check if version string is valid semver (MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD])."""
     import re
@@ -232,6 +216,16 @@ def plan_release(root: Path) -> dict[str, Any]:
 # Release application (gated, requires explicit confirmation)
 # ──────────────────────────────────────────────────────────────────────
 
+def _run_build(plan_obj: Any, root: Path) -> None:
+    subprocess.run(list(plan_obj.command), cwd=Path(root) / plan_obj.cwd,
+                   check=True, capture_output=True)
+
+
+def _stderr_text(error: subprocess.CalledProcessError) -> str:
+    stderr = error.stderr
+    return stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
+
+
 def apply_release(root: Path, yes: bool = False) -> dict[str, Any]:
     """Apply the release. Requires explicit confirmation (yes=True)."""
     if not yes:
@@ -267,8 +261,26 @@ def apply_release(root: Path, yes: bool = False) -> dict[str, Any]:
     except Exception as e:
         return {"ok": False, "error": f"failed to regenerate derived files: {e}"}
 
-    # Create git tag
-    tag_name = f"v{version}"
+    # Build before tagging: a failed build must not leave a tag that blocks the next attempt.
+    artifacts_built = []
+    try:
+        _run_build(pdf_plan(root), root)
+        artifacts_built.append("paper/article.pdf")
+    except subprocess.CalledProcessError as e:
+        return {"ok": False, "error": f"PDF build failed: {_stderr_text(e)}"}
+    except OSError as e:
+        return {"ok": False, "error": f"PDF build could not start: {e}"}
+
+    # DOCX is optional: a failing or missing pandoc does not fail the release.
+    try:
+        _run_build(docx_plan(root), root)
+        artifacts_built.append("manuscript.docx")
+    except subprocess.CalledProcessError as e:
+        print(f"WARNING: DOCX build failed (optional): {_stderr_text(e)}", file=sys.stderr)
+    except OSError as e:
+        print(f"WARNING: DOCX build could not start (optional): {e}", file=sys.stderr)
+
+    tag_name = tag
     result = subprocess.run(
         ["git", "tag", "-a", tag_name, "-m", f"Release {tag_name}"],
         cwd=root,
@@ -277,36 +289,6 @@ def apply_release(root: Path, yes: bool = False) -> dict[str, Any]:
     )
     if result.returncode != 0:
         return {"ok": False, "error": f"git tag failed: {result.stderr}"}
-
-    # Build artifacts (PDF required, DOCX optional)
-    artifacts_built = []
-    try:
-        plan_obj = pdf_plan(root)
-        subprocess.run(
-            list(plan_obj.command),
-            cwd=Path(root) / plan_obj.cwd,
-            check=True,
-            capture_output=True,
-        )
-        artifacts_built.append("paper/article.pdf")
-    except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
-        return {"ok": False, "error": f"PDF build failed: {stderr}"}
-
-    # DOCX is optional - try to build but don't fail the release if pandoc is too old
-    try:
-        plan_obj = docx_plan(root)
-        subprocess.run(
-            list(plan_obj.command),
-            cwd=Path(root) / plan_obj.cwd,
-            check=True,
-            capture_output=True,
-        )
-        artifacts_built.append("manuscript.docx")
-    except subprocess.CalledProcessError as e:
-        # Log warning but don't fail the release
-        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
-        print(f"WARNING: DOCX build failed (optional): {stderr}", file=sys.stderr)
 
     return {
         "ok": True,

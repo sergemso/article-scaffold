@@ -184,3 +184,24 @@ def test_release_cli_help_includes_apply_and_yes(tmp_path: Path) -> None:
     assert "--apply" in result.stdout
     assert "--yes" in result.stdout
     assert "--dry-run" in result.stdout
+
+def test_release_apply_leaves_no_tag_when_the_pdf_build_fails(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    run(project, "git", "add", "-A", check=True)
+    run(project, "git", "commit", "-qm", "initial", check=True)
+    # A PATH with git and python but no latexmk or make: the build cannot start.
+    import os
+    import shutil
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    for tool in ("git", "python3"):
+        (bindir / tool).symlink_to(shutil.which(tool))
+    env = {**os.environ, "PATH": str(bindir)}
+    result = subprocess.run(
+        [str(bindir / "python3"), "-m", "scripts.article", "release", "--json",
+         "--apply", "--yes"],
+        cwd=project, text=True, capture_output=True, env=env,
+    )
+    out = json.loads(result.stdout)
+    assert out["ok"] is False and "PDF build" in out["error"]
+    assert run(project, "git", "tag", "-l", "v1.0.0", check=True).stdout.strip() == ""

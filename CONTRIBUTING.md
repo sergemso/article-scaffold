@@ -26,7 +26,7 @@ make doctor
 ```
 
 The `make setup` command creates a `.venv` with all dev dependencies:
-pytest, Cookiecutter, ruff, cffconvert, jsonschema, yamllint, jinja2-time.
+pytest (with pytest-xdist; `make test` runs `-n auto`), Cookiecutter, ruff, cffconvert, jsonschema, yamllint, jinja2-time.
 
 ## Running tests
 

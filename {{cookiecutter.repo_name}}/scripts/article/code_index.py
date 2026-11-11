@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -33,10 +34,12 @@ def code_files(root: Path) -> list[Path]:
     if not base.is_dir():
         return []
     found = []
-    for path in base.rglob("*"):
-        rel = path.relative_to(base).parts
-        if path.suffix in SUFFIXES and path.is_file():
-            if not any(p in SKIP_DIRS or p.startswith(".") for p in rel[:-1]):
+    for dirpath, dirnames, filenames in os.walk(base):
+        # Prune before descending: a Rust ``target`` or a venv can hold thousands of files.
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+        for name in filenames:
+            path = Path(dirpath) / name
+            if path.suffix in SUFFIXES and path.is_file():
                 found.append(path)
     return sorted(found, key=lambda p: p.relative_to(root).as_posix())
 

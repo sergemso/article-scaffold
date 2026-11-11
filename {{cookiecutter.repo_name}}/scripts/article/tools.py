@@ -160,27 +160,6 @@ def arxiv_plan(
     )
 
 
-def arxiv_list(root: Path) -> list[str]:
-    """List files that would be included in the arXiv package (for testing)."""
-    import subprocess
-    cmd = ["zip", "-r", "-", "."] + sum(
-        ([ "-x", pattern ] for pattern in ARXIV_EXCLUDE_PATTERNS), []
-    )
-    result = subprocess.run(
-        cmd,
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return []
-    return result.stdout.strip().split()
-
-
-# ──────────────────────────────────────────────────────────────────────
-# wordcount — count words in the manuscript
-# ──────────────────────────────────────────────────────────────────────
-
 def wordcount_plan(
     root: Path,
     dry_run: bool = False,
