@@ -449,7 +449,7 @@
       ]
     },
     "move": {
-      "description": "A typed step over contradictions (decision 0083). synthesis and aufhebung cite two or more; aufhebung records preserved, cancelled and lifted; new-beginning names the node it opens.",
+      "description": "A typed step over contradictions (decision 0083). synthesis and aufhebung cite two or more; aufhebung records preserved, cancelled and lifted; opening names the node it opens.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -469,7 +469,7 @@
             "negation-of-negation",
             "synthesis",
             "aufhebung",
-            "new-beginning"
+            "opening"
           ]
         },
         "text": {
@@ -606,7 +606,7 @@
           "if": {
             "properties": {
               "type": {
-                "const": "new-beginning"
+                "const": "opening"
               }
             }
           },

@@ -18,9 +18,9 @@ The lifecycle (0070) gains an advisory stage `dialectic` between `frame` and `ma
 
 `contradictions`: id, two `poles` (each anchored to a `source-claim` or a niche statement), `kind` (`dialectical`, `technical`, `physical`), `status`, `author`. A TRIZ contradiction may add `improving` and `worsening` (free-text parameters), `principle` (optional tag from a shipped closed list of the 40 inventive principles), `ideal-result` and `resources`. No parameter or principle matrix lookup in the first version.
 
-`moves`: typed steps over contradictions, with a closed `type` list: `negation`, `negation-of-negation`, `synthesis`, `aufhebung`, `new-beginning`. `aufhebung` is first-class and must record `preserved`, `cancelled` and `lifted`. A `synthesis` or `aufhebung` cites at least two contradictions or moves; a `negation-of-negation` cites a prior `negation`; a `new-beginning` names the thesis or question node it opens. A `development` view (the chain of moves in order) is derived by `theses`, not stored.
+`moves`: typed steps over contradictions, with a closed `type` list: `negation`, `negation-of-negation`, `synthesis`, `aufhebung`, `opening`. `aufhebung` is first-class and must record `preserved`, `cancelled` and `lifted`. A `synthesis` or `aufhebung` cites at least two contradictions or moves; a `negation-of-negation` cites a prior `negation`; a `opening` names the thesis or question node it opens. A `development` view (the chain of moves in order) is derived by `theses`, not stored.
 
-`theses lint` checks structure only: references resolve, poles are anchored, move types carry their required fields, no cycles in the move chain. `theses gaps` adds kinds `contradiction-unmoved`, `move-without-opening` and `thesis-untraced` (a thesis with no `new-beginning` or recorded reason). The gate of the stage passes when there are no such gaps and a human has attested the stage (`flow attest`); soundness of a synthesis is judged by a person. A procedure in `docs/procedures/` and a `dialectic` skill adapter have an agent run niche and topic analysis over sources already in `paper/sources/` and propose contradictions and moves as `proposed` nodes.
+`theses lint` checks structure only: references resolve, poles are anchored, move types carry their required fields, no cycles in the move chain. `theses gaps` adds kinds `contradiction-unmoved`, `move-without-opening` and `thesis-untraced` (a thesis with no `opening` or recorded reason). The gate of the stage passes when there are no such gaps and a human has attested the stage (`flow attest`); soundness of a synthesis is judged by a person. A procedure in `docs/procedures/` and a `dialectic` skill adapter have an agent run niche and topic analysis over sources already in `paper/sources/` and propose contradictions and moves as `proposed` nodes.
 
 ### Why
 
@@ -41,7 +41,7 @@ Done-when: each rule has a failing and a passing test, and an existing map valid
 ### 1.2 Moves section — [x]
 Class: implement · Effort: medium · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_dialectic.py -q`
 Decision: 0083. Scope: same files as 1.1.
-Do: Add `moves` with the five types and their required fields (`preserved`/`cancelled`/`lifted` for `aufhebung`, citations for `synthesis`, a prior `negation` for `negation-of-negation`, an opened node for `new-beginning`). Lint references and cycles. Derive the development chain.
+Do: Add `moves` with the five types and their required fields (`preserved`/`cancelled`/`lifted` for `aufhebung`, citations for `synthesis`, a prior `negation` for `negation-of-negation`, an opened node for `opening`). Lint references and cycles. Derive the development chain.
 Done-when: every move type has a valid and an invalid fixture; the cycle check has a test.
 
 ## 2. Gaps, gate and CLI

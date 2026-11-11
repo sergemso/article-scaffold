@@ -12,7 +12,7 @@
 # Optional `contradictions` (two anchored poles; kind dialectical, technical or physical; a
 # technical one adds improving and worsening, and an optional `principle` tag from
 # schemas/triz-principles.json) and `moves` (negation, negation-of-negation, synthesis,
-# aufhebung with preserved/cancelled/lifted, new-beginning with `opens`) record the niche's
+# aufhebung with preserved/cancelled/lifted, opening with `opens`) record the niche's
 # tensions before the thesis is fixed (decision 0083). Leave them out and nothing changes.
 # Edge types: supports, attacks, rebuts (edge goes from -> to).
 version: 1

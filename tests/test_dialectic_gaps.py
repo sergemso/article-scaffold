@@ -28,14 +28,14 @@ def _kinds(data: dict) -> list[tuple[str, str]]:
 
 
 def _closed() -> dict:
-    """VALID with every gap closed: c3 moved, t1 opened by a new-beginning."""
+    """VALID with every gap closed: c3 moved, t1 opened by an opening."""
     data = copy.deepcopy(VALID)
     data["moves"].append(
         {"id": "m6", "type": "negation", "text": "Reject both poles.", "status": "proposed",
          "author": "agent", "cites": ["c3"]}
     )
     data["moves"].append(
-        {"id": "m7", "type": "new-beginning", "text": "Reopen the claim.", "status": "proposed",
+        {"id": "m7", "type": "opening", "text": "Reopen the claim.", "status": "proposed",
          "author": "agent", "cites": ["m6"], "opens": "t1"}
     )
     return data
@@ -92,12 +92,12 @@ def test_a_retired_contradiction_is_not_a_gap() -> None:
 
 
 def test_move_without_opening_when_the_chain_ends_in_a_synthesis() -> None:
-    data = _mutated(lambda d: d["moves"].pop())  # drop the new-beginning m5
+    data = _mutated(lambda d: d["moves"].pop())  # drop the opening m5
     assert ("move-without-opening", "m4") in _kinds(data)
     assert not any(k == "move-without-opening" and i != "m4" for k, i in _kinds(data))
 
 
-def test_a_new_beginning_closes_the_chain() -> None:
+def test_a_opening_closes_the_chain() -> None:
     assert not [g for g in _kinds(VALID) if g[0] == "move-without-opening"]
 
 
@@ -110,7 +110,7 @@ def test_a_dangling_negation_is_a_move_without_opening() -> None:
     assert ("move-without-opening", "m8") in _kinds(data)
 
 
-def test_a_retired_new_beginning_reopens_the_gap() -> None:
+def test_a_retired_opening_reopens_the_gap() -> None:
     data = _mutated(lambda d: _move(d, "m5").update(status="retired"))
     assert ("move-without-opening", "m4") in _kinds(data)
 
@@ -123,7 +123,7 @@ def test_thesis_untraced_until_opened_or_explained() -> None:
     assert not theses.structure_errors(data).items
 
 
-def test_thesis_traced_by_a_new_beginning() -> None:
+def test_thesis_traced_by_a_opening() -> None:
     data = _mutated(lambda d: _move(d, "m5").update(opens="t1"))
     assert ("thesis-untraced", "t1") not in _kinds(data)
 

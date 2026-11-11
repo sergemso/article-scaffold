@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 CONTRADICTION_KINDS = ("dialectical", "technical", "physical")
-MOVE_TYPES = ("negation", "negation-of-negation", "synthesis", "aufhebung", "new-beginning")
+MOVE_TYPES = ("negation", "negation-of-negation", "synthesis", "aufhebung", "opening")
 STATUSES = ("proposed", "accepted", "retired")
 AUTHORS = ("agent", "human")
 CONTRADICTION_FIELDS = {
@@ -184,14 +184,14 @@ def _check_moves(items: list, node_types: dict, c_ids: set, ids: set, err) -> di
                 err("T087", f"{where}: an aufhebung must record {field}")
             elif kind != "aufhebung" and field in item:
                 err("T088", f"{where}: {field} belongs to an aufhebung move")
-        if kind == "new-beginning":
+        if kind == "opening":
             target = item.get("opens")
             if target is None:
-                err("T089", f"{where}: a new-beginning must name the node it opens")
+                err("T089", f"{where}: an opening must name the node it opens")
             elif node_types.get(target) not in OPENABLE:
                 err("T090", f"{where}: opens {target!r}, which is not a thesis or hypothesis node")
         elif "opens" in item:
-            err("T091", f"{where}: opens belongs to a new-beginning move")
+            err("T091", f"{where}: opens belongs to an opening move")
     return by_id
 
 
@@ -241,7 +241,7 @@ def development(data: dict) -> list[dict]:
 
     A move comes after every move it cites; ties keep file order. Moves caught in a cycle
     are left out (lint reports the cycle). Each entry carries id, type, text, status,
-    cites and opens (None unless a new-beginning).
+    cites and opens (None unless an opening).
     """
     by_id: dict[str, dict] = {}
     for move in data.get("moves") or []:
@@ -307,7 +307,7 @@ def _cited_by(moves: list[dict]) -> dict[str, list[str]]:
 def _opened_by(moves: list[dict]) -> dict[str, list[str]]:
     opened: dict[str, list[str]] = {}
     for move in moves:
-        if move.get("type") == "new-beginning" and isinstance(move.get("opens"), str):
+        if move.get("type") == "opening" and isinstance(move.get("opens"), str):
             opened.setdefault(move["opens"], []).append(move["id"])
     return opened
 
@@ -316,9 +316,9 @@ def gaps(data: dict, kinds=GAP_KINDS) -> list[dict]:
     """Dialectic gaps of a valid map; empty unless the map uses the section (decision 0083).
 
     ``contradiction-unmoved``: a live contradiction no live move cites.
-    ``move-without-opening``: a live move no live move cites that is not a new-beginning (the
+    ``move-without-opening``: a live move no live move cites that is not an opening (the
     chain ends without opening a thesis or question).
-    ``thesis-untraced``: a live thesis no live new-beginning opens and with no ``untraced-reason``.
+    ``thesis-untraced``: a live thesis no live opening opens and with no ``untraced-reason``.
     Sorted by kind then id.
     """
     if not uses_section(data):
@@ -335,7 +335,7 @@ def gaps(data: dict, kinds=GAP_KINDS) -> list[dict]:
                 )
     if "move-without-opening" in kinds:
         for move in moves:
-            if move.get("type") != "new-beginning" and move["id"] not in cited:
+            if move.get("type") != "opening" and move["id"] not in cited:
                 found.append(
                     {"kind": "move-without-opening", "id": move["id"], "text": _label(move)}
                 )
