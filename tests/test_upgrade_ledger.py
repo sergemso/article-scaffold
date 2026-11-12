@@ -125,7 +125,11 @@ def test_upgrade_leaves_a_hand_accepted_map_and_the_ledger_alone(
     the derived quality vector."""
     project = _old_repo(tmp_path, base_template)
     (project / "theses.yaml").write_text(LEGACY_MAP)
-    flow_before = {"version": 1, "round": 2, "budget": {"limit": 20, "used": 3}}
+    flow_before = {
+        "version": 1, "round": 2, "weights": {"script": 0, "small": 1, "large": 5},
+        "budget": {"limit": 20, "used": 3}, "retry_cap": 3, "attestations": [],
+        "waivers": [], "orders": {}, "reviews": [],
+    }  # a complete pre-0084 flow.yaml: no required_stages line
     (project / "flow.yaml").write_text(yaml.safe_dump(flow_before))
     entry = project / "docs" / "ledger" / "check-outcome" / "ab" / ("ab" + "0" * 62 + ".json")
     entry.parent.mkdir(parents=True)
