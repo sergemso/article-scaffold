@@ -264,23 +264,25 @@ def _theses(args: argparse.Namespace) -> int:
     action = args.theses_action
     if action == "lint":
         diagnostics = theses.lint(root)
+        notes: list[dict] = []
         if diagnostics.ok:
             data = theses.load_map(root)
             diagnostics.extend(terms.check(root, data).diagnostics)
+            notes = theses.acceptance_check(root, data, diagnostics)
         if args.json:
-            _emit_json(diagnostics.to_dict())
+            _emit_json({**diagnostics.to_dict(), "notes": notes})
         else:
             if diagnostics.items:
                 print(diagnostics.format_text(), file=sys.stderr)
+            for note in notes:
+                print(f"note {note['code']}: {note['message']}", file=sys.stderr)
             if diagnostics.ok:
                 print("Theses map is valid.")
         return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
     try:
         if action == "accept":
-            changed = theses.accept(root, args.id, args.by)
-            _emit_json(
-                {"ok": True, "command": "theses accept", "id": args.id, "changed": changed}
-            )
+            outcome = theses.accept(root, args.id, args.by, args.because)
+            _emit_json({"ok": True, "command": "theses accept", "id": args.id, **outcome})
             return core.ExitCode.OK
         if action == "add":
             raw = sys.stdin.read() if args.file == "-" else Path(args.file).read_text("utf-8")
@@ -1156,6 +1158,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(t_accept)
     t_accept.add_argument("id")
     t_accept.add_argument("--by", required=True, help="name of the accepting person")
+    t_accept.add_argument(
+        "--because",
+        help="id of the objection, source-claim, contradiction or move that caused a change "
+        "to an already accepted item (required to re-accept changed text)",
+    )
     t_add = theses_sub.add_parser(
         "add", help="append proposed items (nodes, contradictions or moves) from JSON"
     )

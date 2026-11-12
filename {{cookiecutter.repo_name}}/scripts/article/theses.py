@@ -8,11 +8,12 @@ from __future__ import annotations
 import json
 import re
 from collections import deque
+from datetime import date
 from pathlib import Path
 
 import yaml
 
-from . import address, dialectic
+from . import address, dialectic, ledger
 from .diagnostics import Diagnostics
 from .fsutil import atomic_write
 from .latex import strip_comments
@@ -988,21 +989,133 @@ def accept_text(text: str, node_id: str, by: str) -> tuple[str, bool]:
     return text, True
 
 
-def accept(root: Path, node_id: str, by: str) -> bool:
-    """Promote *node_id*; returns False when nothing changed."""
+def accept(root: Path, node_id: str, by: str, because: str | None = None) -> dict:
+    """Promote *node_id* and record the acceptance in the ledger (decision 0085).
+
+    Returns ``{"changed": bool, "recorded": created|exists|skipped}``. A node whose accepted
+    text differs from the text its last acceptance was recorded with is re-accepted only
+    with *because*, the id of the objection, source-claim, contradiction or move that
+    caused the change.
+    """
     path = root / MAP_FILE
     if not path.is_file():
         raise AcceptError("theses.yaml not found")
     old = path.read_text(encoding="utf-8")
     new, changed = accept_text(old, node_id, by)
-    if not changed:
+    data = yaml.safe_load(new)
+    if changed:
+        check = Diagnostics()
+        validate_map(data, None, check)
+        if not check.ok:
+            raise AcceptError("the result would not validate; fix `theses lint` first")
+    if because is not None and not _cause_exists(data, because):
+        raise AcceptError(
+            f"--because {because!r} is not an objection, source-claim, contradiction or move id"
+        )
+    item = _item(data, node_id)
+    recorded = "skipped"
+    if item is not None and ledger.enabled():
+        keyed = accept_key(node_id, item_text(item))
+        records = acceptance_records(root).get(keyed.inputs["node"], [])
+        if any(r["inputs"]["text"] == keyed.inputs["text"] for r in records):
+            recorded = "exists"
+        elif records and because is None:
+            raise AcceptError(
+                f"the text of {node_id!r} changed since its acceptance was recorded; run "
+                f"`theses accept {node_id} --by NAME --because <id>` naming the objection, "
+                "source-claim, contradiction or move that caused the change"
+            )
+        else:
+            result = {"by": by.strip(), "at": date.today().isoformat()}
+            if because is not None:
+                result["because"] = because
+            recorded = ledger.put(root, keyed, "pass", result)
+    if changed:
+        atomic_write(path, new)
+    return {"changed": changed, "recorded": recorded}
+
+
+# ------------------------------------------------------- acceptance records (0085)
+
+ACCEPT_KIND = "accept"
+ACCEPT_VERSION = "1"
+CAUSE_TYPES = ("objection", "source-claim")
+
+
+def item_text(item: dict) -> str:
+    """The text an acceptance is recorded against: ``text``, or the poles of a contradiction."""
+    text = item.get("text")
+    if isinstance(text, str) and text.strip():
+        return dialectic.fold(text)
+    poles = [p.get("text") for p in item.get("poles") or [] if isinstance(p, dict)]
+    return dialectic.fold(" / ".join(p for p in poles if isinstance(p, str)))
+
+
+def accept_key(node_id: str, folded_text: str) -> ledger.Keyed:
+    return ledger.key(
+        ACCEPT_KIND, {"node": node_id, "text": folded_text}, ACCEPT_VERSION, "human"
+    )
+
+
+def _items(data: dict) -> list[dict]:
+    return [
+        i for section in WRITABLE_SECTIONS
+        for i in (data.get(section) or [] if isinstance(data, dict) else [])
+        if isinstance(i, dict) and isinstance(i.get("id"), str)
+    ]
+
+
+def _item(data: dict, item_id: str) -> dict | None:
+    return next((i for i in _items(data) if i["id"] == item_id), None)
+
+
+def _cause_exists(data: dict, cause: str) -> bool:
+    item = _item(data, cause)
+    if item is None:
         return False
-    check = Diagnostics()
-    validate_map(yaml.safe_load(new), None, check)
-    if not check.ok:
-        raise AcceptError("the result would not validate; fix `theses lint` first")
-    atomic_write(path, new)
-    return True
+    return "type" not in item or item.get("type") in CAUSE_TYPES
+
+
+def acceptance_records(root: Path) -> dict[str, list[dict]]:
+    """Stored ``accept`` entries grouped by the hash of the item id."""
+    grouped: dict[str, list[dict]] = {}
+    for digest in ledger.keys(root, ACCEPT_KIND):
+        try:
+            entry = ledger.get(root, ACCEPT_KIND, digest)
+        except ledger.LedgerError:
+            continue
+        if entry is not None:
+            grouped.setdefault(entry["inputs"]["node"], []).append(entry)
+    return grouped
+
+
+def acceptance_check(root: Path, data: dict, diagnostics: Diagnostics) -> list[dict]:
+    """T096 for an accepted item whose text differs from its recorded acceptance; a note
+    (returned, not a diagnostic) for an accepted item with no record (decision 0085)."""
+    notes: list[dict] = []
+    if not ledger.enabled():
+        return notes
+    records = acceptance_records(root)
+    for item in _items(data):
+        if item.get("status") != "accepted":
+            continue
+        keyed = accept_key(item["id"], item_text(item))
+        found = records.get(keyed.inputs["node"], [])
+        if any(r["inputs"]["text"] == keyed.inputs["text"] for r in found):
+            continue
+        if found:
+            diagnostics.error(
+                MAP_FILE, 0, "T096",
+                f"{item['id']!r}: accepted text changed since its acceptance was recorded; "
+                f"run `theses accept {item['id']} --by NAME --because <id>`",
+            )
+        else:
+            notes.append({
+                "code": "N096", "id": item["id"],
+                "message": f"no acceptance record for {item['id']!r}; run "
+                           f"`theses accept {item['id']} --by NAME` once to record one",
+            })
+    return notes
 
 
 # ----------------------------------------------------------------- add nodes
