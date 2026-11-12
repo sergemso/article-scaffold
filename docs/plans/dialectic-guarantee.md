@@ -37,6 +37,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 | 2026-11-12 | 2.4 | branch `feat/dialectic-guarantee-2.4` (stacked on 2.3) | `pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_section_index.py`: pass; with status, parallel, group, brief, handoff, replay suites: pass | refresh_index in next, open and done; reindex only when the builder fails. |
 | 2026-11-12 | 2.5 | branch `feat/dialectic-guarantee-2.5` (stacked on 2.4) | `pytest tests/test_host_neutral.py tests/test_docs.py`: pass; with skills and hardening: pass | lifecycle rules on the ratchet; AGENTS.md line. |
 | 2026-11-12 | 3.1 | branch `feat/dialectic-guarantee-3.1` (stacked on 2.5) | `pytest tests/test_upgrade_flow.py tests/test_upgrade_ledger.py tests/test_upgrade_theses.py`: 14 passed | upgrade test for the ratchet; adoption step 10; changelog entry for 0085. |
+| 2026-11-12 | 3.2 | branch `feat/dialectic-guarantee-3.1` tip (PR #58; one fix commit after the 3.1 log line: the upgrade test's old flow.yaml made complete) | `make test`: 1431 passed, 4 skipped; `make lint`: clean | in progress: merges to master and the tag are the owner's. |
 
 ## 0. Design
 
@@ -164,9 +165,10 @@ Done-when: an upgrade of a repo with a `version: 1` map and an old `flow.yaml` p
 Rollback: `git revert`.
 Resolved: `tests/test_upgrade_ledger.py` upgrades an old repo with a hand-accepted map, an old `flow.yaml` and a stored ledger entry, and shows the map and entry untouched, `theses lint` exit 0 with `N096` notes (file order), `flow status` starting at `frame` with the `quality` key, and one `theses accept` clearing one note. The adoption procedure gains step 10 (record the old acceptances; what T096, `--because`, the ratchet and `quality` mean). The template changelog (root `CHANGELOG.md`, Unreleased) names 0084 and 0085 once each; the template's `CHANGES.md` is the article's own history and stays untouched.
 
-### 3.2 Full suite, lint, release notes — [ ]
+### 3.2 Full suite, lint, release notes — [~]
 Class: review · Effort: low · Needs: 0.2, 1.5, 1.6, 2.5, 3.1 · Check: `make test && make lint`
 Human: tagging and pushing a release needs the owner's explicit go-ahead; the version is not bumped by an agent.
 Do: Run the whole suite and lint. Confirm `tests/test_host_neutral.py` and `tests/test_no_network_in_claim_code.py` pass. Write the Unreleased entry of `CHANGELOG.md` (template release notes) naming decisions 0084 and 0085, the six order kinds, the three gap kinds, T095, T096, `--because`, `quality` and the index refresh. Ask the owner before tagging.
 Done-when: `make test` and `make lint` pass on `master` after the last PR merges and the release notes list both decisions.
 Rollback: not applicable; a release is cut by the owner.
+Resume-from: `make test` (1431 passed, 4 network tests skipped) and `make lint` passed on the tip of `feat/dialectic-guarantee-3.1`, which holds every step; the Unreleased section of `CHANGELOG.md` names 0084 and 0085 with the order kinds, gap kinds, T095, T096, `--because`, `quality` and the index refresh. What remains is the owner's: merge the stacked PRs #47 to #58 in order (or #58 alone after retargeting it to `master`), rerun `make test && make lint` on `master`, then decide on the version bump and tag.
