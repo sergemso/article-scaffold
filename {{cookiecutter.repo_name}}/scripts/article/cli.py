@@ -282,6 +282,28 @@ def _theses(args: argparse.Namespace) -> int:
                 {"ok": True, "command": "theses accept", "id": args.id, "changed": changed}
             )
             return core.ExitCode.OK
+        if action == "add":
+            raw = sys.stdin.read() if args.file == "-" else Path(args.file).read_text("utf-8")
+            try:
+                items = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise theses.AcceptError(f"--file is not JSON: {exc}") from exc
+            if isinstance(items, dict):
+                items = [items]
+            if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+                raise theses.AcceptError("--file must hold a JSON object or a list of objects")
+            for item in items:
+                if item.get("status", "proposed") != "proposed":
+                    raise theses.AcceptError(
+                        f"{item.get('id')!r}: an added item is proposed; a person accepts it"
+                    )
+                item.setdefault("status", "proposed")
+            theses.add_nodes(root, items, args.section)
+            _emit_json({
+                "ok": True, "command": "theses add", "section": args.section,
+                "added": [i.get("id") for i in items],
+            })
+            return core.ExitCode.OK
         try:
             data = theses.load_map(root)
         except theses.MapYamlError as exc:
@@ -1134,6 +1156,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(t_accept)
     t_accept.add_argument("id")
     t_accept.add_argument("--by", required=True, help="name of the accepting person")
+    t_add = theses_sub.add_parser(
+        "add", help="append proposed items (nodes, contradictions or moves) from JSON"
+    )
+    _add_common(t_add)
+    t_add.add_argument(
+        "--section", choices=theses.WRITABLE_SECTIONS, default="nodes",
+        help="which list to append to (default nodes)",
+    )
+    t_add.add_argument(
+        "--file", required=True, help="a JSON object or list of objects; - is stdin"
+    )
     t_dialectic = theses_sub.add_parser(
         "dialectic", help="contradictions, the chain of moves and their gaps (read-only)"
     )
@@ -1142,7 +1175,7 @@ def build_parser() -> argparse.ArgumentParser:
         "terms", help="tier 0 term checks, including the informational notes"
     )
     _add_common(t_terms)
-    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept, t_dialectic):
+    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept, t_add, t_dialectic):
         sub.set_defaults(func=_theses, command="theses")
 
     check_cmd = subparsers.add_parser(

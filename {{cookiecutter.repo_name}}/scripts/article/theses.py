@@ -942,13 +942,15 @@ def accept_text(text: str, node_id: str, by: str) -> tuple[str, bool]:
     root = yaml.compose(text)
     mapping = None
     for key, value in root.value:
-        if key.value == "nodes":
+        if key.value in WRITABLE_SECTIONS and isinstance(value, yaml.SequenceNode):
             for item in value.value:
+                if not isinstance(item, yaml.MappingNode):
+                    continue
                 fields = {k.value: v for k, v in item.value}
                 if "id" in fields and fields["id"].value == node_id:
                     mapping = item
     if mapping is None:
-        raise AcceptError(f"no node {node_id!r}")
+        raise AcceptError(f"no node, contradiction or move {node_id!r}")
     if mapping.flow_style:
         raise AcceptError(f"node {node_id!r} is in flow style; edit it by hand")
     fields = {k.value: v for k, v in mapping.value}
@@ -1010,36 +1012,78 @@ def _quote(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def append_nodes_text(text: str, new_nodes: list[dict]) -> str:
-    """Return *text* with *new_nodes* appended after the last node.
+WRITABLE_SECTIONS = ("nodes", "contradictions", "moves")
 
-    Only inserts lines: existing nodes, comments and ordering stay byte for byte, so two
-    branches that edit different nodes still merge. Values are written as quoted scalars.
+
+def _emit(value: object, indent: str) -> str:
+    """Block-style YAML lines for a nested value, one scalar per line, every scalar quoted.
+
+    A list of scalars or mappings and a mapping of scalars nest under their key; anything
+    else is written as one quoted scalar. Used for the sections an agent may append to.
     """
+    if isinstance(value, dict):
+        out = ""
+        for key, item in value.items():
+            out += _emit_field(str(key), item, indent)
+        return out
+    if isinstance(value, list):
+        out = ""
+        for item in value:
+            if isinstance(item, dict):
+                first = True
+                for key, inner in item.items():
+                    lead = f"{indent}- " if first else f"{indent}  "
+                    out += _emit_field(str(key), inner, lead, nested=f"{indent}  ")
+                    first = False
+            else:
+                out += f"{indent}- {_quote(str(item))}\n"
+        return out
+    return f"{indent}{_quote(str(value))}\n"
+
+
+def _emit_field(key: str, value: object, lead: str, nested: str | None = None) -> str:
+    inner = (nested if nested is not None else lead) + "  "
+    if isinstance(value, (dict, list)) and value:
+        return f"{lead}{key}:\n" + _emit(value, inner)
+    if isinstance(value, (dict, list)):
+        return f"{lead}{key}: []\n" if isinstance(value, list) else f"{lead}{key}: {{}}\n"
+    return f"{lead}{key}: {_quote(str(value))}\n"
+
+
+def append_nodes_text(text: str, new_nodes: list[dict], section: str = "nodes") -> str:
+    """Return *text* with *new_nodes* appended after the last item of *section*.
+
+    Only inserts lines: existing items, comments and ordering stay byte for byte, so two
+    branches that edit different items still merge. Values are written as quoted scalars;
+    a list or mapping value (poles, cites, resources) is written in block style. A missing
+    ``contradictions`` or ``moves`` section is created at the end of the file.
+    """
+    if section not in WRITABLE_SECTIONS:
+        raise AcceptError(f"section must be one of {', '.join(WRITABLE_SECTIONS)}")
     if not new_nodes:
         return text
     root = yaml.compose(text)
+    if not isinstance(root, yaml.MappingNode):
+        raise AcceptError("theses.yaml is not a mapping")
     value = None
     for key, item in root.value:
-        if key.value == "nodes":
+        if key.value == section:
             value = item
+    block = _emit(list(new_nodes), "  ")
     if value is None:
-        raise AcceptError("theses.yaml has no nodes list")
+        if section == "nodes":
+            raise AcceptError("theses.yaml has no nodes list")
+        body = text if text.endswith("\n") or not text else text + "\n"
+        return body + f"{section}:\n" + block
     key_indent = 0
     for key, item in root.value:
         if item is value:
             key_indent = key.start_mark.column
-    indent = " " * (key_indent + 2)
-    block = ""
-    for node in new_nodes:
-        first = True
-        for field, field_value in node.items():
-            lead = f"{indent}- " if first else f"{indent}  "
-            block += f"{lead}{field}: {_quote(str(field_value))}\n"
-            first = False
-    if value.flow_style:
+    if key_indent:
+        block = _emit(list(new_nodes), " " * (key_indent + 2))
+    if value.flow_style or not isinstance(value, yaml.SequenceNode):
         if value.value:
-            raise AcceptError("nodes is in flow style; edit the file by hand")
+            raise AcceptError(f"{section} is in flow style; edit the file by hand")
         head = text[: value.start_mark.index].rstrip(" ")
         tail = text[value.end_mark.index :]
         return head + "\n" + block + tail.lstrip(" ").lstrip("\n")
@@ -1051,12 +1095,12 @@ def append_nodes_text(text: str, new_nodes: list[dict]) -> str:
     return text[:at] + prefix + block + text[at:]
 
 
-def add_nodes(root: Path, new_nodes: list[dict]) -> None:
-    """Append nodes to theses.yaml; refuses a result that would not validate."""
+def add_nodes(root: Path, new_nodes: list[dict], section: str = "nodes") -> None:
+    """Append items to a section of theses.yaml; refuses a result that would not validate."""
     path = root / MAP_FILE
     if not path.is_file():
         raise AcceptError("theses.yaml not found")
-    new = append_nodes_text(path.read_text(encoding="utf-8"), new_nodes)
+    new = append_nodes_text(path.read_text(encoding="utf-8"), new_nodes, section)
     check = Diagnostics()
     validate_map(yaml.safe_load(new), None, check)
     if not check.ok:

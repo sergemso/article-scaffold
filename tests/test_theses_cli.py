@@ -219,3 +219,113 @@ def test_lint_flags_agent_acceptance_and_missing_accepted_by(tmp_path: Path) -> 
     (project / "theses.yaml").write_text(text)
     result = _cli(project, "theses", "lint", "--json")
     assert any(i["code"] == "T013" for i in _json(result)["diagnostics"])
+
+
+# ------------------------------ theses add and accept for contradictions and moves (0084)
+
+CONTRADICTION = {
+    "id": "c1", "text": "X holds and X fails.", "kind": "dialectical", "author": "agent",
+    "poles": [{"text": "X holds", "claim": "s1"}, {"text": "X fails", "claim": "s2"}],
+}
+MOVE = {"id": "m1", "type": "negation", "text": "Deny one pole.", "author": "agent",
+        "cites": ["c1"]}
+
+
+LABELS = "\n\\label{sec:gone}\n"
+
+
+def _add(project: Path, tmp_path: Path, payload, section: str):
+    path = tmp_path / f"{section}.json"
+    path.write_text(json.dumps(payload))
+    return _cli(project, "theses", "add", "--section", section, "--file", str(path))
+
+
+def test_add_contradiction_and_move_round_trip(tmp_path: Path) -> None:
+    project = _setup(tmp_path, labels=LABELS)
+    before = (project / "theses.yaml").read_text()
+    added = _add(project, tmp_path, CONTRADICTION, "contradictions")
+    assert added.returncode == 0, added.stderr + added.stdout
+    assert _json(added) == {"ok": True, "command": "theses add", "section": "contradictions",
+                            "added": ["c1"]}
+    after = (project / "theses.yaml").read_text()
+    assert after.startswith(before)  # only lines were appended
+    assert 'contradictions:\n  - id: "c1"\n' in after
+    assert '    poles:\n      - text: "X holds"\n        claim: "s1"\n' in after
+    assert '    status: "proposed"\n' in after
+    assert _cli(project, "theses", "lint").returncode == 0
+    assert _add(project, tmp_path, [MOVE], "moves").returncode == 0
+    assert '    cites:\n      - "c1"\n' in (project / "theses.yaml").read_text()
+    assert _cli(project, "theses", "lint").returncode == 0
+    view = _json(_cli(project, "theses", "dialectic", "--json"))
+    assert [c["id"] for c in view["contradictions"]] == ["c1"]
+    assert view["contradictions"][0]["moved-by"] == ["m1"]
+
+
+def test_accept_a_contradiction_and_a_move(tmp_path: Path) -> None:
+    project = _setup(tmp_path, labels=LABELS)
+    assert _add(project, tmp_path, CONTRADICTION, "contradictions").returncode == 0
+    assert _add(project, tmp_path, MOVE, "moves").returncode == 0
+    before = (project / "theses.yaml").read_text()
+    for item in ("c1", "m1"):
+        result = _cli(project, "theses", "accept", item, "--by", "Ada Lovelace")
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert _json(result)["changed"] is True
+    after = (project / "theses.yaml").read_text()
+    quoted = 'accepted-by: "Ada Lovelace"'
+    assert after.count(quoted) == before.count(quoted) + 2
+    assert after.count("status: accepted") == before.count("status: accepted") + 2
+    assert _cli(project, "theses", "lint").returncode == 0
+    changed = [line for line in after.splitlines() if line not in before.splitlines()]
+    assert all("accepted" in line for line in changed), changed
+    again = _cli(project, "theses", "accept", "m1", "--by", "Ada Lovelace")
+    assert _json(again)["changed"] is False
+
+
+@pytest.mark.parametrize("name", ["red-team", "dialectic agent"])
+def test_accept_a_move_refuses_an_agent_name(tmp_path: Path, name: str) -> None:
+    project = _setup(tmp_path, labels=LABELS)
+    assert _add(project, tmp_path, CONTRADICTION, "contradictions").returncode == 0
+    before = (project / "theses.yaml").read_text()
+    result = _cli(project, "theses", "accept", "c1", "--by", name)
+    assert result.returncode == 1 and "agent role" in _json(result)["error"]
+    assert (project / "theses.yaml").read_text() == before
+
+
+def test_add_appends_to_an_existing_section_without_touching_it(tmp_path: Path) -> None:
+    head = MAP + (
+        "contradictions:\n"
+        "  - id: c0   # kept as written\n    kind: physical\n    status: proposed\n"
+        "    author: human\n    poles:\n"
+        "      - {text: Be open, niche: Data should be shared}\n"
+        "      - {text: Be closed, niche: Data should be private}\n"
+    )
+    project = _setup(tmp_path, text=head, labels=LABELS)
+    assert _cli(project, "theses", "lint").returncode == 0
+    assert _add(project, tmp_path, CONTRADICTION, "contradictions").returncode == 0
+    after = (project / "theses.yaml").read_text()
+    assert after.startswith(head)
+    assert after.count("- id:") == head.count("- id:") + 1
+    assert _cli(project, "theses", "lint").returncode == 0
+
+
+def test_add_refuses_what_would_not_validate_and_writes_nothing(tmp_path: Path) -> None:
+    project = _setup(tmp_path, labels=LABELS)
+    before = (project / "theses.yaml").read_text()
+    bad = {**CONTRADICTION, "poles": [CONTRADICTION["poles"][0]]}  # one pole: T079
+    result = _add(project, tmp_path, bad, "contradictions")
+    assert result.returncode == 1 and "validate" in _json(result)["error"]
+    assert (project / "theses.yaml").read_text() == before
+    accepted = _add(project, tmp_path, {**CONTRADICTION, "status": "accepted"}, "contradictions")
+    assert accepted.returncode == 1 and "proposed" in _json(accepted)["error"]
+    assert (project / "theses.yaml").read_text() == before
+    assert _cli(project, "theses", "add", "--section", "edges", "--file", "x").returncode == 2
+
+
+def test_add_to_nodes_keeps_the_flat_quoted_form(tmp_path: Path) -> None:
+    project = _setup(tmp_path, labels=LABELS)
+    objection = {"id": "o9", "type": "objection", "text": "A new objection."}
+    assert _add(project, tmp_path, objection, "nodes").returncode == 0
+    text = (project / "theses.yaml").read_text()
+    assert '  - id: "o9"\n    type: "objection"\n    text: "A new objection."\n' \
+           '    status: "proposed"\n' in text
+    assert _cli(project, "theses", "lint").returncode == 0
