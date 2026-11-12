@@ -996,6 +996,69 @@ def current_stage(results: list[dict[str, Any]]) -> str | None:
     return None
 
 
+QUALITY_COUNTS = (
+    "theses_accepted", "theses_opened", "contradictions_moved", "claims_verified",
+    "objections_defended",
+)
+
+
+def quality(f: Facts) -> dict[str, Any]:
+    """The outcome vector, derived from the repo on every call and never stored (0085).
+
+    ``theses_accepted``: accepted thesis nodes. ``theses_opened``: of those, the ones an
+    accepted opening opens. ``contradictions_moved``: live contradictions some live move
+    cites. ``claims_verified``: source-claims whose state is ok or attested.
+    ``objections_defended``: live objections with a live defense. ``gaps``: count per kind.
+    """
+    data, _ = f.map
+    counts = dict.fromkeys(QUALITY_COUNTS, 0)
+    gaps: dict[str, int] = {}
+    if data is None:
+        return {**counts, "gaps": gaps}
+    nodes = f.nodes
+    live = {i: n for i, n in nodes.items() if n.get("status") != "retired"}
+    moves = [
+        m for m in data.get("moves") or []
+        if isinstance(m, dict) and isinstance(m.get("id"), str) and m.get("status") != "retired"
+    ]
+    opened = {
+        m["opens"] for m in moves
+        if m.get("type") == "opening" and m.get("status") == "accepted"
+        and isinstance(m.get("opens"), str)
+    }
+    cited = {c for m in moves for c in (m.get("cites") or []) if isinstance(c, str)}
+    accepted_theses = [
+        i for i, n in nodes.items() if n.get("type") == "thesis" and n.get("status") == "accepted"
+    ]
+    counts["theses_accepted"] = len(accepted_theses)
+    counts["theses_opened"] = sum(1 for i in accepted_theses if i in opened)
+    counts["contradictions_moved"] = sum(
+        1 for c in data.get("contradictions") or []
+        if isinstance(c, dict) and c.get("status") != "retired" and c.get("id") in cited
+    )
+    counts["claims_verified"] = sum(
+        1 for r in f.claim_records if source_claim_state(f, r) in ("ok", "attested")
+    )
+    defended = {
+        e["to"] for e in data.get("edges") or []
+        if isinstance(e, dict) and e.get("type") == "rebuts"
+        and nodes.get(e.get("from"), {}).get("type") == "defense"
+        and e.get("from") in live
+    } | {
+        n["answers"] for n in live.values()
+        if n.get("type") == "defense" and isinstance(n.get("answers"), str)
+    }
+    counts["objections_defended"] = sum(
+        1 for i, n in live.items() if n.get("type") == "objection" and i in defended
+    )
+    for gap in f.gaps:
+        gaps[gap["kind"]] = gaps.get(gap["kind"], 0) + 1
+    for gap in f.dialectic_gaps:
+        if gap["kind"] == "niche-unmapped" and "niche-unmapped" not in gaps:
+            gaps["niche-unmapped"] = 1
+    return {**counts, "gaps": dict(sorted(gaps.items()))}
+
+
 def status(root: Path, today: date | None = None) -> dict[str, Any]:
     state = load_state(root)
     facts = Facts(root, state)
@@ -1009,7 +1072,15 @@ def status(root: Path, today: date | None = None) -> dict[str, Any]:
         "current_stage": current_stage(results),
         "budget": {"limit": budget["limit"], "used": budget["used"]},
         "stages": results,
+        "quality": quality(facts),
     }
+
+
+def format_quality(vector: dict[str, Any]) -> str:
+    """One line: the counts, then the gaps per kind."""
+    counts = " ".join(f"{k}={vector[k]}" for k in QUALITY_COUNTS)
+    gaps = " ".join(f"{k}={v}" for k, v in vector["gaps"].items()) or "none"
+    return f"quality: {counts} gaps: {gaps}"
 
 
 # -------------------------------------------------------------------- orders

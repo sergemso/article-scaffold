@@ -374,6 +374,7 @@ def _flow(args: argparse.Namespace) -> int:
                     print(f"{entry['stage']:<15} {entry['status']:<7} {entry['reason']}")
                     if entry["status"] == "fail":
                         print(f"{'':<15} run: {entry['command']}")
+                print(flow.format_quality(payload["quality"]))
                 print(f"current stage: {payload['current_stage']}")
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
         if action == "next":

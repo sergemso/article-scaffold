@@ -33,6 +33,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 | 2026-11-12 | 1.6 | branch `feat/dialectic-guarantee-1.6` (stacked on 1.5) | `pytest tests/test_upgrade_dialectic.py tests/test_upgrade_flow.py tests/test_flow_status.py`: pass; with skills, dialectic gaps, user-owned, orders, CLI, status suites: 146 passed | template requires the stage; N005; fixtures split into flow_project (advisory) and fresh_project (shipped). |
 | 2026-11-12 | 2.1 | branch `feat/dialectic-guarantee-2.1` (stacked on 1.6) | `pytest tests/test_theses_cli.py tests/test_ledger.py tests/test_ledger_claims.py tests/test_no_network_in_claim_code.py`: 81 passed; with upgrade ledger, flow checks ledger, CLI, schemas, flow done, dialectic gaps, docs: pass | accept kind, T096, N096 notes, --because. |
 | 2026-11-12 | 2.2 | branch `feat/dialectic-guarantee-2.2` (stacked on 2.1) | `pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_schemas.py`: pass; with handoff, group, parallel, brief suites: 105 passed | accepted_hash/accepted_ids on issue; ratchet failure on close. |
+| 2026-11-12 | 2.3 | branch `feat/dialectic-guarantee-2.3` (stacked on 2.2) | `pytest tests/test_flow_status.py tests/test_schemas.py`: pass; with dialectic gaps and orders: 116 passed | quality vector derived in flow status; schema; cli.md. |
 
 ## 0. Design
 
@@ -124,13 +125,14 @@ Done-when: a test issues `fill-gap`, retires the thesis the objection attacks, c
 Rollback: `git revert`; the `accepted_hash` keys left in `flow.yaml` are optional and ignored.
 Resolved: `flow.accepted_digest(data)` returns the digest of the sorted (id, folded text) pairs of accepted nodes, contradictions and moves plus the sorted ids; `_remember` stores `accepted_hash` and `accepted_ids` on every non-gated order entry (the order schema leaves entries open, so no schema change); `_ratchet_failure` runs in `done` after the named check and before the condition check, and names ids no longer accepted, newly accepted (only a person accepts) and, through the ledger records, accepted text that changed. Interpretations worth knowing: (1) terms are left out of the digest because `theses accept` does not promote a term; (2) when the acceptance is recorded in the ledger, the lint check reports T096 before the ratchet runs, and the close fails either way; (3) a newly accepted item during an order fails the close too, because the accepted set must be identical at close, not only not smaller; a person who promotes mid-order reissues with `flow next`.
 
-### 2.3 `flow status` reports the quality vector — [ ]‖
+### 2.3 `flow status` reports the quality vector — [x]‖
 Class: implement · Effort: low · Needs: 1.2 · Check: `.venv/bin/python -m pytest tests/test_flow_status.py tests/test_schemas.py -q`
 Decision: 0085. Scope: `{{cookiecutter.repo_name}}/scripts/article/flow.py` (`status`, a new `quality(facts)`), `{{cookiecutter.repo_name}}/schemas/flow-status.schema.json`, `{{cookiecutter.repo_name}}/docs/cli.md` (the `flow status` section), `tests/test_flow_status.py`.
 Context: `status()` returns the stage table, round, budget and current stage; the schema requires exactly those keys.
 Do: Add `quality`: `theses_accepted`, `theses_opened` (accepted thesis with an accepted opening), `contradictions_moved`, `claims_verified` (fresh verdict or attestation, from `source_claim_state`), `objections_defended`, and `gaps` as a mapping kind to count. Derived on every call; nothing stored. Print it as one line in the text output after the stage table.
 Done-when: the JSON validates; counts match a fixture with known numbers; a repo without a map reports zeros; output is deterministic.
 Rollback: `git revert`.
+Resolved: `flow.quality(facts)` and `flow.format_quality(vector)`; `status()` adds `quality`, the schema requires it (status schema version unchanged, since the key is additive and readers that validate strictly are only our tests), and the text output prints one `quality:` line before `current stage:`. Interpretations worth knowing: (1) `theses_opened` counts only an accepted opening, since a proposed one is an agent's claim; (2) `objections_defended` counts a live defense through a `rebuts` edge or an `answers` field, as the gap code does; (3) the gaps map includes the flow-only `niche-unmapped` from the source store when it fires; (4) `claims_verified` reuses `source_claim_state`, so it runs the quote check once per status call, which `Facts` memoises.
 
 ### 2.4 A stale section index is refreshed, never retried — [ ]‖
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_section_index.py -q`
