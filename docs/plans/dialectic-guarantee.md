@@ -23,7 +23,8 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 
 | Date | Step | Commit | Check | Note |
 |---|---|---|---|---|
-| 2026-11-12 | 0.1 | branch `plan/dialectic-guarantee` | `go-getter plan status docs/plans/dialectic-guarantee.md` parses | decisions 0084 and 0085 drafted; fact 0009 amended; archived plan `dialectic-phase.md` fixed to parse; this plan written. Tier-2 claims work (plan `theses-map-extensions.md` 2.2) committed separately on `feat/claims-tier2`, PR #44. |
+| 2026-11-12 | 0.1 | PR #45 | `go-getter plan status docs/plans/dialectic-guarantee.md` parses | decisions 0084 and 0085 drafted; fact 0009 amended; archived plan `dialectic-phase.md` fixed to parse; this plan written. Tier-2 claims work (plan `theses-map-extensions.md` 2.2) committed separately on `feat/claims-tier2`, PR #44. |
+| 2026-11-12 | 0.2 | branch `feat/dialectic-guarantee-0.2` | `grep -L "status: active"` prints nothing | owner instructed the acceptance in the session; both decisions active, accepted-by the owner; index rows updated. |
 
 ## 0. Design
 
@@ -33,7 +34,7 @@ Context: The shipped dialectic stage (0083) sits after `frame`, issues no orders
 Do: Write `docs/decisions/0084-dialectic-stage-is-order-driven-and-precedes-the-thesis.md` and `docs/decisions/0085-flow-outcomes-ratchet-and-reframing-needs-a-cause.md` as drafts, add their rows to `docs/decisions/INDEX.md`, amend `docs/facts/0009-flow-stage-and-gate-spec.md` with the new stage row, move the finished `docs/plans/dialectic-phase.md` to `docs/plans/archive/`, and write this plan.
 Done-when: both decision files exist with `status: draft`, the index lists them, and `go-getter plan status` parses this plan with no error.
 
-### 0.2 Owner accepts decisions 0084 and 0085 — [ ]
+### 0.2 Owner accepts decisions 0084 and 0085 — [x]
 Class: review · Needs: 0.1 · Check: `grep -L "status: active" docs/decisions/0084-dialectic-stage-is-order-driven-and-precedes-the-thesis.md docs/decisions/0085-flow-outcomes-ratchet-and-reframing-needs-a-cause.md`
 Human: only the owner does this step; an agent never edits a decision's status or `accepted-by`.
 Do: The owner reads both decisions, edits what is wrong, sets `status: active` and `accepted-by`, and updates the `status` column of their rows in `docs/decisions/INDEX.md`. Implementation steps may start before this; delivery (3.2) may not.

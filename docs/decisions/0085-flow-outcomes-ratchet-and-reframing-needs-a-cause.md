@@ -1,10 +1,11 @@
 ---
 id: 0085-flow-outcomes-ratchet-and-reframing-needs-a-cause
 title: An order cannot close by lowering what was accepted, and an accepted node changes only with a recorded cause
-status: draft
+status: active
 date: 2026-11-12
 tags: [orchestration, flow, theses-map, quality]
 track: process
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision
