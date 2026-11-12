@@ -84,3 +84,5 @@ id,title,tags,status
 0081-flow-orders-carry-a-compiled-brief-and-a-call-cap,"Each flow order is handed over with a deterministic brief and a tool-call cap","cost, orchestration, flow, host-neutral",active
 0082-research-tooling-split-redrawn,"The vendored CLI owns everything derived and cached; scholar-mcp owns only what leaves the machine","architecture, scholar-mcp, theses-map, cost",active
 0083-dialectic-stage-maps-contradictions-and-typed-moves,"A dialectic stage maps contradictions and typed moves before the thesis is fixed","theses-map, lifecycle, dialectic, triz",active
+0084-dialectic-stage-is-order-driven-and-precedes-the-thesis,"The dialectic stage issues work orders, runs before the thesis is fixed, and its gate demands development","theses-map, lifecycle, dialectic, orchestration",draft
+0085-flow-outcomes-ratchet-and-reframing-needs-a-cause,"An order cannot close by lowering what was accepted, and an accepted node changes only with a recorded cause","orchestration, flow, theses-map, quality",draft

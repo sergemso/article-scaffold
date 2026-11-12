@@ -61,3 +61,15 @@ An order carries ids, paths and names only. It never contains manuscript or sour
 - A gate reads files in the repo and runs the named command; it makes no network call and no model call.
 - A gate that depends on a check cache is fresh only when the cache key (hash of claim text plus excerpt) matches the current text.
 - A waiver in `flow.yaml` (who, when, why, expiry) turns a failing gate into `waived` until it expires; it never hides the failure in the output.
+
+## Amendment 2026-11-12 (decision 0084, planned in `docs/plans/dialectic-guarantee.md`)
+
+A row precedes `frame`. It is present only when `flow.yaml` lists `dialectic` under `required_stages` or the map declares a contradiction or move; the template ships the stage as required.
+
+| Stage | Entry condition | Gate predicate | Order kinds (tier, gated) |
+|---|---|---|---|
+| dialectic | required in `flow.yaml`, or the map uses the section | `theses lint` exits 0, `theses gaps` reports no `niche-unmapped`, `contradiction-unmoved`, `move-without-opening`, `opening-undeveloped`, `thesis-untraced` or `thesis-restates-pole` gap, and `flow.yaml` holds an attestation named `dialectic` (planned 1.2, `tests/test_dialectic_gaps.py`) | `map-contradictions`, `move-contradiction`, `develop-move`, `trace-thesis` (small, procedure `dialectic`, check `theses-lint`); `ground-niche` and `promote-dialectic` (human-only) |
+
+Check names are unchanged. Every order of the stage carries ids only; the agent reads sources through `sources find` and `sources slice`, never a whole file.
+
+Decision 0085 adds to every `flow done`: the accepted set recorded at issue (`accepted_hash` in the order entry) must still hold at close, and a stale section index is refreshed before `index-check` runs. `flow status` gains a derived `quality` vector; the stage table and its determinism rules are unchanged.
