@@ -24,6 +24,8 @@ The first orders of a new article belong to the `dialectic` stage (`docs/procedu
 - Do not run `theses accept`, `flow attest`, `flow waive` or `flow round close`. Those record a person's decision.
 - Do not edit `flow.yaml`. The CLI keeps it.
 - A `needs-human` order after a retry cap or a spent budget is an event for the owner. Do not work around it by splitting the order or changing `weights`.
+- An accepted node, contradiction or move is frozen: its text and status are a person's decision, recorded in the ledger. Never retire, rewrite or re-status an item you did not write. A change to an accepted item needs a person to run `theses accept <id> --by NAME --because <id>`, naming the objection, source-claim, contradiction or move that caused it.
+- When `flow done` reports `ratchet: accepted items changed since the order was issued`, the accepted set moved under your order. Restore the named items to what they were (your own edits only), run `flow done` again, and if the gap cannot be closed without touching an accepted item, stop and report the ids. The failure counts against the retry cap like a failed check.
 - Several orders may run at once only if `flow next --open` marks them `parallel_safe`. Give each its own working copy (a branch or a git worktree), then merge the branches.
 
 ## Review rounds

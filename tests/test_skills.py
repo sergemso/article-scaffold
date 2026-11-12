@@ -147,6 +147,17 @@ def test_procedures_name_the_cost_tooling(project: Path) -> None:
         assert command in cli, command
 
 
+def test_lifecycle_names_the_ratchet_and_the_frozen_accepted_set(project: Path) -> None:
+    life = _procedure(project, "lifecycle")
+    assert "ratchet: accepted items changed since the order was issued" in life
+    assert "theses accept <id> --by NAME --because <id>" in life
+    for rule in ("Never retire, rewrite or re-status", "stop and report the ids"):
+        assert rule in life, rule
+    agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "ratchet:" in agents and "frozen" in agents
+    assert len(agents.splitlines()) <= MAX_LINES
+
+
 def test_dialectic_procedure_and_adapter(project: Path) -> None:
     text = _procedure(project, "dialectic")
     for command in (

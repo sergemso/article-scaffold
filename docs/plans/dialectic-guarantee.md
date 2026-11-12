@@ -35,6 +35,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 | 2026-11-12 | 2.2 | branch `feat/dialectic-guarantee-2.2` (stacked on 2.1) | `pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_schemas.py`: pass; with handoff, group, parallel, brief suites: 105 passed | accepted_hash/accepted_ids on issue; ratchet failure on close. |
 | 2026-11-12 | 2.3 | branch `feat/dialectic-guarantee-2.3` (stacked on 2.2) | `pytest tests/test_flow_status.py tests/test_schemas.py`: pass; with dialectic gaps and orders: 116 passed | quality vector derived in flow status; schema; cli.md. |
 | 2026-11-12 | 2.4 | branch `feat/dialectic-guarantee-2.4` (stacked on 2.3) | `pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_section_index.py`: pass; with status, parallel, group, brief, handoff, replay suites: pass | refresh_index in next, open and done; reindex only when the builder fails. |
+| 2026-11-12 | 2.5 | branch `feat/dialectic-guarantee-2.5` (stacked on 2.4) | `pytest tests/test_host_neutral.py tests/test_docs.py`: pass; with skills and hardening: pass | lifecycle rules on the ratchet; AGENTS.md line. |
 
 ## 0. Design
 
@@ -144,12 +145,13 @@ Done-when: a test touches a section file, runs `flow next`, and gets no `reindex
 Rollback: `git revert`.
 Resolved: `Facts.refresh_index()` rebuilds the index through `section_index.write_index` when `check_index` says it is stale, remembers a failure as `index_error`, and is called at the top of `next_order`, `open_orders` and `done` (before the named check runs); `_draft_orders` keeps the `reindex` order only while the index is still stale after the refresh, with the failure and `python3 -m scripts.article index` in its reason. Interpretations worth knowing: (1) `flow status` does not rebuild, since it is a read command; its draft gate can show the index stale until the next `flow next`; (2) the spent-budget test in `tests/test_flow_done.py` used the `reindex` order as its script-tier example and now forces one by making `paper/build` a file.
 
-### 2.5 Lifecycle procedure: what to do on a ratchet failure — [ ]
+### 2.5 Lifecycle procedure: what to do on a ratchet failure — [x]
 Class: implement · Effort: low · Needs: 2.2 · Check: `.venv/bin/python -m pytest tests/test_host_neutral.py tests/test_docs.py -q`
 Decision: 0085. Scope: `{{cookiecutter.repo_name}}/docs/procedures/lifecycle.md`, `{{cookiecutter.repo_name}}/AGENTS.md` (one line at most; the file is capped).
 Do: Add to the rules: when `flow done` reports `ratchet:`, restore the named items to what they were (your own edits only), never retire or rewrite a node you did not write, and if the gap cannot be closed without that, stop and report with the ids. Say that an accepted node's text is frozen and that a change needs a person to run `theses accept --because`.
 Done-when: the procedure names the failure text and the two rules; `AGENTS.md` stays within its line cap (`tests/test_docs.py` or the instruction-file guardrail check).
 Rollback: `git revert`.
+Resolved: two rules in `lifecycle.md` (the frozen accepted set with the `--because` command; what to do on `ratchet:`) and one line in `AGENTS.md` (56 of 150 lines); `tests/test_skills.py` asserts both.
 
 ## 3. Delivery
 
