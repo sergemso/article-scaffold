@@ -39,7 +39,14 @@ _MAP_TAGS = ("theses-map", "agents")
 _CLAIM_TAGS = ("sources", "theses-map", "ledger", "retrieval")
 _DRAFT_TAGS = ("verification",)
 _RELEASE_TAGS = ("release", "orchestration", "ledger")
+_DIALECTIC_TAGS = _MAP_TAGS + ("dialectic",)
 GUARDRAIL_RULES: dict[str, tuple[str, ...]] = {
+    "ground-niche": _DIALECTIC_TAGS + ("sources",),
+    "map-contradictions": _DIALECTIC_TAGS + ("sources",),
+    "move-contradiction": _DIALECTIC_TAGS,
+    "develop-move": _DIALECTIC_TAGS,
+    "trace-thesis": _DIALECTIC_TAGS,
+    "promote-dialectic": _DIALECTIC_TAGS,
     "state-thesis": _MAP_TAGS,
     "triage-objection": _MAP_TAGS,
     "fill-gap": _MAP_TAGS,

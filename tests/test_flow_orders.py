@@ -175,3 +175,138 @@ def test_order_id_is_stable_across_node_order() -> None:
         "map", "fill-gap", ["a", "b"], None
     )
     assert importlib.util  # keep the import used
+
+
+# ------------------------------------------------ dialectic stage orders (decision 0084)
+
+
+def _dialectic_map(data: dict) -> str:
+    import yaml
+
+    return yaml.safe_dump(data, sort_keys=False)
+
+
+def _closed_dialectic() -> dict:
+    import copy
+
+    from test_dialectic import VALID
+
+    data = copy.deepcopy(VALID)
+    data["moves"] += [
+        {"id": "m6", "type": "negation", "text": "Reject both poles.", "status": "proposed",
+         "author": "agent", "cites": ["c3"]},
+        {"id": "m7", "type": "opening", "text": "Reopen the claim.", "status": "proposed",
+         "author": "agent", "cites": ["m6", "m4"], "opens": "t1"},
+    ]
+    return data
+
+
+def test_required_stage_on_an_empty_repo_asks_a_person_to_ground_the_niche(
+    flow_project: Path,
+) -> None:
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _order(flow_project)
+    assert (order["stage"], order["kind"]) == ("dialectic", "ground-niche")
+    assert order["needs_human"] is True and order["check"] is None
+    assert "sources add" in order["reason"]
+
+
+def test_map_contradictions_order_names_the_claims_and_the_procedure(flow_project: Path) -> None:
+    write_map(flow_project, TWO_SOURCES)
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _order(flow_project)
+    assert (order["stage"], order["kind"]) == ("dialectic", "map-contradictions")
+    assert order["nodes"] == ["s1", "s2"]
+    assert order["procedure"] == "docs/procedures/dialectic.md"
+    assert (flow_project / order["procedure"]).is_file()
+    assert order["tier"] == "small" and order["check"] == "theses-lint"
+    assert order["outputs"] == ["theses.yaml#contradictions"]
+    assert order["needs_human"] is False and order["gated"] is False
+    assert "Smith" not in json.dumps(order)
+    assert _order(flow_project)["id"] == order["id"]  # idempotent re-issue
+
+
+def test_map_contradictions_order_from_a_stored_source_alone(
+    flow_project: Path, tmp_path: Path
+) -> None:
+    from scripts.article import sources
+
+    src = tmp_path / "paper.txt"
+    src.write_text("The field says X.\n")
+    sources.add(flow_project, src, origin="note", edition="00", key="smith2020")
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _order(flow_project)
+    assert (order["kind"], order["nodes"]) == ("map-contradictions", ["smith2020"])
+    assert "stored source" in order["reason"]
+    briefed = jcli(flow_project, "flow", "next", "--brief")["order"]
+    assert briefed["id"] == order["id"]
+    row = briefed["brief"]["finding"] if "finding" in briefed["brief"] else briefed["brief"]
+    assert "niche-unmapped" in json.dumps(row)
+
+
+def test_move_contradiction_then_trace_thesis(flow_project: Path) -> None:
+    from test_dialectic import VALID
+
+    write_map(flow_project, _dialectic_map(VALID))  # c3 unmoved, t1 untraced
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _order(flow_project)
+    assert (order["kind"], order["nodes"]) == ("move-contradiction", ["c3"])
+    assert order["outputs"] == ["theses.yaml#moves"]
+    assert order["procedure"] == "docs/procedures/dialectic.md"
+    assert "contradiction-unmoved" in order["reason"]
+    open_orders = jcli(flow_project, "flow", "next", "--open")
+    kinds = [(o["kind"], o["nodes"]) for o in open_orders.get("orders") or [open_orders["order"]]]
+    assert ("move-contradiction", ["c3"]) in kinds
+    assert ("trace-thesis", ["t1"]) in kinds or len(kinds) == 1
+
+
+def test_develop_move_for_an_undeveloped_opening(flow_project: Path) -> None:
+    data = _closed_dialectic()
+    data["moves"][-1]["cites"] = ["m6"]  # the opening follows a bare negation only
+    write_map(flow_project, _dialectic_map(data))
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _order(flow_project)
+    assert (order["kind"], order["nodes"]) == ("develop-move", ["m7"])
+    assert "opening-undeveloped" in order["reason"]
+
+
+def test_trace_thesis_for_a_thesis_that_restates_a_pole(flow_project: Path) -> None:
+    data = _closed_dialectic()
+    data["nodes"][0]["text"] = "Be open."
+    write_map(flow_project, _dialectic_map(data))
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _order(flow_project)
+    assert (order["kind"], order["nodes"]) == ("trace-thesis", ["t1"])
+    assert order["outputs"] == ["theses.yaml#moves", "theses.yaml#nodes"]
+    assert "thesis-restates-pole" in order["reason"]
+
+
+def test_promote_dialectic_when_only_proposed_items_remain(flow_project: Path) -> None:
+    write_map(flow_project, _dialectic_map(_closed_dialectic()))
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _order(flow_project)
+    assert (order["stage"], order["kind"]) == ("dialectic", "promote-dialectic")
+    assert order["needs_human"] is True
+    assert order["nodes"][:3] == ["c1", "c3", "m1"] and "m7" in order["nodes"]
+    assert "theses accept" in order["reason"] and "flow attest dialectic" in order["reason"]
+    assert cli(flow_project, "flow", "done", order["id"]).returncode != 0  # never issued
+    set_state(flow_project, required_stages=["dialectic"], attestations=[
+        {"name": "dialectic", "by": "Ada Lovelace", "at": "2026-01-01", "why": "read"}
+    ])
+    after = _order(flow_project)
+    assert after["stage"] != "dialectic"
+
+
+def test_an_advisory_stage_issues_no_dialectic_order(flow_project: Path) -> None:
+    from test_dialectic import VALID
+
+    write_map(flow_project, _dialectic_map(VALID))
+    order = _order(flow_project)
+    assert order["stage"] != "dialectic"
+
+
+def test_a_repo_without_the_section_and_not_required_issues_no_dialectic_order(
+    flow_project: Path,
+) -> None:
+    write_map(flow_project, TWO_SOURCES)
+    assert _order(flow_project)["stage"] != "dialectic"

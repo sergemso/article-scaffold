@@ -160,3 +160,57 @@ def test_attest_and_waive_record_when_a_person_confirms(flow_project: Path) -> N
     state = _state(flow_project)
     assert [a["name"] for a in state["attestations"]] == ["bibliography"]
     assert [w["stage"] for w in state["waivers"]] == ["map"]
+
+
+# ---------------------------------------------- closing dialectic orders (decision 0084)
+
+CLAIMED = THESIS_MAP.replace(
+    "edges: []",
+    "  - {id: s1, type: source-claim, text: Smith says X., status: proposed,\n"
+    "     quote: X holds, locator: p. 3, bib_keys: [smith2020]}\n"
+    "  - {id: s2, type: source-claim, text: Jones says not X., status: proposed,\n"
+    "     quote: X fails, locator: p. 9, bib_keys: [jones2021]}\n"
+    "edges: []",
+)
+CONTRADICTION = (
+    "contradictions:\n"
+    "  - id: c1\n    text: X holds and X fails.\n    kind: dialectical\n"
+    "    status: proposed\n    author: agent\n"
+    "    poles:\n      - {text: X holds, claim: s1}\n      - {text: X fails, claim: s2}\n"
+)
+
+
+def test_map_contradictions_closes_once_a_contradiction_is_proposed(flow_project: Path) -> None:
+    write_map(flow_project, CLAIMED)
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _issue(flow_project)
+    assert order["kind"] == "map-contradictions"
+    unchanged = jcli(flow_project, "flow", "done", order["id"])
+    assert unchanged["ok"] is False and "still holds" in unchanged["output"]
+    assert unchanged["retries"] == 1
+    write_map(flow_project, CLAIMED + CONTRADICTION)
+    closed = jcli(flow_project, "flow", "done", order["id"])
+    assert closed["ok"] is True and closed["charged"] == 1
+    following = _issue(flow_project)
+    assert (following["stage"], following["kind"], following["nodes"]) == (
+        "dialectic", "move-contradiction", ["c1"],
+    )
+
+
+def test_move_contradiction_fails_to_close_on_a_lint_error(flow_project: Path) -> None:
+    write_map(flow_project, CLAIMED + CONTRADICTION)
+    set_state(flow_project, required_stages=["dialectic"])
+    order = _issue(flow_project)
+    assert order["kind"] == "move-contradiction"
+    broken = CLAIMED + CONTRADICTION + (
+        "moves:\n  - {id: m1, type: negation, text: Deny., status: proposed, author: agent}\n"
+    )
+    write_map(flow_project, broken)  # a negation with no cites: T084
+    failed = jcli(flow_project, "flow", "done", order["id"])
+    assert failed["ok"] is False and "theses-lint" in failed["output"]
+    fixed = CLAIMED + CONTRADICTION + (
+        "moves:\n  - {id: m1, type: negation, text: Deny., status: proposed, author: agent,\n"
+        "     cites: [c1]}\n"
+    )
+    write_map(flow_project, fixed)
+    assert jcli(flow_project, "flow", "done", order["id"])["ok"] is True

@@ -1094,11 +1094,13 @@ def orders_for(stage: str, f: Facts) -> list[dict[str, Any]]:
                 reason="deposit and tag are irreversible; read the release plan and decide",
             )
         ]
-    needs_map = stage in ("frame", "map", "discover", "verify-sources", "adversarial")
+    needs_map = stage in ("dialectic", "frame", "map", "discover", "verify-sources", "adversarial")
     if needs_map and f.map[0] is None:
         return [_map_problem_order(stage, f)]
     out: list[dict[str, Any]] = []
-    if stage == "frame":
+    if stage == "dialectic":
+        out += _dialectic_orders(stage, f)
+    elif stage == "frame":
         out.append(
             make_order(
                 stage, "state-thesis", tier="script", needs_human=True,
@@ -1154,6 +1156,107 @@ def orders_for(stage: str, f: Facts) -> list[dict[str, Any]]:
             )
     elif stage == "release-gate":
         out += _release_orders(stage, f)
+    return out
+
+
+# Order kinds of the dialectic stage, one per gap kind (decision 0084). Every agent order
+# carries the dialectic procedure, tier small and the theses-lint check; the two human-only
+# kinds (ground-niche, promote-dialectic) are issued when there is no gap to hand an agent.
+DIALECTIC_ORDER_KINDS = {
+    "niche-unmapped": "map-contradictions",
+    "contradiction-unmoved": "move-contradiction",
+    "move-without-opening": "develop-move",
+    "opening-undeveloped": "develop-move",
+    "thesis-untraced": "trace-thesis",
+    "thesis-restates-pole": "trace-thesis",
+}
+DIALECTIC_OUTPUTS = {
+    "map-contradictions": [f"{theses.MAP_FILE}#contradictions"],
+    "move-contradiction": [f"{theses.MAP_FILE}#moves"],
+    "develop-move": [f"{theses.MAP_FILE}#moves"],
+    "trace-thesis": [f"{theses.MAP_FILE}#moves", f"{theses.MAP_FILE}#nodes"],
+}
+MAX_ORDER_NODES = 20
+
+
+def _live_items(data: dict, section: str) -> list[dict]:
+    return [
+        i for i in data.get(section) or []
+        if isinstance(i, dict) and isinstance(i.get("id"), str) and i.get("status") != "retired"
+    ]
+
+
+def _dialectic_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
+    data, _ = f.map
+    assert data is not None
+    gaps = f.dialectic_gaps
+    out: list[dict[str, Any]] = []
+    claims = sorted(n["id"] for n in f.nodes.values()
+                    if n["type"] == "source-claim" and n["status"] != "retired")
+    if not gaps and not _live_items(data, "contradictions") and not claims \
+            and not f.stored_sources:
+        return [
+            make_order(
+                stage, "ground-niche", tier="script", needs_human=True,
+                reason="nothing to anchor a contradiction to: add a source (sources add) "
+                       "or a source-claim before the dialectic pass",
+            )
+        ]
+    proc = procedure("dialectic")
+    by_kind: dict[str, list[dict]] = {}
+    for gap in gaps:
+        by_kind.setdefault(DIALECTIC_ORDER_KINDS[gap["kind"]], []).append(gap)
+    if "map-contradictions" in by_kind:
+        gap = by_kind["map-contradictions"][0]
+        nodes = claims[:MAX_BRIEF_NODES] or [gap["id"]]
+        out.append(
+            make_order(
+                stage, "map-contradictions", nodes=nodes,
+                outputs=DIALECTIC_OUTPUTS["map-contradictions"], proc=proc, check="theses-lint",
+                reason=gap["text"],
+            )
+        )
+    def _reason(item_id: str, kinds: list[str]) -> str:
+        return f"gap {', '.join(sorted(kinds))} on {item_id}"
+
+    # One literal make_order per kind: the guardrail rule table is checked against them.
+    for item_id, kinds in sorted(_by_node(by_kind.get("move-contradiction", [])).items()):
+        out.append(
+            make_order(
+                stage, "move-contradiction", nodes=[item_id], proc=proc, check="theses-lint",
+                outputs=DIALECTIC_OUTPUTS["move-contradiction"], reason=_reason(item_id, kinds),
+            )
+        )
+    for item_id, kinds in sorted(_by_node(by_kind.get("develop-move", [])).items()):
+        out.append(
+            make_order(
+                stage, "develop-move", nodes=[item_id], proc=proc, check="theses-lint",
+                outputs=DIALECTIC_OUTPUTS["develop-move"], reason=_reason(item_id, kinds),
+            )
+        )
+    for item_id, kinds in sorted(_by_node(by_kind.get("trace-thesis", [])).items()):
+        out.append(
+            make_order(
+                stage, "trace-thesis", nodes=[item_id], proc=proc, check="theses-lint",
+                outputs=DIALECTIC_OUTPUTS["trace-thesis"], reason=_reason(item_id, kinds),
+            )
+        )
+    if not out and not f.attested(DIALECTIC_ATTESTATION):
+        proposed = sorted(
+            i["id"] for section in ("contradictions", "moves")
+            for i in _live_items(data, section) if i.get("status") == "proposed"
+        )
+        what = (
+            f"accept the proposed items with theses accept ({len(proposed)} proposed), then"
+            if proposed else "no dialectic gap remains;"
+        )
+        out.append(
+            make_order(
+                stage, "promote-dialectic", nodes=proposed[:MAX_ORDER_NODES], tier="script",
+                needs_human=True,
+                reason=f"{what} record `flow attest {DIALECTIC_ATTESTATION}` in a terminal",
+            )
+        )
     return out
 
 
@@ -1382,6 +1485,10 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
 # Where the finding or gap row of a brief comes from, per order kind. The row is read from
 # the stage that issued the order, never from a model. Kinds not listed use the gate row.
 ROW_SOURCES = {
+    "map-contradictions": "theses gaps",
+    "move-contradiction": "theses gaps",
+    "develop-move": "theses gaps",
+    "trace-thesis": "theses gaps",
     "fill-gap": "theses gaps",
     "find-related": "theses gaps",
     "red-team": "theses gaps",
@@ -1394,6 +1501,10 @@ ROW_SOURCES = {
 }
 # The gap kinds each gap-driven order answers; the row lists only those.
 ROW_GAP_KINDS = {
+    "map-contradictions": ("niche-unmapped",),
+    "move-contradiction": ("contradiction-unmoved",),
+    "develop-move": ("move-without-opening", "opening-undeveloped"),
+    "trace-thesis": ("thesis-untraced", "thesis-restates-pole"),
     "fill-gap": MAP_GAP_KINDS,
     "find-related": ("single-source",),
     "red-team": ("thesis-unattacked",),
@@ -1432,11 +1543,15 @@ def finding_row(order: dict[str, Any], f: Facts) -> dict[str, Any]:
     nodes = order["nodes"][:MAX_BRIEF_NODES]
     row: dict[str, Any] = {"source": source}
     if source == "theses gaps":
+        dialectic_kind = order["kind"] in DIALECTIC_OUTPUTS
+        pool = f.dialectic_gaps if dialectic_kind else f.gaps
+        wanted = ROW_GAP_KINDS[order["kind"]]
         row["gaps"] = sorted(
             (
                 {"kind": g["kind"], "id": g["id"], "text": _short(g["text"])}
-                for g in f.gaps
-                if g["id"] in nodes and g["kind"] in ROW_GAP_KINDS[order["kind"]]
+                for g in pool
+                if g["kind"] in wanted
+                and (g["id"] in nodes or order["kind"] == "map-contradictions")
             ),
             key=lambda g: (g["id"], g["kind"]),
         )
