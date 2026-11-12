@@ -94,10 +94,16 @@ def test_failed_done_counts_a_retry_and_the_cap_hands_over(flow_project: Path) -
 
 
 def test_spent_budget_refuses_large_orders_but_not_script_orders(flow_project: Path) -> None:
-    write_map(flow_project, SUPPORTED)  # reach the draft stage: reindex (script) first
+    import shutil
+
+    write_map(flow_project, SUPPORTED)  # reach the draft stage
     set_state(flow_project, budget={"limit": 5, "used": 5})
+    build = flow_project / "paper" / "build"
+    shutil.rmtree(build, ignore_errors=True)
+    build.write_text("not a directory\n")  # the index cannot be rebuilt: reindex (script)
     script = _issue(flow_project)
     assert (script["kind"], script["needs_human"]) == ("reindex", False)
+    build.unlink()
     assert cli(flow_project, "index").returncode == 0
     (flow_project / "paper" / "sections" / "01_introduction.tex").write_text("\\cite{nobody1999}\n")
     assert cli(flow_project, "index").returncode == 0
@@ -315,3 +321,24 @@ def test_a_gated_order_is_not_ratcheted(flow_project: Path) -> None:
     import pytest
 
     pytest.skip("no gated order reached in this fixture")
+
+
+# ---------------------------------- a stale index is rebuilt, never retried (0085)
+
+
+def test_a_stale_index_does_not_cost_the_order_a_retry(flow_project: Path) -> None:
+    from flow_helpers import CLEAN_MAP
+
+    write_map(flow_project, CLEAN_MAP)
+    sections = flow_project / "paper" / "sections"
+    intro = sections / "01_introduction.tex"
+    intro.write_text("\\section{Intro}\n\\cite{nobody1999}\n")
+    order = _issue(flow_project)
+    assert order["kind"] == "write-section"
+    failed = jcli(flow_project, "flow", "done", order["id"])
+    assert failed["ok"] is False and failed["retries"] == 1  # the bad cite, not the index
+    intro.write_text("\\section{Intro}\n\\cite{nobody1999}\nmore\n")  # index stale again
+    assert cli(flow_project, "index", "--check").returncode != 0
+    again = jcli(flow_project, "flow", "done", order["id"])
+    assert again["retries"] == 2 and "index" not in again["output"]
+    assert cli(flow_project, "index", "--check").returncode == 0  # rebuilt by flow done

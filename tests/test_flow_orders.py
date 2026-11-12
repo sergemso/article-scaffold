@@ -77,15 +77,30 @@ def test_discover_stage_find_related(flow_project: Path) -> None:
     assert (order["stage"], order["kind"], order["nodes"]) == ("discover", "find-related", ["t1"])
 
 
-def test_draft_stage_reindex_then_write_section(flow_project: Path) -> None:
+def test_draft_stage_rebuilds_the_index_then_write_section(flow_project: Path) -> None:
     write_map(flow_project, CLEAN)
+    assert cli(flow_project, "index", "--check").returncode != 0  # missing
     order = _order(flow_project)
-    assert (order["stage"], order["kind"], order["tier"]) == ("draft", "reindex", "script")
+    assert order["kind"] != "reindex"  # a derived file is rebuilt, never ordered (0085)
+    assert cli(flow_project, "index", "--check").returncode == 0
     sections = flow_project / "paper" / "sections"
     (sections / "01_introduction.tex").write_text("\\section{Intro}\n\\cite{nobody1999}\n")
-    assert cli(flow_project, "index").returncode == 0
+    assert cli(flow_project, "index", "--check").returncode != 0  # stale again
     broken = _order(flow_project)
     assert (broken["stage"], broken["kind"], broken["tier"]) == ("draft", "write-section", "large")
+    assert cli(flow_project, "index", "--check").returncode == 0
+
+
+def test_reindex_order_remains_when_the_index_cannot_be_built(flow_project: Path) -> None:
+    import shutil
+
+    write_map(flow_project, CLEAN)
+    build = flow_project / "paper" / "build"
+    shutil.rmtree(build, ignore_errors=True)
+    build.write_text("not a directory\n")  # the writer cannot create the file
+    order = _order(flow_project)
+    assert (order["stage"], order["kind"], order["tier"]) == ("draft", "reindex", "script")
+    assert "could not be rebuilt" in order["reason"] and "scripts.article index" in order["reason"]
 
 
 def test_verify_sources_stage_claim_check_and_attest(flow_project: Path) -> None:

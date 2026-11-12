@@ -34,6 +34,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 | 2026-11-12 | 2.1 | branch `feat/dialectic-guarantee-2.1` (stacked on 1.6) | `pytest tests/test_theses_cli.py tests/test_ledger.py tests/test_ledger_claims.py tests/test_no_network_in_claim_code.py`: 81 passed; with upgrade ledger, flow checks ledger, CLI, schemas, flow done, dialectic gaps, docs: pass | accept kind, T096, N096 notes, --because. |
 | 2026-11-12 | 2.2 | branch `feat/dialectic-guarantee-2.2` (stacked on 2.1) | `pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_schemas.py`: pass; with handoff, group, parallel, brief suites: 105 passed | accepted_hash/accepted_ids on issue; ratchet failure on close. |
 | 2026-11-12 | 2.3 | branch `feat/dialectic-guarantee-2.3` (stacked on 2.2) | `pytest tests/test_flow_status.py tests/test_schemas.py`: pass; with dialectic gaps and orders: 116 passed | quality vector derived in flow status; schema; cli.md. |
+| 2026-11-12 | 2.4 | branch `feat/dialectic-guarantee-2.4` (stacked on 2.3) | `pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_section_index.py`: pass; with status, parallel, group, brief, handoff, replay suites: pass | refresh_index in next, open and done; reindex only when the builder fails. |
 
 ## 0. Design
 
@@ -134,13 +135,14 @@ Done-when: the JSON validates; counts match a fixture with known numbers; a repo
 Rollback: `git revert`.
 Resolved: `flow.quality(facts)` and `flow.format_quality(vector)`; `status()` adds `quality`, the schema requires it (status schema version unchanged, since the key is additive and readers that validate strictly are only our tests), and the text output prints one `quality:` line before `current stage:`. Interpretations worth knowing: (1) `theses_opened` counts only an accepted opening, since a proposed one is an agent's claim; (2) `objections_defended` counts a live defense through a `rebuts` edge or an `answers` field, as the gap code does; (3) the gaps map includes the flow-only `niche-unmapped` from the source store when it fires; (4) `claims_verified` reuses `source_claim_state`, so it runs the quote check once per status call, which `Facts` memoises.
 
-### 2.4 A stale section index is refreshed, never retried — [ ]‖
+### 2.4 A stale section index is refreshed, never retried — [x]‖
 Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_section_index.py -q`
 Decision: 0085. Scope: `{{cookiecutter.repo_name}}/scripts/article/flow.py` (`Facts.index_stale`, `_draft_orders`, `done`), `tests/test_flow_done.py`.
 Context: `_draft_orders` issues a `reindex` order when the index is stale; `done` runs `index-check`, which fails whenever a section file is newer than `paper/build/section-index.json`, so the order can reach the retry cap on a file the flow could rebuild (handoff item 7 in the note).
 Do: Before `index-check` runs in `done`, and before `_draft_orders` decides, call the in-process builder `section_index.write_index(root)` (`index.py`; `check_index` is the staleness test `Facts.index_stale` already uses) when the index is stale. The `reindex` order remains for a repo whose index cannot be built (the builder raises) and its reason names the command. An `index-check` failure after a refresh is a real failure and still counts.
 Done-when: a test touches a section file, runs `flow next`, and gets no `reindex` order while `index --check` passes; a test with an unbuildable index gets the order with the command in its reason; the retry count of a `write-section` order is unchanged by the refresh.
 Rollback: `git revert`.
+Resolved: `Facts.refresh_index()` rebuilds the index through `section_index.write_index` when `check_index` says it is stale, remembers a failure as `index_error`, and is called at the top of `next_order`, `open_orders` and `done` (before the named check runs); `_draft_orders` keeps the `reindex` order only while the index is still stale after the refresh, with the failure and `python3 -m scripts.article index` in its reason. Interpretations worth knowing: (1) `flow status` does not rebuild, since it is a read command; its draft gate can show the index stale until the next `flow next`; (2) the spent-budget test in `tests/test_flow_done.py` used the `reindex` order as its script-tier example and now forces one by making `paper/build` a file.
 
 ### 2.5 Lifecycle procedure: what to do on a ratchet failure — [ ]
 Class: implement · Effort: low · Needs: 2.2 · Check: `.venv/bin/python -m pytest tests/test_host_neutral.py tests/test_docs.py -q`

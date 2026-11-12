@@ -372,6 +372,27 @@ class Facts:
     def index_stale(self) -> list[str]:
         return self._once("index", lambda: section_index.check_index(self.root))
 
+    def refresh_index(self) -> str | None:
+        """Rebuild the section index when it is stale (decision 0085).
+
+        The index is a derived file, so a stale one is rebuilt here instead of being handed
+        to an agent as a `reindex` order that can only fail against the retry cap. Returns
+        the reason the rebuild failed, or None; the reasons the index is still stale after
+        that are read again through ``index_stale``.
+        """
+        if not self.index_stale:
+            return None
+        try:
+            section_index.write_index(self.root)
+        except (OSError, ValueError) as exc:
+            self._memo["index_error"] = f"the index could not be rebuilt: {exc}"
+        self._memo.pop("index", None)
+        return self._memo.get("index_error")
+
+    @property
+    def index_error(self) -> str | None:
+        return self._memo.get("index_error")
+
     def check(self, name: str) -> dict[str, Any]:
         return self._once(f"check:{name}", lambda: run_check(self.root, name))
 
@@ -1333,11 +1354,12 @@ def _dialectic_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
 
 def _draft_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
     out = []
-    if f.index_stale:
+    if f.index_stale:  # still stale after the refresh: the builder failed
+        why = f.index_error or "the section index is missing or stale"
         out.append(
             make_order(
                 stage, "reindex", tier="script", outputs=[section_index.INDEX_PATH.as_posix()],
-                check="index-check", reason="the section index is missing or stale",
+                check="index-check", reason=f"{why}; run `{CMD} index`",
             )
         )
     if f.validation_errors:
@@ -1453,6 +1475,7 @@ def next_order(
     """The first open order for the earliest failing gate; re-issuing is idempotent."""
     state = load_state(root)
     facts = Facts(root, state)
+    facts.refresh_index()
     results = evaluate(facts, today or date.today())
     stage = current_stage(results)
     if stage is None:
@@ -2013,6 +2036,7 @@ def done(root: Path, order_id: str, today: date | None = None) -> dict[str, Any]
             f"order {order_id!r} is gated: it closes only after a person records "
             f"`flow attest {entry.get('confirm')}` in a terminal"
         )
+    Facts(root, state).refresh_index()  # a derived file never costs a retry (0085)
     if check is not None:
         ran = check_record(root, check)
         if not ran["ok"]:
@@ -2233,6 +2257,7 @@ def open_orders(
     """
     state = load_state(root)
     facts = Facts(root, state)
+    facts.refresh_index()
     results = evaluate(facts, today or date.today())
     stage = current_stage(results)
     if stage is None:
