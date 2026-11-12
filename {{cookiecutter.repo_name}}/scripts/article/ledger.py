@@ -47,18 +47,25 @@ class Kind(NamedTuple):
 
     ``open_inputs`` kinds take any non-empty set of names; ``paths`` says the names are
     repo-relative file paths, so a rename is a miss and ``gc`` can compare them with disk.
+    ``optional`` inputs are part of the key only when given, so an entry made before the
+    input existed keeps its key.
     """
 
     name: str
     inputs: tuple[str, ...] = ()
     open_inputs: bool = False
     paths: bool = False
+    optional: tuple[str, ...] = ()
 
 
 KINDS: dict[str, Kind] = {
     kind.name: kind
     for kind in (
-        Kind("claim-verdict", inputs=("claim", "excerpt")),
+        Kind(
+            "claim-verdict",
+            inputs=("claim", "excerpt"),
+            optional=("window", "stance", "original-quote"),
+        ),
         Kind("check-outcome", open_inputs=True, paths=True),
         Kind("cold-run", open_inputs=True, paths=True),
     )
@@ -143,7 +150,7 @@ def key(
             raise LedgerError(f"kind {kind} needs at least one input")
     else:
         missing = sorted(set(spec.inputs) - set(inputs))
-        extra = sorted(set(inputs) - set(spec.inputs))
+        extra = sorted(set(inputs) - set(spec.inputs) - set(spec.optional))
         if missing or extra:
             parts = [f"missing input {n}" for n in missing] + [
                 f"undeclared input {n}" for n in extra

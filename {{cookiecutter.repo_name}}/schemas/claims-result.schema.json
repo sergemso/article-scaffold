@@ -22,7 +22,9 @@
           "locator": {"type": "string"},
           "verdict": {"enum": ["found", "not-found", "no-local-text"]},
           "source": {"type": "string", "description": "Text file read: the legacy file, or the normalized text of the addressed edition."},
-          "cached": {"enum": ["supports", "overstates", "contradicts", null], "description": "Recorded tier 2 verdict for exactly these inputs."},
+          "cached": {"enum": ["supports", "overstates", "contradicts", "out-of-context", "translation-sensitive", "supports-with-reading", "unclear", null], "description": "Recorded tier 2 verdict for exactly these inputs, at the normal window or the one widening."},
+          "tier3": {"type": "array", "items": {"enum": ["interpretive-reading", "kept-translation-sensitive", "kept-out-of-context", "edition-unverifiable"]}, "description": "Why a person must attest this claim (decision 0075). Absent when none."},
+          "consult": {"type": "array", "items": {"enum": ["edition", "translation"]}, "description": "With tier3: what the attestation must name (flow attest --edition, --translation)."},
           "stale": {"const": true, "description": "The address names a superseded edition."},
           "current_hash": {"$ref": "#/definitions/hash", "description": "Normalized hash of the current edition, when stale."},
           "reason": {"type": "string", "description": "Why an address could not be resolved."},
@@ -44,7 +46,8 @@
     },
     "id": {"type": "string"},
     "key": {"$ref": "#/definitions/hash", "description": "record, cache: the ledger key of the claim wording and excerpt."},
-    "verdict": {"enum": ["supports", "overstates", "contradicts", null], "description": "record, cache: the tier 2 verdict stored for these inputs (null when none)."},
+    "verdict": {"enum": ["supports", "overstates", "contradicts", "out-of-context", "translation-sensitive", "supports-with-reading", "unclear", null], "description": "record, cache: the tier 2 verdict stored for these inputs (null when none)."},
+    "next": {"enum": ["widen"], "description": "record --set needs-wider-context at the normal window: nothing is stored; read the excerpt with --widen and record again with --widen."},
     "status": {
       "description": "rebase: current (nothing to change), proposed (a human accepts or rejects), quote-missing (the quote is not in the current edition), no-locator (the quote is there, but no section or paragraph holds it whole).",
       "enum": ["current", "proposed", "quote-missing", "no-locator"]

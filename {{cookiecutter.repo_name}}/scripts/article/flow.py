@@ -145,10 +145,13 @@ def state_errors(data: object) -> list[str]:
         errors.append("budget must be {limit, used} of non-negative integers")
     if not _nonneg_int(data.get("retry_cap")):
         errors.append("retry_cap must be a non-negative integer")
-    errors += _list_errors(data.get("attestations"), "attestations", ("name", "by", "at", "why"))
     errors += _list_errors(
-        data.get("waivers"), "waivers", ("stage", "by", "at", "why", "expires")
+        data.get("attestations"),
+        "attestations",
+        ("name", "by", "at", "why"),
+        optional=("edition", "translation"),
     )
+    errors += _list_errors(data.get("waivers"), "waivers", ("stage", "by", "at", "why", "expires"))
     for item in data.get("waivers") or []:
         if isinstance(item, dict) and item.get("stage") not in STAGES:
             errors.append(f"waiver stage {item.get('stage')!r} is not a stage")
@@ -192,15 +195,20 @@ def state_errors(data: object) -> list[str]:
     return errors
 
 
-def _list_errors(items: object, name: str, fields: tuple[str, ...]) -> list[str]:
+def _list_errors(
+    items: object, name: str, fields: tuple[str, ...], optional: tuple[str, ...] = ()
+) -> list[str]:
     if not isinstance(items, list):
         return [f"{name} must be a list"]
     errors = []
     for index, item in enumerate(items):
-        if not isinstance(item, dict) or set(item) != set(fields):
-            errors.append(f"{name}[{index}] must have exactly {', '.join(fields)}")
+        if not isinstance(item, dict) or not set(fields) <= set(item) <= {*fields, *optional}:
+            allowed = ", ".join(fields)
+            if optional:
+                allowed += f" (and optionally {', '.join(optional)})"
+            errors.append(f"{name}[{index}] must have exactly {allowed}")
             continue
-        for field in fields:
+        for field in (*fields, *(o for o in optional if o in item)):
             value = item[field]
             if field in ("at", "expires"):
                 if not _is_date(value):
@@ -417,13 +425,39 @@ def _gate_draft(f: Facts) -> dict[str, Any]:
     return _validate_and_index(f, f"{CMD} validate", "validation passes and the index is current")
 
 
+OTHER_VERDICTS = (
+    "overstates",
+    "contradicts",
+    "out-of-context",
+    "translation-sensitive",
+    "unclear",
+)
+
+
+def _consulted(f: Facts, record: dict) -> bool:
+    """A claim routed to tier 3 is attested only when the attestation names what was consulted."""
+    needed = record.get("consult") if record.get("tier3") else None
+    if not needed:
+        return True
+    entry = next(a for a in f.state["attestations"] if a["name"] == f"claim:{record['id']}")
+    return all(entry.get(field) for field in needed)
+
+
 def source_claim_state(f: Facts, record: dict) -> str:
-    """One of: ok, attested, needs-check, not-found, no-local-text, stale, overstates, contradicts.
+    """One of: ok, attested, needs-check, needs-attestation, not-found, no-local-text, stale,
+    overstates, contradicts, out-of-context, translation-sensitive, unclear.
+
+    ``needs-attestation``: a tier 3 case (decision 0075) with no attestation that records
+    the edition (and translation) a person consulted.
 
     ``stale``: the node's source address names a superseded edition (``claims rebase``).
     """
     if f.attested(f"claim:{record['id']}"):
-        return "attested"
+        if _consulted(f, record):
+            return "attested"
+        return "needs-attestation"  # a tier 3 case needs the edition (and translation) consulted
+    if record.get("tier3"):
+        return "needs-attestation"
     if record["verdict"] in ("not-found", "no-local-text"):
         return record["verdict"]
     if record.get("stale"):
@@ -431,7 +465,9 @@ def source_claim_state(f: Facts, record: dict) -> str:
     cached = record.get("cached")
     if cached == "supports":
         return "ok"
-    return cached if cached in ("overstates", "contradicts") else "needs-check"
+    if cached == "supports-with-reading":
+        return "ok"
+    return cached if cached in OTHER_VERDICTS else "needs-check"
 
 
 def _gate_verify(f: Facts) -> dict[str, Any]:
@@ -1103,10 +1139,16 @@ def _verify_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
                 )
             )
         elif state not in ("ok", "attested"):
+            consult = " and ".join(record.get("consult", ()))
+            hint = f" (record the {consult} consulted)" if record.get("tier3") else ""
             out.append(
                 make_order(
-                    stage, "attest-claim", nodes=[record["id"]], tier="script",
-                    needs_human=True, reason=f"{record['id']}: {state}",
+                    stage,
+                    "attest-claim",
+                    nodes=[record["id"]],
+                    tier="script",
+                    needs_human=True,
+                    reason=f"{record['id']}: {state}{hint}",
                 )
             )
     return out
@@ -1406,7 +1448,9 @@ def _ledger_hits(order: dict[str, Any], f: Facts) -> list[dict[str, Any]]:
                 excerpt = claims.excerpt_for(f.root, node_id)
             except (ValueError, OSError):
                 continue
-            keyed = claims.verdict_key(f.nodes[node_id]["text"], excerpt)
+            keyed = claims.verdict_key(
+                f.nodes[node_id]["text"], excerpt, claims.key_extras(f.nodes[node_id])
+            )
             entry = _safe_get(f.root, keyed)
             if entry is not None:
                 hits.append(
@@ -1697,7 +1741,15 @@ def _require_person(by: str, why: str, confirmed: bool) -> None:
 
 
 def attest(
-    root: Path, name: str, by: str, why: str, *, confirmed: bool, today: date | None = None
+    root: Path,
+    name: str,
+    by: str,
+    why: str,
+    *,
+    confirmed: bool,
+    today: date | None = None,
+    edition: str | None = None,
+    translation: str | None = None,
 ) -> dict[str, Any]:
     """Record a human attestation (for example `bibliography` or `claim:<node id>`)."""
     _require_person(by, why, confirmed)
@@ -1705,12 +1757,18 @@ def attest(
         raise FlowError(f"attestation name must match {NAME_RE.pattern}")
     state = load_state(root)
     state["attestations"] = [a for a in state["attestations"] if a["name"] != name]
-    state["attestations"].append(
-        {
-            "name": name, "by": by.strip(), "at": (today or date.today()).isoformat(),
-            "why": why.strip(),
-        }
-    )
+    entry = {
+        "name": name,
+        "by": by.strip(),
+        "at": (today or date.today()).isoformat(),
+        "why": why.strip(),
+    }
+    for field, value in (("edition", edition), ("translation", translation)):
+        if value is not None:
+            if not value.strip() or "\n" in value:
+                raise FlowError(f"--{field} needs a one-line name")
+            entry[field] = value.strip()
+    state["attestations"].append(entry)
     save_state(root, state)
     return {"ok": True, "command": "flow attest", "name": name}
 

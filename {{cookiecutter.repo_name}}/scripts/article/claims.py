@@ -45,10 +45,21 @@ VERDICT_KIND = "claim-verdict"
 VERDICT_OUTPUT = (ledger.LEDGER_DIR / VERDICT_KIND).as_posix()
 PROCEDURE_VERSION = "1"  # docs/procedures/claim-check.md; a new judging rule is a new version
 TIER = "2"
-VERDICTS = ("supports", "overstates", "contradicts")
-STATUS = {"supports": "pass", "overstates": "fail", "contradicts": "fail"}
+VERDICTS = (
+    "supports", "overstates", "contradicts", "out-of-context", "translation-sensitive",
+    "supports-with-reading", "unclear",
+)  # fmt: skip
+NEEDS_WIDER = "needs-wider-context"  # asks for a wider window; it is never stored itself
+STATUS = {
+    "supports": "pass", "supports-with-reading": "pass", "overstates": "fail",
+    "contradicts": "fail", "out-of-context": "fail", "translation-sensitive": "fail",
+    "unclear": "fail",
+}  # fmt: skip
+TIER3_KEPT = ("translation-sensitive", "out-of-context")
+WIDEN_FACTOR = 2
 TEXT_SUFFIXES = (".txt", ".md")
 EXCERPT_CONTEXT = 200
+DEFAULT_STANCE = "asserts"
 ELLIPSIS_RE = re.compile(r"\[\s*(?:\.\.\.|…)\s*\]|\.\.\.|…")
 _QUOTES = {
     "‘": "'", "’": "'", "‚": "'", "‛": "'",
@@ -248,7 +259,50 @@ def check_node(root: Path, node: dict) -> dict:
     else:
         record = _check_file(root, node, record)
     _check_fidelity(root, node, record)
+    _route_tier3(node, record)
     return record
+
+
+def _cached_either(root: Path, node: dict, cut) -> str | None:
+    """The verdict at the normal window, else the one recorded after the single widening.
+
+    *cut* maps a window size to the excerpt, so the source is not read a second time. Only
+    the first lookup counts in ``ledger stats``.
+    """
+    found = cached_verdict(root, node["text"], cut(window_chars(node)), extras=key_extras(node))
+    if found is not None:
+        return found
+    return cached_verdict(
+        root, node["text"], cut(window_chars(node, True)), count=False,
+        extras=key_extras(node, True),
+    )  # fmt: skip
+
+
+def _widened_verdict(root: Path, node: dict) -> str | None:
+    """The verdict recorded at the widened window, read without touching ``ledger stats``."""
+    try:
+        excerpt = _excerpt(root, node, widen=True)
+    except ValueError:
+        return None
+    return cached_verdict(root, node["text"], excerpt, count=False, extras=key_extras(node, True))
+
+
+def _route_tier3(node: dict, record: dict) -> None:
+    """Why a person must attest this claim (decision 0075); a node needing none gets no key.
+
+    Any ``interpretive`` reading; a kept ``translation-sensitive`` or ``out-of-context``
+    verdict; a named edition with no local file, so the quote cannot be verified.
+    """
+    reasons = []
+    if node.get("reading") == "interpretive":
+        reasons.append("interpretive-reading")
+    if record.get("cached") in TIER3_KEPT:
+        reasons.append(f"kept-{record['cached']}")
+    if record["verdict"] == "no-local-text" and record.get("missing_editions"):
+        reasons.append("edition-unverifiable")
+    if reasons:
+        record["tier3"] = reasons
+        record["consult"] = ["edition"] + (["translation"] if node.get("translation") else [])
 
 
 def _check_file(root: Path, node: dict, record: dict) -> dict:
@@ -268,7 +322,9 @@ def _check_file(root: Path, node: dict, record: dict) -> dict:
     record["verdict"] = "found" if span else "not-found"
     if span:
         record["match"] = _match(text, node["quote"])
-        record["cached"] = cached_verdict(root, node["text"], excerpt_text(path, span))
+        record["cached"] = _cached_either(
+            root, node, lambda chars: excerpt_in(text, span, chars)
+        )
     return record
 
 
@@ -318,7 +374,9 @@ def _check_addressed(root: Path, node: dict, text_address: str, record: dict) ->
             record["current_hash"] = payload["current_hash"]
     if span:
         record["match"] = _match(core, node["quote"])
-        record["cached"] = cached_verdict(root, node["text"], _windowed(payload, span))
+        record["cached"] = _cached_either(
+            root, node, lambda chars: _windowed(payload, span, chars)
+        )
     return record
 
 
@@ -333,22 +391,53 @@ def _core(payload: dict) -> str:
     return "\n".join(lines[lead : lead + payload["core_end"] - payload["core_start"] + 1])
 
 
-def _windowed(payload: dict, span: tuple[int, int]) -> str:
+def _windowed(payload: dict, span: tuple[int, int], context: int = EXCERPT_CONTEXT) -> str:
     """The excerpt of a match found in the core, cut from the window-extended passage."""
     offset = sum(len(line) + 1 for line in _lead(payload))
-    return excerpt_in(payload["text"], (span[0] + offset, span[1] + offset))
+    return excerpt_in(payload["text"], (span[0] + offset, span[1] + offset), context)
 
 
-def excerpt_in(text: str, span: tuple[int, int]) -> str:
-    """The matched passage with a little context, cut from *text*."""
-    start = max(0, span[0] - EXCERPT_CONTEXT)
-    end = min(len(text), span[1] + EXCERPT_CONTEXT)
+def excerpt_in(text: str, span: tuple[int, int], context: int = EXCERPT_CONTEXT) -> str:
+    """The matched passage with *context* characters either side, cut from *text*."""
+    start = max(0, span[0] - context)
+    end = min(len(text), span[1] + context)
     return text[start:end]
 
 
-def excerpt_text(path: Path, span: tuple[int, int]) -> str:
+def excerpt_text(path: Path, span: tuple[int, int], context: int = EXCERPT_CONTEXT) -> str:
     """The matched passage with a little context, from the original text."""
-    return excerpt_in(path.read_text(encoding="utf-8", errors="replace"), span)
+    return excerpt_in(path.read_text(encoding="utf-8", errors="replace"), span, context)
+
+
+def window_chars(node: dict, widen: bool = False) -> int:
+    """Characters of context either side: the node's ``context.window``, doubled once on widen."""
+    context = node.get("context")
+    window = context.get("window") if isinstance(context, dict) else None
+    chars = window if isinstance(window, int) and not isinstance(window, bool) else EXCERPT_CONTEXT
+    return chars * WIDEN_FACTOR if widen else chars
+
+
+def key_extras(node: dict, widen: bool = False) -> dict[str, str]:
+    """Tier 2 inputs beyond claim and excerpt that the node sets (decision 0075).
+
+    Each is left out at its default, so a node that sets none of them keeps the key it
+    always had; a changed stance, scope note, window or original quote is a new key.
+    """
+    extras: dict[str, str] = {}
+    chars = window_chars(node, widen)
+    if chars != EXCERPT_CONTEXT:
+        extras["window"] = str(chars)
+    context = node.get("context")
+    context = context if isinstance(context, dict) else {}
+    stance = context.get("stance", DEFAULT_STANCE)
+    note = context.get("scope-note", "")
+    if stance != DEFAULT_STANCE or note:
+        extras["stance"] = f"{stance}\n{note}"
+    translation = node.get("translation")
+    original = translation.get("original-quote") if isinstance(translation, dict) else None
+    if isinstance(original, str) and original:
+        extras["original-quote"] = original
+    return extras
 
 
 def source_claims(root: Path) -> list[dict]:
@@ -371,9 +460,17 @@ def quote_check(root: Path, node_id: str | None = None) -> list[dict]:
     return [check_node(root, n) for n in sorted(nodes, key=lambda n: n["id"])]
 
 
-def excerpt_for(root: Path, node_id: str) -> str:
-    """Excerpt for tier 2; raises when the quote is not found locally."""
-    node = _one(root, node_id)
+def excerpt_for(root: Path, node_id: str, widen: bool = False) -> str:
+    """Excerpt for tier 2; raises when the quote is not found locally.
+
+    With *widen* the window is doubled; that is the one widening ``needs-wider-context`` allows.
+    """
+    return _excerpt(root, _one(root, node_id), widen)
+
+
+def _excerpt(root: Path, node: dict, widen: bool) -> str:
+    node_id = node["id"]
+    context = window_chars(node, widen)
     text_address = address_of(node)
     if text_address is not None:
         try:
@@ -383,7 +480,7 @@ def excerpt_for(root: Path, node_id: str) -> str:
         span = find_quote(_core(payload), node["quote"])
         if span is None:
             raise ValueError(f"quote of {node_id!r} is not found in local text")
-        return _windowed(payload, span)
+        return _windowed(payload, span, context)
     edition = named_edition(node)
     path = edition_path(root, edition) if edition else source_path(root, node)
     span = None
@@ -392,7 +489,7 @@ def excerpt_for(root: Path, node_id: str) -> str:
         span = find_quote(text, node["quote"])
     if path is None or span is None:
         raise ValueError(f"quote of {node_id!r} is not found in local text")
-    return excerpt_text(path, span)
+    return excerpt_text(path, span, context)
 
 
 def _one(root: Path, node_id: str) -> dict:
@@ -405,11 +502,15 @@ def _one(root: Path, node_id: str) -> dict:
 # ----------------------------------------------------------------- verdicts
 
 
-def verdict_key(claim_text: str, excerpt: str) -> ledger.Keyed:
-    """Ledger key over the claim wording, the excerpt, the procedure version and the tier."""
-    return ledger.key(
-        VERDICT_KIND, {"claim": claim_text, "excerpt": excerpt}, PROCEDURE_VERSION, TIER
-    )
+def verdict_key(
+    claim_text: str, excerpt: str, extras: dict[str, str] | None = None
+) -> ledger.Keyed:
+    """Ledger key over the claim wording, the excerpt, the procedure version and the tier.
+
+    *extras* are the optional inputs of ``key_extras`` (window, stance, original quote).
+    """
+    inputs = {"claim": claim_text, "excerpt": excerpt, **(extras or {})}
+    return ledger.key(VERDICT_KIND, inputs, PROCEDURE_VERSION, TIER)
 
 
 def _legacy_key(claim_text: str, excerpt: str) -> str:
@@ -437,7 +538,11 @@ def _provenance(**extra: str) -> dict[str, str]:
 
 
 def cached_verdict(
-    root: Path, claim_text: str, excerpt: str, count: bool = True
+    root: Path,
+    claim_text: str,
+    excerpt: str,
+    count: bool = True,
+    extras: dict[str, str] | None = None,
 ) -> str | None:
     """The recorded tier 2 verdict for exactly these inputs, or None.
 
@@ -448,7 +553,7 @@ def cached_verdict(
     way (its hash key cannot be converted without the texts, which are in hand here).
     A corrupt ledger entry is a miss; ``ledger verify`` reports it.
     """
-    keyed = verdict_key(claim_text, excerpt)
+    keyed = verdict_key(claim_text, excerpt, extras)
     try:
         entry = (
             ledger.lookup(root, keyed) if count else ledger.get(root, keyed.kind, keyed.key)
@@ -458,7 +563,7 @@ def cached_verdict(
     if entry is not None:
         verdict = (entry.get("result") or {}).get("verdict")
         return verdict if verdict in VERDICTS else None
-    legacy = _legacy_verdict(root, claim_text, excerpt) if ledger.enabled() else None
+    legacy = _legacy_verdict(root, claim_text, excerpt) if ledger.enabled() and not extras else None
     if legacy is None:
         return None
     try:
@@ -471,13 +576,19 @@ def cached_verdict(
     return legacy
 
 
-def record_verdict(root: Path, claim_text: str, excerpt: str, verdict: str) -> str:
+def record_verdict(
+    root: Path,
+    claim_text: str,
+    excerpt: str,
+    verdict: str,
+    extras: dict[str, str] | None = None,
+) -> str:
     """Store a tier 2 verdict in the ledger and return its key; only the verdict is kept."""
     if verdict not in VERDICTS:
         raise ValueError(f"verdict must be one of {', '.join(VERDICTS)}")
     if not ledger.enabled():
         raise ValueError("the ledger is switched off (ARTICLE_LEDGER=off); verdict not recorded")
-    keyed = verdict_key(claim_text, excerpt)
+    keyed = verdict_key(claim_text, excerpt, extras)
     try:
         ledger.put(root, keyed, STATUS[verdict], {"verdict": verdict}, _provenance())
     except ledger.LedgerConflict:
@@ -488,16 +599,31 @@ def record_verdict(root: Path, claim_text: str, excerpt: str, verdict: str) -> s
     return keyed.key
 
 
-def verdict_for_node(root: Path, node_id: str, verdict: str | None = None) -> dict:
-    """Read, or with *verdict* record, the tier 2 verdict for a node's current inputs."""
+def verdict_for_node(
+    root: Path, node_id: str, verdict: str | None = None, widen: bool = False
+) -> dict:
+    """Read, or with *verdict* record, the tier 2 verdict for a node's current inputs.
+
+    ``needs-wider-context`` is not a result. Asked at the normal window it stores nothing and
+    answers ``next: widen``; asked again with *widen* (the doubled window) it records
+    ``unclear``. So the window widens exactly once. A plain read looks at the normal window,
+    then at the widened one.
+    """
     node = _one(root, node_id)
-    excerpt = excerpt_for(root, node_id)
+    if verdict == NEEDS_WIDER:
+        if not widen:
+            return {"id": node_id, "key": None, "verdict": None, "next": "widen"}
+        verdict = "unclear"
+    excerpt = _excerpt(root, node, widen)
+    extras = key_extras(node, widen)
     if verdict is not None:
-        key = record_verdict(root, node["text"], excerpt, verdict)
+        key = record_verdict(root, node["text"], excerpt, verdict, extras)
     else:
-        key = verdict_key(node["text"], excerpt).key
+        key = verdict_key(node["text"], excerpt, extras).key
     # the read-back after a record is not a lookup; a plain `claims cache <id>` is
-    found = cached_verdict(root, node["text"], excerpt, count=verdict is None)
+    found = cached_verdict(root, node["text"], excerpt, count=verdict is None, extras=extras)
+    if found is None and verdict is None and not widen:
+        found = _widened_verdict(root, node)
     return {"id": node_id, "key": key, "verdict": found}
 
 

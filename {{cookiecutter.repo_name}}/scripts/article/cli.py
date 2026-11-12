@@ -244,14 +244,14 @@ def _claims(args: argparse.Namespace) -> int:
             _emit_json({"ok": not bad, "command": "claims quote-check", "results": results})
             return core.ExitCode.DIAGNOSTICS if bad else core.ExitCode.OK
         if action == "excerpt":
-            print(claims.excerpt_for(root, args.id))
+            print(claims.excerpt_for(root, args.id, args.widen))
             return core.ExitCode.OK
         if action == "rebase":
             proposal = claims.rebase(root, args.id)
             good = proposal["status"] in ("current", "proposed")
             _emit_json({"ok": good, "command": "claims rebase", **proposal})
             return core.ExitCode.OK if good else core.ExitCode.DIAGNOSTICS
-        entry = claims.verdict_for_node(root, args.id, args.set)
+        entry = claims.verdict_for_node(root, args.id, args.set, getattr(args, "widen", False))
         _emit_json({"ok": True, "command": f"claims {action}", **entry})
         return core.ExitCode.OK
     except ValueError as exc:
@@ -379,7 +379,15 @@ def _flow(args: argparse.Namespace) -> int:
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
         confirmed = _confirm_in_terminal(action)
         if action == "attest":
-            payload = flow.attest(root, args.name, args.by, args.why, confirmed=confirmed)
+            payload = flow.attest(
+                root,
+                args.name,
+                args.by,
+                args.why,
+                confirmed=confirmed,
+                edition=args.edition,
+                translation=args.translation,
+            )
         else:
             payload = flow.waive(
                 root, args.stage, args.by, args.why, args.expires, confirmed=confirmed
@@ -938,6 +946,9 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
 
+SET_VERDICTS = (*claims.VERDICTS, claims.NEEDS_WIDER)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(
         prog="python3 -m scripts.article",
@@ -987,16 +998,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common(c_excerpt)
     c_excerpt.add_argument("id")
+    c_excerpt.add_argument(
+        "--widen", action="store_true", help="the doubled window (after needs-wider-context)"
+    )
     c_cache = claims_sub.add_parser("cache", help="read or set the tier-2 verdict of a node")
     _add_common(c_cache)
     c_cache.add_argument("id")
-    c_cache.add_argument("--set", choices=claims.VERDICTS, help="record a verdict")
+    c_cache.add_argument("--set", choices=SET_VERDICTS, help="record a verdict")
+    c_cache.add_argument("--widen", action="store_true", help="at the doubled window")
     c_record = claims_sub.add_parser(
         "record", help="record the tier-2 verdict of a node in the ledger (same as cache --set)"
     )
     _add_common(c_record)
     c_record.add_argument("id")
-    c_record.add_argument("--set", choices=claims.VERDICTS, required=True, help="the verdict")
+    c_record.add_argument("--set", choices=SET_VERDICTS, required=True, help="the verdict")
+    c_record.add_argument("--widen", action="store_true", help="at the doubled window")
     c_rebase = claims_sub.add_parser(
         "rebase",
         help="propose the address of a node's quote in the current edition (the map is not edited)",
@@ -1173,6 +1189,8 @@ def build_parser() -> argparse.ArgumentParser:
     f_attest.add_argument("name", help="for example bibliography or claim:<node id>")
     f_attest.add_argument("--by", required=True, help="name of the person")
     f_attest.add_argument("--why", required=True, help="one-line reason or evidence")
+    f_attest.add_argument("--edition", help="the edition consulted (a tier 3 claim)")
+    f_attest.add_argument("--translation", help="the translation consulted (a tier 3 claim)")
     f_waive = flow_sub.add_parser("waive", help="waive a failing gate until a date (terminal only)")
     _add_common(f_waive)
     f_waive.add_argument("stage", choices=flow.STAGES)

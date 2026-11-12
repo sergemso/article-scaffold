@@ -187,6 +187,12 @@
         },
         "why": {
           "$ref": "#/definitions/line"
+        },
+        "edition": {
+          "$ref": "#/definitions/line"
+        },
+        "translation": {
+          "$ref": "#/definitions/line"
         }
       }
     },
