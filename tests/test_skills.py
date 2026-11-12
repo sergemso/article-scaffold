@@ -162,8 +162,16 @@ def test_dialectic_procedure_and_adapter(project: Path) -> None:
         assert f"`{move}`" in text, move
     for field in ("preserved", "cancelled", "lifted", "untraced-reason", "proposed"):
         assert field in text, field
-    assert "reading-a-source" in text and "by hand" in text
+    assert "reading-a-source" in text and "theses add --section" in text
     assert "must cite the move it follows" in text
+    for kind in ("map-contradictions", "move-contradiction", "develop-move", "trace-thesis"):
+        assert f"`{kind}`" in text, kind
+    for check in ("opening-undeveloped", "thesis-restates-pole", "T095"):
+        assert text.count(check) >= 1, check
+    assert "flow done" in text and "flow handoff" in text
+    assert "lifecycle" not in text or "docs/procedures/lifecycle.md" not in text
+    life = _procedure(project, "lifecycle")
+    assert "docs/procedures/dialectic.md" in life
     _adapter(project, "dialectic")
 
 
