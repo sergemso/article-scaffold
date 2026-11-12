@@ -36,6 +36,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 | 2026-11-12 | 2.3 | branch `feat/dialectic-guarantee-2.3` (stacked on 2.2) | `pytest tests/test_flow_status.py tests/test_schemas.py`: pass; with dialectic gaps and orders: 116 passed | quality vector derived in flow status; schema; cli.md. |
 | 2026-11-12 | 2.4 | branch `feat/dialectic-guarantee-2.4` (stacked on 2.3) | `pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_section_index.py`: pass; with status, parallel, group, brief, handoff, replay suites: pass | refresh_index in next, open and done; reindex only when the builder fails. |
 | 2026-11-12 | 2.5 | branch `feat/dialectic-guarantee-2.5` (stacked on 2.4) | `pytest tests/test_host_neutral.py tests/test_docs.py`: pass; with skills and hardening: pass | lifecycle rules on the ratchet; AGENTS.md line. |
+| 2026-11-12 | 3.1 | branch `feat/dialectic-guarantee-3.1` (stacked on 2.5) | `pytest tests/test_upgrade_flow.py tests/test_upgrade_ledger.py tests/test_upgrade_theses.py`: 14 passed | upgrade test for the ratchet; adoption step 10; changelog entry for 0085. |
 
 ## 0. Design
 
@@ -155,12 +156,13 @@ Resolved: two rules in `lifecycle.md` (the frozen accepted set with the `--becau
 
 ## 3. Delivery
 
-### 3.1 Upgrade path and adoption procedure for the ratchet — [ ]
+### 3.1 Upgrade path and adoption procedure for the ratchet — [x]
 Class: implement · Effort: low · Needs: 2.1, 2.2, 2.3, 2.4 · Check: `.venv/bin/python -m pytest tests/test_upgrade_flow.py tests/test_upgrade_ledger.py tests/test_upgrade_theses.py -q`
 Decision: 0085. Scope: `{{cookiecutter.repo_name}}/scripts/article/upgrade.py`, `docs/skills/adopting-the-theses-map-in-an-existing-article.md`, `{{cookiecutter.repo_name}}/CHANGES.md`.
 Do: Confirm an upgrade delivers the new code and schemas and leaves `theses.yaml`, `flow.yaml` and `docs/ledger/` alone. Add to the adoption procedure: run `theses accept <id> --by NAME` once per already-accepted node to record acceptance (clears the lint note). Record the ratchet, `--because`, `quality` and the index refresh in `CHANGES.md` under Unreleased.
 Done-when: an upgrade of a repo with a `version: 1` map and an old `flow.yaml` passes `theses lint` with notes only and `flow status` unchanged apart from `quality`; `CHANGES.md` names 0084 and 0085 once each.
 Rollback: `git revert`.
+Resolved: `tests/test_upgrade_ledger.py` upgrades an old repo with a hand-accepted map, an old `flow.yaml` and a stored ledger entry, and shows the map and entry untouched, `theses lint` exit 0 with `N096` notes (file order), `flow status` starting at `frame` with the `quality` key, and one `theses accept` clearing one note. The adoption procedure gains step 10 (record the old acceptances; what T096, `--because`, the ratchet and `quality` mean). The template changelog (root `CHANGELOG.md`, Unreleased) names 0084 and 0085 once each; the template's `CHANGES.md` is the article's own history and stays untouched.
 
 ### 3.2 Full suite, lint, release notes — [ ]
 Class: review · Effort: low · Needs: 0.2, 1.5, 1.6, 2.5, 3.1 · Check: `make test && make lint`
