@@ -1457,8 +1457,61 @@ def _apply_limits(order: dict[str, Any], entry: dict | None, state: dict[str, An
     return human
 
 
+def accepted_digest(data: dict | None) -> tuple[str, list[str]]:
+    """The accepted set of a map: a digest of the sorted (id, folded text) pairs of every
+    accepted node, contradiction and move, and the sorted ids (decision 0085)."""
+    pairs: list[tuple[str, str]] = []
+    for section in theses.WRITABLE_SECTIONS:
+        for item in (data or {}).get(section) or []:
+            if isinstance(item, dict) and isinstance(item.get("id"), str) \
+                    and item.get("status") == "accepted":
+                pairs.append((item["id"], theses.item_text(item)))
+    pairs.sort()
+    text = "\n".join(f"{i}\t{h}" for i, h in pairs)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest(), [i for i, _ in pairs]
+
+
+def _ratchet_failure(root: Path, entry: dict[str, Any], facts: Facts) -> str | None:
+    """Why the accepted set recorded at issue no longer holds, or None (decision 0085)."""
+    stored = entry.get("accepted_hash")
+    if not isinstance(stored, str):
+        return None  # issued before the ratchet, or a gated order: not checked
+    data, _ = facts.map
+    digest, ids = accepted_digest(data)
+    if digest == stored:
+        return None
+    before = set(entry.get("accepted_ids") or [])
+    now = set(ids)
+    parts = []
+    if before - now:
+        parts.append("no longer accepted: " + ", ".join(sorted(before - now)))
+    if now - before:
+        parts.append("newly accepted (only a person accepts): " + ", ".join(sorted(now - before)))
+    changed = []
+    if ledger.enabled() and data is not None:
+        records = theses.acceptance_records(root)
+        for item in theses._items(data):
+            if item.get("status") != "accepted" or item["id"] not in before & now:
+                continue
+            keyed = theses.accept_key(item["id"], theses.item_text(item))
+            if not any(
+                r["inputs"]["text"] == keyed.inputs["text"]
+                for r in records.get(keyed.inputs["node"], [])
+            ):
+                changed.append(item["id"])
+    if changed:
+        parts.append("accepted text changed: " + ", ".join(sorted(changed)))
+    if not parts:
+        parts.append("the text of an accepted item changed")
+    return "ratchet: accepted items changed since the order was issued; " + "; ".join(parts)
+
+
 def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
-    """Record the issued order so `flow done` can close it; unchanged state is not rewritten."""
+    """Record the issued order so `flow done` can close it; unchanged state is not rewritten.
+
+    The accepted set at issue is recorded with it (decision 0085) so `flow done` can refuse
+    a close that lowered it. A gated order is closed by a person and is not checked.
+    """
     old = state["orders"].get(order["id"])
     entry = {
         "kind": order["kind"],
@@ -1471,6 +1524,10 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
         "retries": order["retries"],
         "done": False,
     }
+    if not order["gated"]:
+        digest, ids = accepted_digest(Facts(root, state).map[0])
+        entry["accepted_hash"] = digest
+        entry["accepted_ids"] = ids
     if isinstance(old, dict) and old.get("last_output"):
         entry["last_output"] = old["last_output"]
     if isinstance(old, dict) and old.get("handoff"):
@@ -1892,6 +1949,9 @@ def done(root: Path, order_id: str, today: date | None = None) -> dict[str, Any]
             outcome = ran.get("verdict", ran["state"])
             return _fail(root, state, order_id, f"check {check}: {outcome}: {detail}")
     facts = Facts(root, state)
+    lost = _ratchet_failure(root, entry, facts)
+    if lost is not None:
+        return _fail(root, state, order_id, lost)
     if order_id in {o["id"] for o in orders_for(entry["stage"], facts)}:
         return _fail(root, state, order_id, "the condition behind this order still holds")
     tier = entry.get("tier", "small")

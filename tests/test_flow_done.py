@@ -214,3 +214,104 @@ def test_move_contradiction_fails_to_close_on_a_lint_error(flow_project: Path) -
     )
     write_map(flow_project, fixed)
     assert jcli(flow_project, "flow", "done", order["id"])["ok"] is True
+
+
+# ------------------------------------------- the ratchet on the accepted set (0085)
+
+RETIRED = THESIS_MAP.replace(
+    "    status: accepted\n    accepted-by: Ada Lovelace\n", "    status: retired\n"
+)
+REWRITTEN = SUPPORTED.replace("text: Main claim.", "text: Main claim, softened to fit.")
+PROMOTED = SUPPORTED.replace(
+    "  - {id: d1, type: defense, text: A defense., status: proposed}",
+    "  - {id: d1, type: defense, text: A defense., status: accepted, accepted-by: Ada}",
+)
+assert PROMOTED != SUPPORTED
+
+
+def test_issue_records_the_accepted_set(flow_project: Path) -> None:
+    import json
+
+    import jsonschema
+
+    write_map(flow_project, THESIS_MAP)
+    order = _issue(flow_project)
+    entry = _state(flow_project)["orders"][order["id"]]
+    assert entry["accepted_ids"] == ["t1"] and len(entry["accepted_hash"]) == 64
+    schema = json.loads((TEMPLATE / "schemas" / "flow.schema.json").read_text())
+    jsonschema.validate(_state(flow_project), schema)
+    _issue(flow_project)
+    assert _state(flow_project)["orders"][order["id"]] == entry  # unchanged, not rewritten
+
+
+def test_closing_by_retiring_the_accepted_thesis_fails_and_counts(flow_project: Path) -> None:
+    write_map(flow_project, THESIS_MAP)
+    order = _issue(flow_project)
+    assert order["kind"] == "fill-gap"
+    write_map(flow_project, RETIRED)  # the gap is gone, and so is the thesis
+    result = jcli(flow_project, "flow", "done", order["id"])
+    assert result["ok"] is False and result["retries"] == 1
+    assert "ratchet" in result["output"] and "no longer accepted: t1" in result["output"]
+    assert _state(flow_project)["budget"]["used"] == 0
+    write_map(flow_project, SUPPORTED)  # restored and answered: closes
+    assert jcli(flow_project, "flow", "done", order["id"])["ok"] is True
+
+
+def test_closing_with_a_rewritten_accepted_text_fails(flow_project: Path) -> None:
+    write_map(flow_project, THESIS_MAP)  # accepted by hand: no ledger record, lint notes only
+    order = _issue(flow_project)
+    write_map(flow_project, REWRITTEN)
+    result = jcli(flow_project, "flow", "done", order["id"])
+    assert result["ok"] is False
+    assert "ratchet" in result["output"] and "accepted text changed: t1" in result["output"]
+
+
+def test_a_recorded_acceptance_makes_the_rewrite_fail_lint_first(flow_project: Path) -> None:
+    write_map(flow_project, THESIS_MAP)
+    cli(flow_project, "theses", "accept", "t1", "--by", "Ada Lovelace")  # records the text
+    order = _issue(flow_project)
+    write_map(flow_project, REWRITTEN)
+    result = jcli(flow_project, "flow", "done", order["id"])
+    assert result["ok"] is False and "T096" in result["output"]
+
+
+def test_closing_with_a_newly_accepted_item_fails(flow_project: Path) -> None:
+    write_map(flow_project, THESIS_MAP)
+    order = _issue(flow_project)
+    write_map(flow_project, PROMOTED)
+    result = jcli(flow_project, "flow", "done", order["id"])
+    assert result["ok"] is False
+    assert "newly accepted" in result["output"] and "d1" in result["output"]
+
+
+def test_an_order_issued_before_the_ratchet_closes_as_before(flow_project: Path) -> None:
+    write_map(flow_project, THESIS_MAP)
+    order = _issue(flow_project)
+    state = _state(flow_project)
+    state["orders"][order["id"]].pop("accepted_hash")
+    state["orders"][order["id"]].pop("accepted_ids")
+    (flow_project / "flow.yaml").write_text(yaml.safe_dump(state, sort_keys=False))
+    write_map(flow_project, RETIRED)
+    assert jcli(flow_project, "flow", "done", order["id"])["ok"] is True
+
+
+def test_a_gated_order_is_not_ratcheted(flow_project: Path) -> None:
+    from flow_helpers import CLEAN_MAP
+
+    write_map(flow_project, CLEAN_MAP)
+    cli(flow_project, "index")
+    seen = set()
+    for _ in range(6):
+        order = _issue(flow_project)
+        if order is None or order["kind"] in seen:
+            break
+        seen.add(order["kind"])
+        if order["gated"]:
+            assert "accepted_hash" not in _state(flow_project)["orders"][order["id"]]
+            return
+        if order["needs_human"]:
+            break
+        jcli(flow_project, "flow", "done", order["id"])
+    import pytest
+
+    pytest.skip("no gated order reached in this fixture")
