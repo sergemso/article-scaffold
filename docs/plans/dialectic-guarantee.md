@@ -25,6 +25,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 |---|---|---|---|---|
 | 2026-11-12 | 0.1 | PR #45 | `go-getter plan status docs/plans/dialectic-guarantee.md` parses | decisions 0084 and 0085 drafted; fact 0009 amended; archived plan `dialectic-phase.md` fixed to parse; this plan written. Tier-2 claims work (plan `theses-map-extensions.md` 2.2) committed separately on `feat/claims-tier2`, PR #44. |
 | 2026-11-12 | 0.2 | branch `feat/dialectic-guarantee-0.2` | `grep -L "status: active"` prints nothing | owner instructed the acceptance in the session; both decisions active, accepted-by the owner; index rows updated. |
+| 2026-11-12 | 1.1 | branch `feat/dialectic-guarantee-1.1` | `pytest tests/test_dialectic.py tests/test_dialectic_gaps.py`: 255 passed; plus theses, flow status/orders/brief, host-neutral, skills suites: 395 passed | three gap kinds, T095, `required` passthrough; see Resolved on 1.1. |
 
 ## 0. Design
 
@@ -42,13 +43,14 @@ Done-when: the Check prints nothing (both files carry `status: active`).
 
 ## 1. The dialectic stage issues orders and runs first (0084)
 
-### 1.1 Development gaps and the trivial-aufhebung error — [ ]
+### 1.1 Development gaps and the trivial-aufhebung error — [x]
 Class: implement · Effort: medium · Needs: none · Check: `.venv/bin/python -m pytest tests/test_dialectic.py tests/test_dialectic_gaps.py -q`
 Decision: 0084. Scope: `{{cookiecutter.repo_name}}/scripts/article/dialectic.py` (`GAP_KINDS`, `gaps`, `_check_moves`, `view`, `format_text`), `tests/test_dialectic.py`, `tests/test_dialectic_gaps.py`.
 Context: `gaps()` today returns nothing unless the map uses the section, and the chain can close on a thesis that repeats one pole. `_live` keeps `proposed` items, so a proposed thesis counts.
 Do: Add a function `applies(data, required: bool) -> bool` that is true when `required` or `uses_section(data)`; `gaps(data, kinds, required=False)` uses it. Add gap kind `niche-unmapped` (the stage applies, no live contradiction, and the map holds at least one `source-claim` node; the source-store condition is added in 1.2 where the flow knows the store). Add gap kind `opening-undeveloped` (an `opening` whose transitive `cites` chain holds no `synthesis`, `aufhebung` or `negation-of-negation`). Add gap kind `thesis-restates-pole` (a thesis opened by an opening whose folded text equals, contains or is contained in the folded text of any pole of any contradiction reachable through that opening's chain; folding is lower case, punctuation removed, whitespace collapsed; write `fold(text)` once and reuse it). Add lint error T095: an `aufhebung` whose folded `lifted` equals its folded `preserved`, `cancelled` or any pole text of a contradiction it cites. Extend `view()` and `format_text()` so the gaps show. Keep `GAP_KINDS` the single list the flow reads.
 Done-when: each new gap kind and T095 has a failing and a passing fixture test; `PLAIN` (no section, not required) still yields no gaps; `VALID` yields the same gaps as before plus nothing new unless a fixture is mutated; the derivation `development()` is unchanged.
 Rollback: `git revert` the step's commit; no file format changes.
+Resolved: `dialectic.py` gains `fold`, `restates`, `applies`, `pole_texts`, `_behind` (the transitive cites walk, retired moves end it) and `_check_lifted` (T095); `gaps(data, kinds, required=False)` and `view(data, required=False)`; `theses.gaps(..., required=False)` passes it through. Interpretations worth knowing: (1) `niche-unmapped` is one gap reported on the first live source-claim id (sorted), with the count in its text, so an order has a node to slice; (2) containment counts only when the shorter folded text has at least three words (`CONTAINMENT_FLOOR`), so a one-word pole does not flag every thesis that mentions it; equality always counts; (3) T095 looks at the aufhebung's direct `cites` only; (4) `opening-undeveloped` and `thesis-restates-pole` follow `cites` through live moves only, so retiring a synthesis reopens the gap; (5) a required stage with the `PLAIN` fixture also yields `thesis-untraced` for its accepted thesis, which is the intended effect of requiring the stage; (6) the test helper `_closed()` now routes its opening through the aufhebung `m4`, since an opening behind a bare negation is the new gap. The procedure lists the new kinds in one paragraph; step 1.5 rewrites it.
 
 ### 1.2 Stage placement, applicability and gate — [ ]
 Class: implement · Effort: medium · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_dialectic_gaps.py tests/test_flow_status.py tests/test_schemas.py -q`

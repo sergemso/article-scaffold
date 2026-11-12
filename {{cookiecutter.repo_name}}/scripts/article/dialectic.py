@@ -8,6 +8,7 @@ No network and no matrix lookup; the principle list is a closed set of tags.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 CONTRADICTION_KINDS = ("dialectical", "technical", "physical")
@@ -38,6 +39,30 @@ def _line(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip()) and "\n" not in value.strip()
 
 
+_PUNCT = re.compile(r"[^\w\s]+", re.UNICODE)
+DEVELOPING_TYPES = ("synthesis", "aufhebung", "negation-of-negation")
+CONTAINMENT_FLOOR = 3  # words the shorter text needs before containment counts as restating
+
+
+def fold(text: object) -> str:
+    """Lower case, punctuation removed, whitespace collapsed: the comparison form of a line."""
+    if not isinstance(text, str):
+        return ""
+    return " ".join(_PUNCT.sub(" ", text.lower()).split())
+
+
+def restates(thesis: object, pole: object) -> bool:
+    """True when the folded thesis equals the folded pole, or one contains the other and the
+    shorter is at least ``CONTAINMENT_FLOOR`` words long (decision 0084)."""
+    a, b = fold(thesis), fold(pole)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    return len(short.split()) >= CONTAINMENT_FLOOR and f" {short} " in f" {long_} "
+
+
 def _section(data: dict, key: str, err) -> list:
     raw = data.get(key)
     if raw is None:
@@ -49,8 +74,26 @@ def _section(data: dict, key: str, err) -> list:
 
 
 def uses_section(data: object) -> bool:
-    """True when the map declares a contradiction or a move (the stage is otherwise off)."""
+    """True when the map declares a contradiction or a move."""
     return isinstance(data, dict) and bool(data.get("contradictions") or data.get("moves"))
+
+
+def applies(data: object, required: bool = False) -> bool:
+    """True when the dialectic stage applies: required by the flow, or the map uses the
+    section (decision 0084). A map that does neither sees no stage and no dialectic gap."""
+    return bool(required) or uses_section(data)
+
+
+def pole_texts(items: object) -> dict[str, list[str]]:
+    """Folded pole texts per contradiction id (malformed entries are skipped)."""
+    out: dict[str, list[str]] = {}
+    for item in items or []:
+        if isinstance(item, dict) and isinstance(item.get("id"), str):
+            poles = item.get("poles") if isinstance(item.get("poles"), list) else []
+            out[item["id"]] = [
+                fold(p.get("text")) for p in poles if isinstance(p, dict) and fold(p.get("text"))
+            ]
+    return out
 
 
 def check(data: dict, err) -> None:
@@ -61,7 +104,7 @@ def check(data: dict, err) -> None:
     moves = _section(data, "moves", err)
     ids: set[str] = set()
     c_ids = _check_contradictions(contradictions, node_types, ids, err)
-    by_id = _check_moves(moves, node_types, c_ids, ids, err)
+    by_id = _check_moves(moves, node_types, c_ids, ids, err, pole_texts(contradictions))
     _check_cycles(by_id, err)
 
 
@@ -154,7 +197,10 @@ def _check_poles(poles: object, where: str, node_types: dict, err) -> None:
             err("T081", f"{where}: pole {number}: niche must be a non-empty single line")
 
 
-def _check_moves(items: list, node_types: dict, c_ids: set, ids: set, err) -> dict[str, dict]:
+def _check_moves(
+    items: list, node_types: dict, c_ids: set, ids: set, err, poles: dict | None = None
+) -> dict[str, dict]:
+    poles = poles or {}
     by_id: dict[str, dict] = {}
     for item in items:
         if isinstance(item, dict) and isinstance(item.get("id"), str):
@@ -185,6 +231,8 @@ def _check_moves(items: list, node_types: dict, c_ids: set, ids: set, err) -> di
                 err("T087", f"{where}: an aufhebung must record {field}")
             elif kind != "aufhebung" and field in item:
                 err("T088", f"{where}: {field} belongs to an aufhebung move")
+        if kind == "aufhebung" and _line(item.get("lifted")):
+            _check_lifted(item, where, cites, poles, err)
         if kind == "opening":
             target = item.get("opens")
             if target is None:
@@ -194,6 +242,20 @@ def _check_moves(items: list, node_types: dict, c_ids: set, ids: set, err) -> di
         elif "opens" in item:
             err("T091", f"{where}: opens belongs to an opening move")
     return by_id
+
+
+def _check_lifted(item: dict, where: str, cites: list[str], poles: dict, err) -> None:
+    """T095: what an aufhebung lifts must say something neither its own preserved or
+    cancelled field nor a pole of a contradiction it cites already says."""
+    lifted = fold(item["lifted"])
+    for field in ("preserved", "cancelled"):
+        if fold(item.get(field)) == lifted:
+            err("T095", f"{where}: lifted repeats {field}")
+            return
+    for cited in cites:
+        if lifted in poles.get(cited, []):
+            err("T095", f"{where}: lifted repeats a pole of {cited}")
+            return
 
 
 def _check_cites(item: dict, where: str, c_ids: set, moves: dict, err) -> list[str]:
@@ -277,7 +339,14 @@ def development(data: dict) -> list[dict]:
 
 # ------------------------------------------------------------------ gaps, view
 
-GAP_KINDS = ("contradiction-unmoved", "move-without-opening", "thesis-untraced")
+GAP_KINDS = (
+    "niche-unmapped",
+    "contradiction-unmoved",
+    "move-without-opening",
+    "opening-undeveloped",
+    "thesis-untraced",
+    "thesis-restates-pole",
+)
 UNTRACED_FIELD = "untraced-reason"
 
 
@@ -313,21 +382,59 @@ def _opened_by(moves: list[dict]) -> dict[str, list[str]]:
     return opened
 
 
-def gaps(data: dict, kinds=GAP_KINDS) -> list[dict]:
-    """Dialectic gaps of a valid map; empty unless the map uses the section (decision 0083).
+def _behind(start: str, moves: dict[str, dict]) -> tuple[set[str], set[str]]:
+    """Ids reachable from *start* through ``cites``: (move ids, contradiction ids).
 
+    *start* itself is left out. Only the moves in *moves* are followed, so a retired move
+    ends the walk; any cited id that is not a move is taken for a contradiction.
+    """
+    seen_moves: set[str] = set()
+    seen_contradictions: set[str] = set()
+    stack = [c for c in moves.get(start, {}).get("cites") or [] if isinstance(c, str)]
+    while stack:
+        item = stack.pop()
+        if item in moves:
+            if item in seen_moves:
+                continue
+            seen_moves.add(item)
+            stack += [c for c in moves[item].get("cites") or [] if isinstance(c, str)]
+        else:
+            seen_contradictions.add(item)
+    return seen_moves, seen_contradictions
+
+
+def gaps(data: dict, kinds=GAP_KINDS, required: bool = False) -> list[dict]:
+    """Dialectic gaps of a valid map; empty unless the stage applies (decisions 0083, 0084).
+
+    ``niche-unmapped``: the stage applies, no live contradiction exists and the map holds
+    a live source-claim to anchor one to (reported on the first such claim).
     ``contradiction-unmoved``: a live contradiction no live move cites.
     ``move-without-opening``: a live move no live move cites that is not an opening (the
     chain ends without opening a thesis or question).
+    ``opening-undeveloped``: a live opening behind which no synthesis, aufhebung or
+    negation-of-negation stands (it opens straight from a bare negation, or from nothing).
     ``thesis-untraced``: a live thesis no live opening opens and with no ``untraced-reason``.
+    ``thesis-restates-pole``: a live thesis opened by a live opening whose text restates a
+    pole of a contradiction behind that opening (see :func:`restates`).
     Sorted by kind then id.
     """
-    if not uses_section(data):
+    if not applies(data, required):
         return []
     moves = _live(data.get("moves"))
+    by_id = {m["id"]: m for m in moves}
+    contradictions = _live(data.get("contradictions"))
     cited = _cited_by(moves)
     opened = _opened_by(moves)
     found: list[dict] = []
+    if "niche-unmapped" in kinds and not contradictions:
+        claims = sorted(
+            n["id"] for n in _live(data.get("nodes")) if n.get("type") == "source-claim"
+        )
+        if claims:
+            found.append({
+                "kind": "niche-unmapped", "id": claims[0],
+                "text": f"no contradiction is declared; {len(claims)} source-claim(s) to anchor to",
+            })
     if "contradiction-unmoved" in kinds:
         for item in _live(data.get("contradictions")):
             if item["id"] not in cited:
@@ -340,18 +447,41 @@ def gaps(data: dict, kinds=GAP_KINDS) -> list[dict]:
                 found.append(
                     {"kind": "move-without-opening", "id": move["id"], "text": _label(move)}
                 )
-    if "thesis-untraced" in kinds:
-        for node in _live(data.get("nodes")):
-            if (
-                node.get("type") == "thesis"
-                and node["id"] not in opened
-                and not _line(node.get(UNTRACED_FIELD))
+    if "opening-undeveloped" in kinds:
+        for move in moves:
+            if move.get("type") != "opening":
+                continue
+            behind, _ = _behind(move["id"], by_id)
+            if not any(by_id[m].get("type") in DEVELOPING_TYPES for m in behind):
+                found.append(
+                    {"kind": "opening-undeveloped", "id": move["id"], "text": _label(move)}
+                )
+    poles = pole_texts(contradictions)
+    for node in _live(data.get("nodes")):
+        if node.get("type") != "thesis":
+            continue
+        if (
+            "thesis-untraced" in kinds
+            and node["id"] not in opened
+            and not _line(node.get(UNTRACED_FIELD))
+        ):
+            found.append({"kind": "thesis-untraced", "id": node["id"], "text": _label(node)})
+        if "thesis-restates-pole" in kinds and node["id"] in opened:
+            reachable: set[str] = set()
+            for opening in opened[node["id"]]:
+                reachable |= _behind(opening, by_id)[1]
+            if any(
+                restates(node.get("text"), pole)
+                for c in sorted(reachable)
+                for pole in poles.get(c, [])
             ):
-                found.append({"kind": "thesis-untraced", "id": node["id"], "text": _label(node)})
+                found.append(
+                    {"kind": "thesis-restates-pole", "id": node["id"], "text": _label(node)}
+                )
     return sorted(found, key=lambda g: (g["kind"], g["id"]))
 
 
-def view(data: dict) -> dict:
+def view(data: dict, required: bool = False) -> dict:
     """The read-only dialectic view: contradictions, the derived move chain, theses, gaps.
 
     Deterministic: contradictions and theses keep file order, moves follow ``development``.
@@ -360,7 +490,7 @@ def view(data: dict) -> dict:
     cited = _cited_by(moves)
     opened = _opened_by(moves)
     return {
-        "used": uses_section(data),
+        "used": applies(data, required),
         "contradictions": [
             {
                 "id": c["id"],
@@ -388,14 +518,14 @@ def view(data: dict) -> dict:
             for n in data.get("nodes") or []
             if isinstance(n, dict) and n.get("type") == "thesis" and isinstance(n.get("id"), str)
         ],
-        "gaps": gaps(data),
+        "gaps": gaps(data, required=required),
     }
 
 
 def format_text(report: dict) -> str:
     """Plain-text rendering of :func:`view` (one line per item)."""
     if not report["used"]:
-        return "No contradictions or moves declared; the dialectic stage is off."
+        return "No contradictions or moves declared and the stage is not required; it is off."
     lines = ["Contradictions:"]
     for c in report["contradictions"]:
         moved = ", ".join(c["moved-by"]) or "unmoved"

@@ -799,8 +799,13 @@ def _brief(node: dict) -> dict:
     return {"id": node["id"], "type": node["type"], "status": node["status"], "text": node["text"]}
 
 
-def gaps(data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS) -> list[dict]:
-    """Gaps in a valid map, sorted by kind then id. Ids and one-line text only."""
+def gaps(
+    data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS, required: bool = False
+) -> list[dict]:
+    """Gaps in a valid map, sorted by kind then id. Ids and one-line text only.
+
+    *required* says the flow requires the dialectic stage, so its gaps apply to a map that
+    declares no contradiction yet (decision 0084)."""
     nodes = _nodes(data)
     found: list[dict] = []
 
@@ -874,7 +879,7 @@ def gaps(data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS) -> list[d
         anchor = node.get("anchor")
         if anchor and labels is not None and anchor not in labels:
             add("anchor-missing", node)
-    found += [g for g in dialectic.gaps(data, kinds)]
+    found += dialectic.gaps(data, kinds, required=required)
     # A fatal objection with no answer comes first, then kind and id.
     return sorted(
         found,

@@ -6,7 +6,7 @@ You propose. You never accept. Every contradiction and move you write has `statu
 
 ## Inputs you may read
 
-- `python3 -m scripts.article theses dialectic` and `theses gaps` (kinds `contradiction-unmoved`, `move-without-opening`, `thesis-untraced`).
+- `python3 -m scripts.article theses dialectic` and `theses gaps` (kinds `niche-unmapped`, `contradiction-unmoved`, `move-without-opening`, `opening-undeveloped`, `thesis-untraced`, `thesis-restates-pole`).
 - `theses slice <id> --depth 2` for the nodes you cite.
 - Sources already in `paper/sources/`, read once, by the `reading-a-source` procedure (`docs/procedures/reading-a-source.md`): `python3 -m scripts.article sources find <terms>` then `python3 -m scripts.article sources slice <key@hash#locator>`. Fetch nothing new; never open a whole source.
 - `source-claim` nodes already in the map.
@@ -32,7 +32,7 @@ Do not read `paper/article.tex` or whole section files.
    - `opening`: opens a thesis or hypothesis through `opens: <id>`, and cites the move it follows.
 7. Write everything by hand into `theses.yaml` under `contradictions:` and `moves:`. `add_nodes` and `theses accept` do not handle these sections yet, so nothing else writes them. Each item needs an `id` (one namespace with all node ids), `text` as one line, `status: proposed`, `author`. Add no field the schema (`schemas/theses.schema.json`) does not list.
 8. Run `python3 -m scripts.article theses lint` and fix your own items until it passes.
-9. Run `python3 -m scripts.article theses gaps` and `theses dialectic`. An `opening` must cite the move it follows, or `move-without-opening` fires for that move. A thesis with no `opening` needs a one-line `untraced-reason`; do not write one for the author.
+9. Run `python3 -m scripts.article theses gaps` and `theses dialectic`. An `opening` must cite the move it follows, or `move-without-opening` fires for that move. A thesis with no `opening` needs a one-line `untraced-reason`; do not write one for the author. Three checks guard development: `niche-unmapped` asks for a first contradiction when the map has source-claims and none; `opening-undeveloped` fires when nothing behind an `opening` is a `synthesis`, `aufhebung` or `negation-of-negation` (a thesis opened straight from a bare negation is the other pole); `thesis-restates-pole` fires when an opened thesis, with case, punctuation and spacing folded, equals or contains a pole text behind its opening (or is contained in one of at least three words). The lint error T095 rejects an `aufhebung` whose `lifted` repeats its `preserved`, its `cancelled` or a pole of a contradiction it cites.
 10. Stop. Report the ids you added and the gaps left. Ask a human to accept them.
 
 ## Closing the stage

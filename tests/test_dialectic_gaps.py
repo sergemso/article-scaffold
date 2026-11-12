@@ -16,7 +16,10 @@ from test_dialectic import PLAIN, VALID, _contradiction, _move, _mutated, dialec
 TEMPLATE = ROOT / "{{cookiecutter.repo_name}}"
 STATE_SCHEMA = json.loads((TEMPLATE / "schemas" / "flow.schema.json").read_text())
 STATUS_SCHEMA = json.loads((TEMPLATE / "schemas" / "flow-status.schema.json").read_text())
-KINDS = ("contradiction-unmoved", "move-without-opening", "thesis-untraced")
+KINDS = (
+    "niche-unmapped", "contradiction-unmoved", "move-without-opening", "opening-undeveloped",
+    "thesis-untraced", "thesis-restates-pole",
+)
 
 
 def _dump(data: dict) -> str:
@@ -36,7 +39,7 @@ def _closed() -> dict:
     )
     data["moves"].append(
         {"id": "m7", "type": "opening", "text": "Reopen the claim.", "status": "proposed",
-         "author": "agent", "cites": ["m6"], "opens": "t1"}
+         "author": "agent", "cites": ["m6", "m4"], "opens": "t1"}
     )
     return data
 
@@ -184,6 +187,120 @@ def test_gaps_do_not_mutate_the_map() -> None:
     dialectic.gaps(VALID)
     dialectic.view(VALID)
     assert VALID == before
+
+
+# ------------------------------------------- development gaps (decision 0084)
+
+
+def test_niche_unmapped_only_when_the_stage_is_required() -> None:
+    assert dialectic.gaps(PLAIN) == []
+    assert dialectic.gaps(PLAIN, required=True) == [
+        {"kind": "niche-unmapped", "id": "s1",
+         "text": "no contradiction is declared; 2 source-claim(s) to anchor to"},
+        {"kind": "thesis-untraced", "id": "t1", "text": "Main claim."},
+    ]
+    assert theses.gaps(PLAIN, None, required=True)[0]["kind"] == "niche-unmapped"
+
+
+def test_niche_unmapped_needs_a_claim_to_anchor_to() -> None:
+    def unmapped(data: dict) -> list[str]:
+        found = dialectic.gaps(data, required=True)
+        return [g["id"] for g in found if g["kind"] == "niche-unmapped"]
+
+    bare = _mutated(lambda d: d.update(nodes=[n for n in d["nodes"] if n["type"] != "source-claim"],
+                                       edges=[]), PLAIN)
+    assert unmapped(bare) == []
+    retired = copy.deepcopy(PLAIN)
+    for node in retired["nodes"]:
+        if node["type"] == "source-claim":
+            node["status"] = "retired"
+    assert unmapped(retired) == []
+    assert unmapped(PLAIN) == ["s1"]
+
+
+def test_niche_unmapped_closes_on_a_proposed_contradiction() -> None:
+    data = _mutated(lambda d: d.update(contradictions=[_contradiction(VALID, "c3")]), PLAIN)
+    assert not [g for g in dialectic.gaps(data, required=True) if g["kind"] == "niche-unmapped"]
+
+
+def test_a_required_stage_with_a_used_section_adds_nothing_new() -> None:
+    assert dialectic.gaps(VALID, required=True) == dialectic.gaps(VALID)
+
+
+def test_applies() -> None:
+    assert not dialectic.applies(PLAIN)
+    assert dialectic.applies(PLAIN, required=True)
+    assert dialectic.applies(VALID)
+    assert dialectic.view(PLAIN, required=True)["used"] is True
+
+
+def test_opening_from_a_bare_negation_is_undeveloped() -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m6"]
+    assert ("opening-undeveloped", "m7") in _kinds(data)
+    assert ("opening-undeveloped", "m5") not in _kinds(data)
+
+
+def test_opening_from_nothing_is_undeveloped() -> None:
+    data = _closed()
+    _move(data, "m7").pop("cites")
+    assert ("opening-undeveloped", "m7") in _kinds(data)
+
+
+@pytest.mark.parametrize("via", ["m2", "m3", "m4"])
+def test_opening_behind_a_developing_move_is_fine(via: str) -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m6", via]
+    assert ("opening-undeveloped", "m7") not in _kinds(data)
+
+
+def test_a_retired_developing_move_does_not_count() -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m6", "m3"]
+    _move(data, "m3")["status"] = "retired"
+    assert ("opening-undeveloped", "m7") in _kinds(data)
+
+
+def test_fold_and_restates() -> None:
+    assert dialectic.fold("  X, Holds!  ") == "x holds"
+    assert dialectic.fold(None) == ""
+    assert dialectic.restates("X holds.", "x HOLDS")
+    long_, short = "Rigour without losing coverage, at scale", "rigour without losing coverage"
+    assert dialectic.restates(long_, short)
+    assert not dialectic.restates("X holds at scale", "X holds")  # shorter side under the floor
+    assert not dialectic.restates("", "X holds")
+    assert not dialectic.restates("Scope X by scale", "X holds")
+
+
+def test_thesis_that_restates_a_pole_behind_its_opening() -> None:
+    data = _closed()  # t1 opened by m7, behind which c3 (Be open / Be closed) and c1, c2
+    data["nodes"][0]["text"] = "Be open."
+    assert ("thesis-restates-pole", "t1") in _kinds(data)
+    data["nodes"][0]["text"] = "Openness, but only for data that is already public."
+    assert ("thesis-restates-pole", "t1") not in _kinds(data)
+
+
+def test_restatement_counts_only_poles_behind_the_opening() -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m4"]  # behind m4: m2, m3, m1, c1, c2; not c3
+    data["nodes"][0]["text"] = "Be open."
+    assert ("thesis-restates-pole", "t1") not in _kinds(data)
+    data["nodes"][0]["text"] = "Strong evidence"
+    assert ("thesis-restates-pole", "t1") in _kinds(data)
+
+
+def test_an_unopened_thesis_is_not_checked_for_restatement() -> None:
+    data = _mutated(lambda d: d["nodes"][0].update(text="X holds"))
+    assert ("thesis-restates-pole", "t1") not in _kinds(data)
+    assert ("thesis-untraced", "t1") in _kinds(data)
+
+
+def test_valid_fixture_gaps_are_unchanged_by_the_new_kinds() -> None:
+    assert [g for g in _kinds(VALID) if g[0] in KINDS] == [
+        ("contradiction-unmoved", "c3"),
+        ("thesis-untraced", "t1"),
+    ]
+    assert theses.development(VALID) == dialectic.development(VALID)
 
 
 # ------------------------------------------------------------------------ view
