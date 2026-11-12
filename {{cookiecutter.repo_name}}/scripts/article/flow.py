@@ -30,8 +30,8 @@ from .fsutil import atomic_write
 STATE_FILE = "flow.yaml"
 STATUS_SCHEMA_VERSION = "1.0"
 STAGES = (
-    "frame",
     "dialectic",
+    "frame",
     "map",
     "discover",
     "draft",
@@ -42,7 +42,8 @@ STAGES = (
     "publish",
 )
 # Advisory by default (decision 0083): an open one does not fail `flow status`, block the
-# next stage or issue orders, unless flow.yaml lists it under `required_stages`.
+# next stage or issue orders, unless flow.yaml lists it under `required_stages`. The stage
+# comes first (decision 0084): required, it runs before a thesis can be accepted.
 ADVISORY_STAGES = ("dialectic",)
 DIALECTIC_ATTESTATION = "dialectic"
 TIERS = ("script", "small", "large")
@@ -220,6 +221,16 @@ def _list_errors(
     return errors
 
 
+def required_stages(root: Path) -> list[str]:
+    """The advisory stages flow.yaml requires; empty when the file is absent or unreadable.
+    Never raises, so read-only map commands can ask without owning flow.yaml's errors."""
+    try:
+        state = load_state(root)
+    except FlowError:
+        return []
+    return list(state.get("required_stages") or [])
+
+
 def load_state(root: Path) -> dict[str, Any]:
     """The stored state; defaults when flow.yaml is absent. Raises FlowError if invalid."""
     path = root / STATE_FILE
@@ -277,17 +288,63 @@ class Facts:
         return self._once("map", make)
 
     @property
+    def dialectic_required(self) -> bool:
+        return "dialectic" in (self.state.get("required_stages") or [])
+
+    @property
     def gaps(self) -> list[dict]:
         def make():
             data, _ = self.map
             if data is None:
                 return []
-            return theses.gaps(data, theses.paper_labels(self.root), theses.GAP_KINDS)
+            return theses.gaps(
+                data, theses.paper_labels(self.root), theses.GAP_KINDS,
+                required=self.dialectic_required,
+            )
 
         return self._once("gaps", make)
 
     def gap_ids(self, *kinds: str) -> list[dict]:
         return [g for g in self.gaps if g["kind"] in kinds]
+
+    @property
+    def stored_sources(self) -> list[str]:
+        """Keys of the current (not superseded) entries of the source store, sorted."""
+        def make():
+            try:
+                rows = sources.list_sources(self.root)["sources"]
+            except (OSError, ValueError, KeyError):
+                return []
+            return sorted({r["key"] for r in rows if not r.get("superseded")})
+
+        return self._once("sources", make)
+
+    @property
+    def dialectic_gaps(self) -> list[dict]:
+        """The dialectic gaps, plus the source-store half of ``niche-unmapped``: the stage
+        applies, no live contradiction exists, the map holds no source-claim to report the
+        gap on, but a stored source exists to anchor a pole to (decision 0084)."""
+        def make():
+            found = self.gap_ids(*dialectic.GAP_KINDS)
+            data, _ = self.map
+            if data is None or not dialectic.applies(data, self.dialectic_required):
+                return found
+            if any(g["kind"] == "niche-unmapped" for g in found):
+                return found
+            live = [
+                c for c in data.get("contradictions") or []
+                if isinstance(c, dict) and c.get("status") != "retired"
+            ]
+            if live or not self.stored_sources:
+                return found
+            count = len(self.stored_sources)
+            found.append({
+                "kind": "niche-unmapped", "id": self.stored_sources[0],
+                "text": f"no contradiction is declared; {count} stored source(s) to anchor to",
+            })
+            return sorted(found, key=lambda g: (g["kind"], g["id"]))
+
+        return self._once("dialectic-gaps", make)
 
     @property
     def nodes(self) -> dict[str, dict]:
@@ -384,13 +441,14 @@ def _gate_map(f: Facts) -> dict[str, Any]:
 
 
 def dialectic_applies(f: Facts) -> bool:
-    """The dialectic stage exists only for a valid map that declares a contradiction or move."""
+    """The dialectic stage exists for a valid map when flow.yaml requires the stage or the
+    map declares a contradiction or move (decision 0084)."""
     data, _ = f.map
-    return data is not None and dialectic.uses_section(data)
+    return data is not None and dialectic.applies(data, f.dialectic_required)
 
 
 def _gate_dialectic(f: Facts) -> dict[str, Any]:
-    found = f.gap_ids(*dialectic.GAP_KINDS)
+    found = f.dialectic_gaps
     kinds = " ".join(f"--kind {k}" for k in dialectic.GAP_KINDS)
     if found:
         ids = ", ".join(sorted({g["id"] for g in found})[:5])
@@ -895,14 +953,15 @@ def active_waiver(state: dict[str, Any], stage: str, today: date) -> dict | None
 def evaluate(facts: Facts, today: date) -> list[dict[str, Any]]:
     """Per-stage results: stage, status (pass|fail|waived|human|advisory), reason, command.
 
-    ``dialectic`` is left out when the map declares no contradiction or move, and shows
-    ``advisory`` rather than ``fail`` while open unless flow.yaml requires it.
+    ``dialectic`` is left out when flow.yaml does not require it and the map declares no
+    contradiction or move, and shows ``advisory`` rather than ``fail`` while open unless
+    flow.yaml requires it.
     """
     results = []
     required = facts.state.get("required_stages") or []
     for stage in STAGES:
         if stage == "dialectic" and not dialectic_applies(facts):
-            continue  # off unless the map declares a contradiction or move
+            continue  # off unless required or the map declares a contradiction or move
         verdict = GATES[stage](facts)
         if stage == "publish":
             results.append(

@@ -445,8 +445,8 @@ def test_open_stage_with_an_unmoved_contradiction(flow_project: Path) -> None:
     assert "contradiction-unmoved" in entry["reason"] and "c3" in entry["reason"]
     assert "theses gaps" in entry["command"]
     names = [s["stage"] for s in payload["stages"]]
-    assert names.index("dialectic") == names.index("frame") + 1
-    assert names.index("dialectic") < names.index("map")
+    assert names.index("dialectic") == 0
+    assert names.index("frame") == 1
 
 
 def test_advisory_stage_does_not_fail_or_take_over_the_current_stage(flow_project: Path) -> None:
@@ -519,10 +519,70 @@ def test_required_stage_blocks_until_it_passes(flow_project: Path) -> None:
     assert stages(jcli(flow_project, "flow", "status", "--json"))["dialectic"]["status"] == "pass"
 
 
-def test_required_stage_is_still_skipped_without_contradictions(flow_project: Path) -> None:
+def test_required_stage_is_present_without_contradictions(flow_project: Path) -> None:
     set_state(flow_project, required_stages=["dialectic"])
     payload = jcli(flow_project, "flow", "status", "--json")
-    assert "dialectic" not in stages(payload)
+    jsonschema.validate(payload, STATUS_SCHEMA)
+    assert [s["stage"] for s in payload["stages"]][0] == "dialectic"
+    assert payload["current_stage"] == "dialectic"
+    entry = stages(payload)["dialectic"]
+    assert entry["status"] == "fail" and "attested" in entry["reason"]  # empty map: no gap yet
+
+
+def test_required_stage_asks_for_a_contradiction_once_a_claim_exists(flow_project: Path) -> None:
+    _put(flow_project, PLAIN)
+    set_state(flow_project, required_stages=["dialectic"])
+    payload = jcli(flow_project, "flow", "status", "--json")
+    entry = stages(payload)["dialectic"]
+    assert entry["status"] == "fail" and "niche-unmapped" in entry["reason"]
+    assert "s1" in entry["reason"] and "theses gaps" in entry["command"]
+    assert payload["current_stage"] == "dialectic"
+    assert stages(payload)["frame"]["status"] == "pass"  # unchanged by the stage in front
+
+
+def test_required_stage_asks_for_a_contradiction_once_a_source_is_stored(
+    flow_project: Path, tmp_path: Path
+) -> None:
+    from scripts.article import sources
+    src = tmp_path / "paper.txt"
+    src.write_text("The field says X.\n")
+    sources.add(flow_project, src, origin="note", edition="00", key="smith2020")
+    set_state(flow_project, required_stages=["dialectic"])
+    entry = stages(jcli(flow_project, "flow", "status", "--json"))["dialectic"]
+    assert "niche-unmapped" in entry["reason"] and "smith2020" in entry["reason"]
+    gaps = jcli(flow_project, "theses", "gaps", "--json")
+    assert not [g for g in gaps["gaps"] if g["kind"] == "niche-unmapped"]  # store half: flow only
+
+
+def test_cli_gaps_and_dialectic_read_required_stages(flow_project: Path) -> None:
+    _put(flow_project, PLAIN)
+    before = cli(flow_project, "theses", "gaps", "--json")
+    assert not [g for g in json.loads(before.stdout)["gaps"] if g["kind"] in KINDS]
+    assert json.loads(cli(flow_project, "theses", "dialectic", "--json").stdout)["used"] is False
+    set_state(flow_project, required_stages=["dialectic"])
+    after = cli(flow_project, "theses", "gaps", "--json")
+    assert after.returncode == 1
+    assert ("niche-unmapped", "s1") in [
+        (g["kind"], g["id"]) for g in json.loads(after.stdout)["gaps"]
+    ]
+    view = json.loads(cli(flow_project, "theses", "dialectic", "--json").stdout)
+    assert view["used"] is True and view["ok"] is False
+
+
+def test_an_unreadable_flow_file_does_not_break_theses_gaps(flow_project: Path) -> None:
+    _put(flow_project, PLAIN)
+    (flow_project / "flow.yaml").write_text("version: 1\nround: [\n")
+    result = cli(flow_project, "theses", "gaps", "--json")
+    assert result.returncode == 1  # PLAIN's thesis-unsupported gap, as without the file
+    assert not [g for g in json.loads(result.stdout)["gaps"] if g["kind"] in KINDS]
+
+
+def test_advisory_used_stage_comes_first_but_does_not_block(flow_project: Path) -> None:
+    _put(flow_project, VALID)
+    payload = jcli(flow_project, "flow", "status", "--json")
+    assert [s["stage"] for s in payload["stages"]][0] == "dialectic"
+    assert stages(payload)["dialectic"]["status"] == "advisory"
+    assert payload["current_stage"] != "dialectic"
 
 
 def test_a_required_stage_can_be_waived(flow_project: Path) -> None:
@@ -565,7 +625,7 @@ def test_flow_schema_accepts_required_stages(flow_project: Path) -> None:
 
 def test_flow_schema_allows_a_dialectic_waiver() -> None:
     waiver = STATE_SCHEMA["definitions"]["waiver"]["properties"]["stage"]["enum"]
-    assert waiver.index("dialectic") == waiver.index("frame") + 1
+    assert waiver.index("dialectic") == 0 and waiver.index("frame") == 1
 
 
 def test_status_schema_allows_advisory() -> None:

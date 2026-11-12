@@ -294,7 +294,7 @@ def _theses(args: argparse.Namespace) -> int:
             _emit_json(theses.slice_map(data, args.id, args.depth))
             return core.ExitCode.OK
         if action == "dialectic":
-            report = dialectic.view(data)
+            report = dialectic.view(data, required="dialectic" in flow.required_stages(root))
             if args.json:
                 _emit_json(
                     {"ok": not report["gaps"], "command": "theses dialectic", **report}
@@ -315,7 +315,10 @@ def _theses(args: argparse.Namespace) -> int:
             )
             return core.ExitCode.OK if report.diagnostics.ok else core.ExitCode.DIAGNOSTICS
         kinds = tuple(args.kind) if args.kind else theses.DEFAULT_GAP_KINDS
-        found = theses.gaps(data, theses.paper_labels(root), kinds)
+        found = theses.gaps(
+            data, theses.paper_labels(root), kinds,
+            required="dialectic" in flow.required_stages(root),
+        )
         if "term-unregistered" in kinds:
             found += terms.check(root, data).gaps
         _emit_json({"ok": not found, "command": "theses gaps", "gaps": found})
