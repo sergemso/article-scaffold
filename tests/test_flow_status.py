@@ -126,3 +126,65 @@ def test_agent_named_waiver_is_refused(flow_project: Path) -> None:
     }
     set_state(flow_project, waivers=[waiver])
     assert "agent role" in jcli(flow_project, "flow", "status", "--json")["error"]
+
+
+# ------------------------------------------------- the derived quality vector (0085)
+
+
+def _quality(project: Path) -> dict:
+    payload = jcli(project, "flow", "status", "--json")
+    jsonschema.validate(payload, STATUS_SCHEMA)
+    return payload["quality"]
+
+
+def test_quality_of_a_repo_without_a_map_is_zero(flow_project: Path) -> None:
+    (flow_project / "theses.yaml").unlink()
+    assert _quality(flow_project) == {
+        "theses_accepted": 0, "theses_opened": 0, "contradictions_moved": 0,
+        "claims_verified": 0, "objections_defended": 0, "gaps": {},
+    }
+
+
+def test_quality_counts_match_a_known_map(flow_project: Path) -> None:
+    import copy
+
+    from test_dialectic import VALID
+
+    data = copy.deepcopy(VALID)  # t1 accepted; c1, c2 moved, c3 unmoved; o1 undefended
+    data["moves"].append(
+        {"id": "m9", "type": "opening", "text": "Open t1.", "status": "accepted",
+         "author": "human", "accepted-by": "Ada", "cites": ["m4"], "opens": "t1"}
+    )
+    data["nodes"].append(
+        {"id": "d1", "type": "defense", "text": "Answered.", "status": "proposed",
+         "answers": "o1", "anchor": None}
+    )
+    write_map(flow_project, yaml.safe_dump(data, sort_keys=False))
+    vector = _quality(flow_project)
+    assert vector["theses_accepted"] == 1 and vector["theses_opened"] == 1
+    assert vector["contradictions_moved"] == 2
+    assert vector["objections_defended"] == 1
+    assert vector["claims_verified"] == 0  # no local text for s1, s2
+    assert vector["gaps"]["contradiction-unmoved"] == 1
+    assert "thesis-untraced" not in vector["gaps"]
+    data["moves"][-1]["status"] = "proposed"
+    write_map(flow_project, yaml.safe_dump(data, sort_keys=False))
+    assert _quality(flow_project)["theses_opened"] == 0  # only an accepted opening counts
+
+
+def test_quality_is_derived_and_deterministic(flow_project: Path) -> None:
+    write_map(flow_project, GAPPY)
+    first = cli(flow_project, "flow", "status", "--json").stdout
+    assert first == cli(flow_project, "flow", "status", "--json").stdout
+    state = yaml.safe_load((flow_project / "flow.yaml").read_text())
+    assert "quality" not in state
+    text = cli(flow_project, "flow", "status").stdout
+    assert "quality: theses_accepted=" in text and "gaps:" in text
+
+
+def test_quality_lists_the_niche_gap_when_the_stage_is_required(flow_project: Path) -> None:
+    from test_dialectic import PLAIN
+
+    write_map(flow_project, yaml.safe_dump(PLAIN, sort_keys=False))
+    set_state(flow_project, required_stages=["dialectic"])
+    assert _quality(flow_project)["gaps"].get("niche-unmapped") == 1

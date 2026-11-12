@@ -16,7 +16,10 @@ from test_dialectic import PLAIN, VALID, _contradiction, _move, _mutated, dialec
 TEMPLATE = ROOT / "{{cookiecutter.repo_name}}"
 STATE_SCHEMA = json.loads((TEMPLATE / "schemas" / "flow.schema.json").read_text())
 STATUS_SCHEMA = json.loads((TEMPLATE / "schemas" / "flow-status.schema.json").read_text())
-KINDS = ("contradiction-unmoved", "move-without-opening", "thesis-untraced")
+KINDS = (
+    "niche-unmapped", "contradiction-unmoved", "move-without-opening", "opening-undeveloped",
+    "thesis-untraced", "thesis-restates-pole",
+)
 
 
 def _dump(data: dict) -> str:
@@ -36,7 +39,7 @@ def _closed() -> dict:
     )
     data["moves"].append(
         {"id": "m7", "type": "opening", "text": "Reopen the claim.", "status": "proposed",
-         "author": "agent", "cites": ["m6"], "opens": "t1"}
+         "author": "agent", "cites": ["m6", "m4"], "opens": "t1"}
     )
     return data
 
@@ -186,6 +189,120 @@ def test_gaps_do_not_mutate_the_map() -> None:
     assert VALID == before
 
 
+# ------------------------------------------- development gaps (decision 0084)
+
+
+def test_niche_unmapped_only_when_the_stage_is_required() -> None:
+    assert dialectic.gaps(PLAIN) == []
+    assert dialectic.gaps(PLAIN, required=True) == [
+        {"kind": "niche-unmapped", "id": "s1",
+         "text": "no contradiction is declared; 2 source-claim(s) to anchor to"},
+        {"kind": "thesis-untraced", "id": "t1", "text": "Main claim."},
+    ]
+    assert theses.gaps(PLAIN, None, required=True)[0]["kind"] == "niche-unmapped"
+
+
+def test_niche_unmapped_needs_a_claim_to_anchor_to() -> None:
+    def unmapped(data: dict) -> list[str]:
+        found = dialectic.gaps(data, required=True)
+        return [g["id"] for g in found if g["kind"] == "niche-unmapped"]
+
+    bare = _mutated(lambda d: d.update(nodes=[n for n in d["nodes"] if n["type"] != "source-claim"],
+                                       edges=[]), PLAIN)
+    assert unmapped(bare) == []
+    retired = copy.deepcopy(PLAIN)
+    for node in retired["nodes"]:
+        if node["type"] == "source-claim":
+            node["status"] = "retired"
+    assert unmapped(retired) == []
+    assert unmapped(PLAIN) == ["s1"]
+
+
+def test_niche_unmapped_closes_on_a_proposed_contradiction() -> None:
+    data = _mutated(lambda d: d.update(contradictions=[_contradiction(VALID, "c3")]), PLAIN)
+    assert not [g for g in dialectic.gaps(data, required=True) if g["kind"] == "niche-unmapped"]
+
+
+def test_a_required_stage_with_a_used_section_adds_nothing_new() -> None:
+    assert dialectic.gaps(VALID, required=True) == dialectic.gaps(VALID)
+
+
+def test_applies() -> None:
+    assert not dialectic.applies(PLAIN)
+    assert dialectic.applies(PLAIN, required=True)
+    assert dialectic.applies(VALID)
+    assert dialectic.view(PLAIN, required=True)["used"] is True
+
+
+def test_opening_from_a_bare_negation_is_undeveloped() -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m6"]
+    assert ("opening-undeveloped", "m7") in _kinds(data)
+    assert ("opening-undeveloped", "m5") not in _kinds(data)
+
+
+def test_opening_from_nothing_is_undeveloped() -> None:
+    data = _closed()
+    _move(data, "m7").pop("cites")
+    assert ("opening-undeveloped", "m7") in _kinds(data)
+
+
+@pytest.mark.parametrize("via", ["m2", "m3", "m4"])
+def test_opening_behind_a_developing_move_is_fine(via: str) -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m6", via]
+    assert ("opening-undeveloped", "m7") not in _kinds(data)
+
+
+def test_a_retired_developing_move_does_not_count() -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m6", "m3"]
+    _move(data, "m3")["status"] = "retired"
+    assert ("opening-undeveloped", "m7") in _kinds(data)
+
+
+def test_fold_and_restates() -> None:
+    assert dialectic.fold("  X, Holds!  ") == "x holds"
+    assert dialectic.fold(None) == ""
+    assert dialectic.restates("X holds.", "x HOLDS")
+    long_, short = "Rigour without losing coverage, at scale", "rigour without losing coverage"
+    assert dialectic.restates(long_, short)
+    assert not dialectic.restates("X holds at scale", "X holds")  # shorter side under the floor
+    assert not dialectic.restates("", "X holds")
+    assert not dialectic.restates("Scope X by scale", "X holds")
+
+
+def test_thesis_that_restates_a_pole_behind_its_opening() -> None:
+    data = _closed()  # t1 opened by m7, behind which c3 (Be open / Be closed) and c1, c2
+    data["nodes"][0]["text"] = "Be open."
+    assert ("thesis-restates-pole", "t1") in _kinds(data)
+    data["nodes"][0]["text"] = "Openness, but only for data that is already public."
+    assert ("thesis-restates-pole", "t1") not in _kinds(data)
+
+
+def test_restatement_counts_only_poles_behind_the_opening() -> None:
+    data = _closed()
+    _move(data, "m7")["cites"] = ["m4"]  # behind m4: m2, m3, m1, c1, c2; not c3
+    data["nodes"][0]["text"] = "Be open."
+    assert ("thesis-restates-pole", "t1") not in _kinds(data)
+    data["nodes"][0]["text"] = "Strong evidence"
+    assert ("thesis-restates-pole", "t1") in _kinds(data)
+
+
+def test_an_unopened_thesis_is_not_checked_for_restatement() -> None:
+    data = _mutated(lambda d: d["nodes"][0].update(text="X holds"))
+    assert ("thesis-restates-pole", "t1") not in _kinds(data)
+    assert ("thesis-untraced", "t1") in _kinds(data)
+
+
+def test_valid_fixture_gaps_are_unchanged_by_the_new_kinds() -> None:
+    assert [g for g in _kinds(VALID) if g[0] in KINDS] == [
+        ("contradiction-unmoved", "c3"),
+        ("thesis-untraced", "t1"),
+    ]
+    assert theses.development(VALID) == dialectic.development(VALID)
+
+
 # ------------------------------------------------------------------------ view
 
 
@@ -328,8 +445,8 @@ def test_open_stage_with_an_unmoved_contradiction(flow_project: Path) -> None:
     assert "contradiction-unmoved" in entry["reason"] and "c3" in entry["reason"]
     assert "theses gaps" in entry["command"]
     names = [s["stage"] for s in payload["stages"]]
-    assert names.index("dialectic") == names.index("frame") + 1
-    assert names.index("dialectic") < names.index("map")
+    assert names.index("dialectic") == 0
+    assert names.index("frame") == 1
 
 
 def test_advisory_stage_does_not_fail_or_take_over_the_current_stage(flow_project: Path) -> None:
@@ -402,10 +519,70 @@ def test_required_stage_blocks_until_it_passes(flow_project: Path) -> None:
     assert stages(jcli(flow_project, "flow", "status", "--json"))["dialectic"]["status"] == "pass"
 
 
-def test_required_stage_is_still_skipped_without_contradictions(flow_project: Path) -> None:
+def test_required_stage_is_present_without_contradictions(flow_project: Path) -> None:
     set_state(flow_project, required_stages=["dialectic"])
     payload = jcli(flow_project, "flow", "status", "--json")
-    assert "dialectic" not in stages(payload)
+    jsonschema.validate(payload, STATUS_SCHEMA)
+    assert [s["stage"] for s in payload["stages"]][0] == "dialectic"
+    assert payload["current_stage"] == "dialectic"
+    entry = stages(payload)["dialectic"]
+    assert entry["status"] == "fail" and "attested" in entry["reason"]  # empty map: no gap yet
+
+
+def test_required_stage_asks_for_a_contradiction_once_a_claim_exists(flow_project: Path) -> None:
+    _put(flow_project, PLAIN)
+    set_state(flow_project, required_stages=["dialectic"])
+    payload = jcli(flow_project, "flow", "status", "--json")
+    entry = stages(payload)["dialectic"]
+    assert entry["status"] == "fail" and "niche-unmapped" in entry["reason"]
+    assert "s1" in entry["reason"] and "theses gaps" in entry["command"]
+    assert payload["current_stage"] == "dialectic"
+    assert stages(payload)["frame"]["status"] == "pass"  # unchanged by the stage in front
+
+
+def test_required_stage_asks_for_a_contradiction_once_a_source_is_stored(
+    flow_project: Path, tmp_path: Path
+) -> None:
+    from scripts.article import sources
+    src = tmp_path / "paper.txt"
+    src.write_text("The field says X.\n")
+    sources.add(flow_project, src, origin="note", edition="00", key="smith2020")
+    set_state(flow_project, required_stages=["dialectic"])
+    entry = stages(jcli(flow_project, "flow", "status", "--json"))["dialectic"]
+    assert "niche-unmapped" in entry["reason"] and "smith2020" in entry["reason"]
+    gaps = jcli(flow_project, "theses", "gaps", "--json")
+    assert not [g for g in gaps["gaps"] if g["kind"] == "niche-unmapped"]  # store half: flow only
+
+
+def test_cli_gaps_and_dialectic_read_required_stages(flow_project: Path) -> None:
+    _put(flow_project, PLAIN)
+    before = cli(flow_project, "theses", "gaps", "--json")
+    assert not [g for g in json.loads(before.stdout)["gaps"] if g["kind"] in KINDS]
+    assert json.loads(cli(flow_project, "theses", "dialectic", "--json").stdout)["used"] is False
+    set_state(flow_project, required_stages=["dialectic"])
+    after = cli(flow_project, "theses", "gaps", "--json")
+    assert after.returncode == 1
+    assert ("niche-unmapped", "s1") in [
+        (g["kind"], g["id"]) for g in json.loads(after.stdout)["gaps"]
+    ]
+    view = json.loads(cli(flow_project, "theses", "dialectic", "--json").stdout)
+    assert view["used"] is True and view["ok"] is False
+
+
+def test_an_unreadable_flow_file_does_not_break_theses_gaps(flow_project: Path) -> None:
+    _put(flow_project, PLAIN)
+    (flow_project / "flow.yaml").write_text("version: 1\nround: [\n")
+    result = cli(flow_project, "theses", "gaps", "--json")
+    assert result.returncode == 1  # PLAIN's thesis-unsupported gap, as without the file
+    assert not [g for g in json.loads(result.stdout)["gaps"] if g["kind"] in KINDS]
+
+
+def test_advisory_used_stage_comes_first_but_does_not_block(flow_project: Path) -> None:
+    _put(flow_project, VALID)
+    payload = jcli(flow_project, "flow", "status", "--json")
+    assert [s["stage"] for s in payload["stages"]][0] == "dialectic"
+    assert stages(payload)["dialectic"]["status"] == "advisory"
+    assert payload["current_stage"] != "dialectic"
 
 
 def test_a_required_stage_can_be_waived(flow_project: Path) -> None:
@@ -448,7 +625,7 @@ def test_flow_schema_accepts_required_stages(flow_project: Path) -> None:
 
 def test_flow_schema_allows_a_dialectic_waiver() -> None:
     waiver = STATE_SCHEMA["definitions"]["waiver"]["properties"]["stage"]["enum"]
-    assert waiver.index("dialectic") == waiver.index("frame") + 1
+    assert waiver.index("dialectic") == 0 and waiver.index("frame") == 1
 
 
 def test_status_schema_allows_advisory() -> None:

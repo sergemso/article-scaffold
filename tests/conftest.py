@@ -158,7 +158,22 @@ def flow_base(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture()
 def flow_project(flow_base: Path, tmp_path: Path) -> Path:
+    """A rendered repo with the dialectic stage advisory (the pre-0084 default), so the
+    stage tests opt in with ``required_stages`` and every other flow test starts at frame.
+    ``fresh_project`` keeps the template's shipped flow.yaml."""
     target = tmp_path / "repo"
+    shutil.copytree(flow_base, target)
+    flow = target / "flow.yaml"
+    lines = [ln for ln in flow.read_text(encoding="utf-8").splitlines(keepends=True)
+             if not ln.startswith("required_stages:")]
+    flow.write_text("".join(lines), encoding="utf-8")
+    return target
+
+
+@pytest.fixture()
+def fresh_project(flow_base: Path, tmp_path: Path) -> Path:
+    """A rendered repo exactly as the template ships it."""
+    target = tmp_path / "fresh"
     shutil.copytree(flow_base, target)
     return target
 

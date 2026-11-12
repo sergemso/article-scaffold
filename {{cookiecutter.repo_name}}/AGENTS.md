@@ -3,6 +3,7 @@
 Procedures for argument and source checks are in docs/procedures/. Read the one a work order names; do not read article.tex or whole sections, use `python3 -m scripts.article index` and `theses slice`.
 
 To move the article forward, follow docs/procedures/lifecycle.md: run `python3 -m scripts.article flow next`, do the order, close it with `flow done`, and stop on a needs-human order.
+Accepted items are frozen: never retire or rewrite what you did not write; a `flow done` that reports `ratchet:` means restore your own edits and report.
 
 Before you read or run anything slow, ask the repo:
 - Results: `python3 -m scripts.article ledger get ...` and `check NAME` return a stored verdict for unchanged inputs; run `check record NAME` only on a miss. `docs/ledger/` is committed and shared by every worktree.

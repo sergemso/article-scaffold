@@ -25,6 +25,7 @@ SAMPLES = {
     "claim-verdict": {"claim": "The draft defines X.", "excerpt": "X is defined as Y."},
     "check-outcome": {"paper/a.tex": "alpha\n", "paper/b.tex": "beta\n"},
     "cold-run": {"paper/a.tex": "alpha\n", "in.txt": "one\n"},
+    "accept": {"node": "t1", "text": "main claim"},
 }
 
 

@@ -27,6 +27,7 @@
     },
     "stage": {
       "enum": [
+        "dialectic",
         "frame",
         "map",
         "discover",

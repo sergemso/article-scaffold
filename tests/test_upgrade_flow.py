@@ -41,7 +41,8 @@ def test_old_repo_gains_flow(tmp_path: Path, base_template: dict[str, str]) -> N
         if not path.startswith("scripts/article/"):
             assert path in out["applied"], (path, out)
     result = run(project, "python3", "-m", "scripts.article", "flow", "status", "--json")
-    assert json.loads(result.stdout)["stages"][0]["stage"] == "frame", result.stderr
+    # The template's flow.yaml arrives with required_stages: [dialectic] (decision 0084).
+    assert json.loads(result.stdout)["stages"][0]["stage"] == "dialectic", result.stderr
 
 
 def _only_comments_added(text: str) -> bool:

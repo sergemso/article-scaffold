@@ -236,6 +236,7 @@ LINT_ERRORS = {
     "T092": lambda d: _move(d, "m3").update(cites=["c1", "c1"]),
     "T093": lambda d: _move(d, "m1").update(cites=["nope"]),
     "T094": lambda d: _move(d, "m1").update(cites=["m5"]),
+    "T095": lambda d: _move(d, "m4").update(lifted="The evidence"),
     "T002": lambda d: d.update(extra=[]),
     "T012": lambda d: _contradiction(d, "c2").pop("accepted-by"),
     "T013": lambda d: _contradiction(d, "c2").update({"accepted-by": "assistant"}),
@@ -359,6 +360,28 @@ def test_opening_cannot_open_a_missing_node() -> None:
 def test_aufhebung_needs_each_of_its_three_fields(field: str) -> None:
     move = {k: v for k, v in MOVE_VALID["aufhebung"].items() if k != field}
     assert "T087" in _codes(_with_move(move))
+
+
+# ---------------------------------------------------------------- T095 trivial aufhebung
+
+
+def test_lifted_may_not_repeat_cancelled() -> None:
+    data = _mutated(lambda d: _move(d, "m4").update(lifted="the universal claim!"))
+    assert "T095" in _codes(data)
+
+
+def test_lifted_may_not_repeat_a_pole_of_a_cited_contradiction() -> None:
+    aufhebung = {**MOVE_VALID["aufhebung"], "cites": ["c1", "c2"], "lifted": "X holds."}
+    assert "T095" in _codes(_with_move(aufhebung))
+
+
+def test_lifted_may_repeat_a_pole_of_a_contradiction_it_does_not_cite() -> None:
+    aufhebung = {**MOVE_VALID["aufhebung"], "cites": ["c2", "m1"], "lifted": "Be open"}
+    assert "T095" not in _codes(_with_move(aufhebung))
+
+
+def test_a_lifted_that_says_something_new_passes() -> None:
+    assert "T095" not in _codes(VALID)
 
 
 # ---------------------------------------------------------------- cycles

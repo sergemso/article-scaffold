@@ -9,6 +9,26 @@ generated repo as `template_version` in `template.json`.
 
 ### Added
 
+- The dialectic stage runs first and is driven by orders (decision 0084): `dialectic` precedes
+  `frame` and applies when `flow.yaml` lists it under `required_stages` (the template now ships
+  the line) or the map declares a contradiction. `flow next` issues `map-contradictions`,
+  `move-contradiction`, `develop-move` and `trace-thesis` (dialectic procedure, tier small,
+  check `theses-lint`) and the human-only `ground-niche` and `promote-dialectic`. New gap kinds
+  `niche-unmapped`, `opening-undeveloped` and `thesis-restates-pole`; lint error T095 rejects an
+  `aufhebung` whose `lifted` repeats a pole or its own `preserved`/`cancelled`. `theses add
+  --section nodes|contradictions|moves --file -` appends proposed items from JSON and `theses
+  accept` promotes a contradiction or move. The procedure is written per order kind. `upgrade
+  --plan` prints notice `N005` while `flow.yaml` lacks the line; a repo without the line and
+  without a contradiction is unchanged.
+- The flow ratchets (decision 0085): `theses accept` records each acceptance in the ledger
+  (kind `accept`: id, folded text, who, when, optional `because`); `theses lint` reports T096
+  when an accepted item's text differs from every recorded acceptance and a note `N096` for an
+  item accepted before the record existed; re-accepting changed text needs `theses accept
+  --because <id>`. `flow next` records the accepted set on each non-gated order and
+  `flow done` fails, counting a retry, when the set changed (an item missing, retired,
+  proposed, rewritten or newly accepted). `flow status` gains a derived `quality` vector. A
+  stale section index is rebuilt by `flow next` and `flow done` instead of being ordered; the
+  `reindex` order remains only when the builder fails.
 - Source-claim fidelity, tier 1 (decision 0075): optional `locator` mapping (`edition`,
   `page`, `section`), `bib`, `rests-on`, `edition-map`, `translation`, `context` and `reading`
   on a `source-claim` (lint T050 to T057). `claims quote-check` reads the named edition's file

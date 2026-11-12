@@ -264,23 +264,47 @@ def _theses(args: argparse.Namespace) -> int:
     action = args.theses_action
     if action == "lint":
         diagnostics = theses.lint(root)
+        notes: list[dict] = []
         if diagnostics.ok:
             data = theses.load_map(root)
             diagnostics.extend(terms.check(root, data).diagnostics)
+            notes = theses.acceptance_check(root, data, diagnostics)
         if args.json:
-            _emit_json(diagnostics.to_dict())
+            _emit_json({**diagnostics.to_dict(), "notes": notes})
         else:
             if diagnostics.items:
                 print(diagnostics.format_text(), file=sys.stderr)
+            for note in notes:
+                print(f"note {note['code']}: {note['message']}", file=sys.stderr)
             if diagnostics.ok:
                 print("Theses map is valid.")
         return core.ExitCode.OK if diagnostics.ok else core.ExitCode.DIAGNOSTICS
     try:
         if action == "accept":
-            changed = theses.accept(root, args.id, args.by)
-            _emit_json(
-                {"ok": True, "command": "theses accept", "id": args.id, "changed": changed}
-            )
+            outcome = theses.accept(root, args.id, args.by, args.because)
+            _emit_json({"ok": True, "command": "theses accept", "id": args.id, **outcome})
+            return core.ExitCode.OK
+        if action == "add":
+            raw = sys.stdin.read() if args.file == "-" else Path(args.file).read_text("utf-8")
+            try:
+                items = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise theses.AcceptError(f"--file is not JSON: {exc}") from exc
+            if isinstance(items, dict):
+                items = [items]
+            if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+                raise theses.AcceptError("--file must hold a JSON object or a list of objects")
+            for item in items:
+                if item.get("status", "proposed") != "proposed":
+                    raise theses.AcceptError(
+                        f"{item.get('id')!r}: an added item is proposed; a person accepts it"
+                    )
+                item.setdefault("status", "proposed")
+            theses.add_nodes(root, items, args.section)
+            _emit_json({
+                "ok": True, "command": "theses add", "section": args.section,
+                "added": [i.get("id") for i in items],
+            })
             return core.ExitCode.OK
         try:
             data = theses.load_map(root)
@@ -294,7 +318,7 @@ def _theses(args: argparse.Namespace) -> int:
             _emit_json(theses.slice_map(data, args.id, args.depth))
             return core.ExitCode.OK
         if action == "dialectic":
-            report = dialectic.view(data)
+            report = dialectic.view(data, required="dialectic" in flow.required_stages(root))
             if args.json:
                 _emit_json(
                     {"ok": not report["gaps"], "command": "theses dialectic", **report}
@@ -315,7 +339,10 @@ def _theses(args: argparse.Namespace) -> int:
             )
             return core.ExitCode.OK if report.diagnostics.ok else core.ExitCode.DIAGNOSTICS
         kinds = tuple(args.kind) if args.kind else theses.DEFAULT_GAP_KINDS
-        found = theses.gaps(data, theses.paper_labels(root), kinds)
+        found = theses.gaps(
+            data, theses.paper_labels(root), kinds,
+            required="dialectic" in flow.required_stages(root),
+        )
         if "term-unregistered" in kinds:
             found += terms.check(root, data).gaps
         _emit_json({"ok": not found, "command": "theses gaps", "gaps": found})
@@ -347,6 +374,7 @@ def _flow(args: argparse.Namespace) -> int:
                     print(f"{entry['stage']:<15} {entry['status']:<7} {entry['reason']}")
                     if entry["status"] == "fail":
                         print(f"{'':<15} run: {entry['command']}")
+                print(flow.format_quality(payload["quality"]))
                 print(f"current stage: {payload['current_stage']}")
             return core.ExitCode.OK if payload["ok"] else core.ExitCode.DIAGNOSTICS
         if action == "next":
@@ -1131,6 +1159,22 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(t_accept)
     t_accept.add_argument("id")
     t_accept.add_argument("--by", required=True, help="name of the accepting person")
+    t_accept.add_argument(
+        "--because",
+        help="id of the objection, source-claim, contradiction or move that caused a change "
+        "to an already accepted item (required to re-accept changed text)",
+    )
+    t_add = theses_sub.add_parser(
+        "add", help="append proposed items (nodes, contradictions or moves) from JSON"
+    )
+    _add_common(t_add)
+    t_add.add_argument(
+        "--section", choices=theses.WRITABLE_SECTIONS, default="nodes",
+        help="which list to append to (default nodes)",
+    )
+    t_add.add_argument(
+        "--file", required=True, help="a JSON object or list of objects; - is stdin"
+    )
     t_dialectic = theses_sub.add_parser(
         "dialectic", help="contradictions, the chain of moves and their gaps (read-only)"
     )
@@ -1139,7 +1183,7 @@ def build_parser() -> argparse.ArgumentParser:
         "terms", help="tier 0 term checks, including the informational notes"
     )
     _add_common(t_terms)
-    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept, t_dialectic):
+    for sub in (t_lint, t_gaps, t_terms, t_slice, t_accept, t_add, t_dialectic):
         sub.set_defaults(func=_theses, command="theses")
 
     check_cmd = subparsers.add_parser(

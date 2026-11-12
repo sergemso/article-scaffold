@@ -30,8 +30,8 @@ from .fsutil import atomic_write
 STATE_FILE = "flow.yaml"
 STATUS_SCHEMA_VERSION = "1.0"
 STAGES = (
-    "frame",
     "dialectic",
+    "frame",
     "map",
     "discover",
     "draft",
@@ -42,7 +42,8 @@ STAGES = (
     "publish",
 )
 # Advisory by default (decision 0083): an open one does not fail `flow status`, block the
-# next stage or issue orders, unless flow.yaml lists it under `required_stages`.
+# next stage or issue orders, unless flow.yaml lists it under `required_stages`. The stage
+# comes first (decision 0084): required, it runs before a thesis can be accepted.
 ADVISORY_STAGES = ("dialectic",)
 DIALECTIC_ATTESTATION = "dialectic"
 TIERS = ("script", "small", "large")
@@ -220,6 +221,16 @@ def _list_errors(
     return errors
 
 
+def required_stages(root: Path) -> list[str]:
+    """The advisory stages flow.yaml requires; empty when the file is absent or unreadable.
+    Never raises, so read-only map commands can ask without owning flow.yaml's errors."""
+    try:
+        state = load_state(root)
+    except FlowError:
+        return []
+    return list(state.get("required_stages") or [])
+
+
 def load_state(root: Path) -> dict[str, Any]:
     """The stored state; defaults when flow.yaml is absent. Raises FlowError if invalid."""
     path = root / STATE_FILE
@@ -277,17 +288,63 @@ class Facts:
         return self._once("map", make)
 
     @property
+    def dialectic_required(self) -> bool:
+        return "dialectic" in (self.state.get("required_stages") or [])
+
+    @property
     def gaps(self) -> list[dict]:
         def make():
             data, _ = self.map
             if data is None:
                 return []
-            return theses.gaps(data, theses.paper_labels(self.root), theses.GAP_KINDS)
+            return theses.gaps(
+                data, theses.paper_labels(self.root), theses.GAP_KINDS,
+                required=self.dialectic_required,
+            )
 
         return self._once("gaps", make)
 
     def gap_ids(self, *kinds: str) -> list[dict]:
         return [g for g in self.gaps if g["kind"] in kinds]
+
+    @property
+    def stored_sources(self) -> list[str]:
+        """Keys of the current (not superseded) entries of the source store, sorted."""
+        def make():
+            try:
+                rows = sources.list_sources(self.root)["sources"]
+            except (OSError, ValueError, KeyError):
+                return []
+            return sorted({r["key"] for r in rows if not r.get("superseded")})
+
+        return self._once("sources", make)
+
+    @property
+    def dialectic_gaps(self) -> list[dict]:
+        """The dialectic gaps, plus the source-store half of ``niche-unmapped``: the stage
+        applies, no live contradiction exists, the map holds no source-claim to report the
+        gap on, but a stored source exists to anchor a pole to (decision 0084)."""
+        def make():
+            found = self.gap_ids(*dialectic.GAP_KINDS)
+            data, _ = self.map
+            if data is None or not dialectic.applies(data, self.dialectic_required):
+                return found
+            if any(g["kind"] == "niche-unmapped" for g in found):
+                return found
+            live = [
+                c for c in data.get("contradictions") or []
+                if isinstance(c, dict) and c.get("status") != "retired"
+            ]
+            if live or not self.stored_sources:
+                return found
+            count = len(self.stored_sources)
+            found.append({
+                "kind": "niche-unmapped", "id": self.stored_sources[0],
+                "text": f"no contradiction is declared; {count} stored source(s) to anchor to",
+            })
+            return sorted(found, key=lambda g: (g["kind"], g["id"]))
+
+        return self._once("dialectic-gaps", make)
 
     @property
     def nodes(self) -> dict[str, dict]:
@@ -314,6 +371,27 @@ class Facts:
     @property
     def index_stale(self) -> list[str]:
         return self._once("index", lambda: section_index.check_index(self.root))
+
+    def refresh_index(self) -> str | None:
+        """Rebuild the section index when it is stale (decision 0085).
+
+        The index is a derived file, so a stale one is rebuilt here instead of being handed
+        to an agent as a `reindex` order that can only fail against the retry cap. Returns
+        the reason the rebuild failed, or None; the reasons the index is still stale after
+        that are read again through ``index_stale``.
+        """
+        if not self.index_stale:
+            return None
+        try:
+            section_index.write_index(self.root)
+        except (OSError, ValueError) as exc:
+            self._memo["index_error"] = f"the index could not be rebuilt: {exc}"
+        self._memo.pop("index", None)
+        return self._memo.get("index_error")
+
+    @property
+    def index_error(self) -> str | None:
+        return self._memo.get("index_error")
 
     def check(self, name: str) -> dict[str, Any]:
         return self._once(f"check:{name}", lambda: run_check(self.root, name))
@@ -384,13 +462,14 @@ def _gate_map(f: Facts) -> dict[str, Any]:
 
 
 def dialectic_applies(f: Facts) -> bool:
-    """The dialectic stage exists only for a valid map that declares a contradiction or move."""
+    """The dialectic stage exists for a valid map when flow.yaml requires the stage or the
+    map declares a contradiction or move (decision 0084)."""
     data, _ = f.map
-    return data is not None and dialectic.uses_section(data)
+    return data is not None and dialectic.applies(data, f.dialectic_required)
 
 
 def _gate_dialectic(f: Facts) -> dict[str, Any]:
-    found = f.gap_ids(*dialectic.GAP_KINDS)
+    found = f.dialectic_gaps
     kinds = " ".join(f"--kind {k}" for k in dialectic.GAP_KINDS)
     if found:
         ids = ", ".join(sorted({g["id"] for g in found})[:5])
@@ -895,14 +974,15 @@ def active_waiver(state: dict[str, Any], stage: str, today: date) -> dict | None
 def evaluate(facts: Facts, today: date) -> list[dict[str, Any]]:
     """Per-stage results: stage, status (pass|fail|waived|human|advisory), reason, command.
 
-    ``dialectic`` is left out when the map declares no contradiction or move, and shows
-    ``advisory`` rather than ``fail`` while open unless flow.yaml requires it.
+    ``dialectic`` is left out when flow.yaml does not require it and the map declares no
+    contradiction or move, and shows ``advisory`` rather than ``fail`` while open unless
+    flow.yaml requires it.
     """
     results = []
     required = facts.state.get("required_stages") or []
     for stage in STAGES:
         if stage == "dialectic" and not dialectic_applies(facts):
-            continue  # off unless the map declares a contradiction or move
+            continue  # off unless required or the map declares a contradiction or move
         verdict = GATES[stage](facts)
         if stage == "publish":
             results.append(
@@ -937,6 +1017,69 @@ def current_stage(results: list[dict[str, Any]]) -> str | None:
     return None
 
 
+QUALITY_COUNTS = (
+    "theses_accepted", "theses_opened", "contradictions_moved", "claims_verified",
+    "objections_defended",
+)
+
+
+def quality(f: Facts) -> dict[str, Any]:
+    """The outcome vector, derived from the repo on every call and never stored (0085).
+
+    ``theses_accepted``: accepted thesis nodes. ``theses_opened``: of those, the ones an
+    accepted opening opens. ``contradictions_moved``: live contradictions some live move
+    cites. ``claims_verified``: source-claims whose state is ok or attested.
+    ``objections_defended``: live objections with a live defense. ``gaps``: count per kind.
+    """
+    data, _ = f.map
+    counts = dict.fromkeys(QUALITY_COUNTS, 0)
+    gaps: dict[str, int] = {}
+    if data is None:
+        return {**counts, "gaps": gaps}
+    nodes = f.nodes
+    live = {i: n for i, n in nodes.items() if n.get("status") != "retired"}
+    moves = [
+        m for m in data.get("moves") or []
+        if isinstance(m, dict) and isinstance(m.get("id"), str) and m.get("status") != "retired"
+    ]
+    opened = {
+        m["opens"] for m in moves
+        if m.get("type") == "opening" and m.get("status") == "accepted"
+        and isinstance(m.get("opens"), str)
+    }
+    cited = {c for m in moves for c in (m.get("cites") or []) if isinstance(c, str)}
+    accepted_theses = [
+        i for i, n in nodes.items() if n.get("type") == "thesis" and n.get("status") == "accepted"
+    ]
+    counts["theses_accepted"] = len(accepted_theses)
+    counts["theses_opened"] = sum(1 for i in accepted_theses if i in opened)
+    counts["contradictions_moved"] = sum(
+        1 for c in data.get("contradictions") or []
+        if isinstance(c, dict) and c.get("status") != "retired" and c.get("id") in cited
+    )
+    counts["claims_verified"] = sum(
+        1 for r in f.claim_records if source_claim_state(f, r) in ("ok", "attested")
+    )
+    defended = {
+        e["to"] for e in data.get("edges") or []
+        if isinstance(e, dict) and e.get("type") == "rebuts"
+        and nodes.get(e.get("from"), {}).get("type") == "defense"
+        and e.get("from") in live
+    } | {
+        n["answers"] for n in live.values()
+        if n.get("type") == "defense" and isinstance(n.get("answers"), str)
+    }
+    counts["objections_defended"] = sum(
+        1 for i, n in live.items() if n.get("type") == "objection" and i in defended
+    )
+    for gap in f.gaps:
+        gaps[gap["kind"]] = gaps.get(gap["kind"], 0) + 1
+    for gap in f.dialectic_gaps:
+        if gap["kind"] == "niche-unmapped" and "niche-unmapped" not in gaps:
+            gaps["niche-unmapped"] = 1
+    return {**counts, "gaps": dict(sorted(gaps.items()))}
+
+
 def status(root: Path, today: date | None = None) -> dict[str, Any]:
     state = load_state(root)
     facts = Facts(root, state)
@@ -950,7 +1093,15 @@ def status(root: Path, today: date | None = None) -> dict[str, Any]:
         "current_stage": current_stage(results),
         "budget": {"limit": budget["limit"], "used": budget["used"]},
         "stages": results,
+        "quality": quality(facts),
     }
+
+
+def format_quality(vector: dict[str, Any]) -> str:
+    """One line: the counts, then the gaps per kind."""
+    counts = " ".join(f"{k}={vector[k]}" for k in QUALITY_COUNTS)
+    gaps = " ".join(f"{k}={v}" for k, v in vector["gaps"].items()) or "none"
+    return f"quality: {counts} gaps: {gaps}"
 
 
 # -------------------------------------------------------------------- orders
@@ -1035,11 +1186,13 @@ def orders_for(stage: str, f: Facts) -> list[dict[str, Any]]:
                 reason="deposit and tag are irreversible; read the release plan and decide",
             )
         ]
-    needs_map = stage in ("frame", "map", "discover", "verify-sources", "adversarial")
+    needs_map = stage in ("dialectic", "frame", "map", "discover", "verify-sources", "adversarial")
     if needs_map and f.map[0] is None:
         return [_map_problem_order(stage, f)]
     out: list[dict[str, Any]] = []
-    if stage == "frame":
+    if stage == "dialectic":
+        out += _dialectic_orders(stage, f)
+    elif stage == "frame":
         out.append(
             make_order(
                 stage, "state-thesis", tier="script", needs_human=True,
@@ -1098,13 +1251,115 @@ def orders_for(stage: str, f: Facts) -> list[dict[str, Any]]:
     return out
 
 
+# Order kinds of the dialectic stage, one per gap kind (decision 0084). Every agent order
+# carries the dialectic procedure, tier small and the theses-lint check; the two human-only
+# kinds (ground-niche, promote-dialectic) are issued when there is no gap to hand an agent.
+DIALECTIC_ORDER_KINDS = {
+    "niche-unmapped": "map-contradictions",
+    "contradiction-unmoved": "move-contradiction",
+    "move-without-opening": "develop-move",
+    "opening-undeveloped": "develop-move",
+    "thesis-untraced": "trace-thesis",
+    "thesis-restates-pole": "trace-thesis",
+}
+DIALECTIC_OUTPUTS = {
+    "map-contradictions": [f"{theses.MAP_FILE}#contradictions"],
+    "move-contradiction": [f"{theses.MAP_FILE}#moves"],
+    "develop-move": [f"{theses.MAP_FILE}#moves"],
+    "trace-thesis": [f"{theses.MAP_FILE}#moves", f"{theses.MAP_FILE}#nodes"],
+}
+MAX_ORDER_NODES = 20
+
+
+def _live_items(data: dict, section: str) -> list[dict]:
+    return [
+        i for i in data.get(section) or []
+        if isinstance(i, dict) and isinstance(i.get("id"), str) and i.get("status") != "retired"
+    ]
+
+
+def _dialectic_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
+    data, _ = f.map
+    assert data is not None
+    gaps = f.dialectic_gaps
+    out: list[dict[str, Any]] = []
+    claims = sorted(n["id"] for n in f.nodes.values()
+                    if n["type"] == "source-claim" and n["status"] != "retired")
+    if not gaps and not _live_items(data, "contradictions") and not claims \
+            and not f.stored_sources:
+        return [
+            make_order(
+                stage, "ground-niche", tier="script", needs_human=True,
+                reason="nothing to anchor a contradiction to: add a source (sources add) "
+                       "or a source-claim before the dialectic pass",
+            )
+        ]
+    proc = procedure("dialectic")
+    by_kind: dict[str, list[dict]] = {}
+    for gap in gaps:
+        by_kind.setdefault(DIALECTIC_ORDER_KINDS[gap["kind"]], []).append(gap)
+    if "map-contradictions" in by_kind:
+        gap = by_kind["map-contradictions"][0]
+        nodes = claims[:MAX_BRIEF_NODES] or [gap["id"]]
+        out.append(
+            make_order(
+                stage, "map-contradictions", nodes=nodes,
+                outputs=DIALECTIC_OUTPUTS["map-contradictions"], proc=proc, check="theses-lint",
+                reason=gap["text"],
+            )
+        )
+    def _reason(item_id: str, kinds: list[str]) -> str:
+        return f"gap {', '.join(sorted(kinds))} on {item_id}"
+
+    # One literal make_order per kind: the guardrail rule table is checked against them.
+    for item_id, kinds in sorted(_by_node(by_kind.get("move-contradiction", [])).items()):
+        out.append(
+            make_order(
+                stage, "move-contradiction", nodes=[item_id], proc=proc, check="theses-lint",
+                outputs=DIALECTIC_OUTPUTS["move-contradiction"], reason=_reason(item_id, kinds),
+            )
+        )
+    for item_id, kinds in sorted(_by_node(by_kind.get("develop-move", [])).items()):
+        out.append(
+            make_order(
+                stage, "develop-move", nodes=[item_id], proc=proc, check="theses-lint",
+                outputs=DIALECTIC_OUTPUTS["develop-move"], reason=_reason(item_id, kinds),
+            )
+        )
+    for item_id, kinds in sorted(_by_node(by_kind.get("trace-thesis", [])).items()):
+        out.append(
+            make_order(
+                stage, "trace-thesis", nodes=[item_id], proc=proc, check="theses-lint",
+                outputs=DIALECTIC_OUTPUTS["trace-thesis"], reason=_reason(item_id, kinds),
+            )
+        )
+    if not out and not f.attested(DIALECTIC_ATTESTATION):
+        proposed = sorted(
+            i["id"] for section in ("contradictions", "moves")
+            for i in _live_items(data, section) if i.get("status") == "proposed"
+        )
+        what = (
+            f"accept the proposed items with theses accept ({len(proposed)} proposed), then"
+            if proposed else "no dialectic gap remains;"
+        )
+        out.append(
+            make_order(
+                stage, "promote-dialectic", nodes=proposed[:MAX_ORDER_NODES], tier="script",
+                needs_human=True,
+                reason=f"{what} record `flow attest {DIALECTIC_ATTESTATION}` in a terminal",
+            )
+        )
+    return out
+
+
 def _draft_orders(stage: str, f: Facts) -> list[dict[str, Any]]:
     out = []
-    if f.index_stale:
+    if f.index_stale:  # still stale after the refresh: the builder failed
+        why = f.index_error or "the section index is missing or stale"
         out.append(
             make_order(
                 stage, "reindex", tier="script", outputs=[section_index.INDEX_PATH.as_posix()],
-                check="index-check", reason="the section index is missing or stale",
+                check="index-check", reason=f"{why}; run `{CMD} index`",
             )
         )
     if f.validation_errors:
@@ -1220,6 +1475,7 @@ def next_order(
     """The first open order for the earliest failing gate; re-issuing is idempotent."""
     state = load_state(root)
     facts = Facts(root, state)
+    facts.refresh_index()
     results = evaluate(facts, today or date.today())
     stage = current_stage(results)
     if stage is None:
@@ -1295,8 +1551,61 @@ def _apply_limits(order: dict[str, Any], entry: dict | None, state: dict[str, An
     return human
 
 
+def accepted_digest(data: dict | None) -> tuple[str, list[str]]:
+    """The accepted set of a map: a digest of the sorted (id, folded text) pairs of every
+    accepted node, contradiction and move, and the sorted ids (decision 0085)."""
+    pairs: list[tuple[str, str]] = []
+    for section in theses.WRITABLE_SECTIONS:
+        for item in (data or {}).get(section) or []:
+            if isinstance(item, dict) and isinstance(item.get("id"), str) \
+                    and item.get("status") == "accepted":
+                pairs.append((item["id"], theses.item_text(item)))
+    pairs.sort()
+    text = "\n".join(f"{i}\t{h}" for i, h in pairs)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest(), [i for i, _ in pairs]
+
+
+def _ratchet_failure(root: Path, entry: dict[str, Any], facts: Facts) -> str | None:
+    """Why the accepted set recorded at issue no longer holds, or None (decision 0085)."""
+    stored = entry.get("accepted_hash")
+    if not isinstance(stored, str):
+        return None  # issued before the ratchet, or a gated order: not checked
+    data, _ = facts.map
+    digest, ids = accepted_digest(data)
+    if digest == stored:
+        return None
+    before = set(entry.get("accepted_ids") or [])
+    now = set(ids)
+    parts = []
+    if before - now:
+        parts.append("no longer accepted: " + ", ".join(sorted(before - now)))
+    if now - before:
+        parts.append("newly accepted (only a person accepts): " + ", ".join(sorted(now - before)))
+    changed = []
+    if ledger.enabled() and data is not None:
+        records = theses.acceptance_records(root)
+        for item in theses._items(data):
+            if item.get("status") != "accepted" or item["id"] not in before & now:
+                continue
+            keyed = theses.accept_key(item["id"], theses.item_text(item))
+            if not any(
+                r["inputs"]["text"] == keyed.inputs["text"]
+                for r in records.get(keyed.inputs["node"], [])
+            ):
+                changed.append(item["id"])
+    if changed:
+        parts.append("accepted text changed: " + ", ".join(sorted(changed)))
+    if not parts:
+        parts.append("the text of an accepted item changed")
+    return "ratchet: accepted items changed since the order was issued; " + "; ".join(parts)
+
+
 def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
-    """Record the issued order so `flow done` can close it; unchanged state is not rewritten."""
+    """Record the issued order so `flow done` can close it; unchanged state is not rewritten.
+
+    The accepted set at issue is recorded with it (decision 0085) so `flow done` can refuse
+    a close that lowered it. A gated order is closed by a person and is not checked.
+    """
     old = state["orders"].get(order["id"])
     entry = {
         "kind": order["kind"],
@@ -1309,6 +1618,10 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
         "retries": order["retries"],
         "done": False,
     }
+    if not order["gated"]:
+        digest, ids = accepted_digest(Facts(root, state).map[0])
+        entry["accepted_hash"] = digest
+        entry["accepted_ids"] = ids
     if isinstance(old, dict) and old.get("last_output"):
         entry["last_output"] = old["last_output"]
     if isinstance(old, dict) and old.get("handoff"):
@@ -1323,6 +1636,10 @@ def _remember(root: Path, state: dict[str, Any], order: dict[str, Any]) -> None:
 # Where the finding or gap row of a brief comes from, per order kind. The row is read from
 # the stage that issued the order, never from a model. Kinds not listed use the gate row.
 ROW_SOURCES = {
+    "map-contradictions": "theses gaps",
+    "move-contradiction": "theses gaps",
+    "develop-move": "theses gaps",
+    "trace-thesis": "theses gaps",
     "fill-gap": "theses gaps",
     "find-related": "theses gaps",
     "red-team": "theses gaps",
@@ -1335,6 +1652,10 @@ ROW_SOURCES = {
 }
 # The gap kinds each gap-driven order answers; the row lists only those.
 ROW_GAP_KINDS = {
+    "map-contradictions": ("niche-unmapped",),
+    "move-contradiction": ("contradiction-unmoved",),
+    "develop-move": ("move-without-opening", "opening-undeveloped"),
+    "trace-thesis": ("thesis-untraced", "thesis-restates-pole"),
     "fill-gap": MAP_GAP_KINDS,
     "find-related": ("single-source",),
     "red-team": ("thesis-unattacked",),
@@ -1373,11 +1694,15 @@ def finding_row(order: dict[str, Any], f: Facts) -> dict[str, Any]:
     nodes = order["nodes"][:MAX_BRIEF_NODES]
     row: dict[str, Any] = {"source": source}
     if source == "theses gaps":
+        dialectic_kind = order["kind"] in DIALECTIC_OUTPUTS
+        pool = f.dialectic_gaps if dialectic_kind else f.gaps
+        wanted = ROW_GAP_KINDS[order["kind"]]
         row["gaps"] = sorted(
             (
                 {"kind": g["kind"], "id": g["id"], "text": _short(g["text"])}
-                for g in f.gaps
-                if g["id"] in nodes and g["kind"] in ROW_GAP_KINDS[order["kind"]]
+                for g in pool
+                if g["kind"] in wanted
+                and (g["id"] in nodes or order["kind"] == "map-contradictions")
             ),
             key=lambda g: (g["id"], g["kind"]),
         )
@@ -1711,6 +2036,7 @@ def done(root: Path, order_id: str, today: date | None = None) -> dict[str, Any]
             f"order {order_id!r} is gated: it closes only after a person records "
             f"`flow attest {entry.get('confirm')}` in a terminal"
         )
+    Facts(root, state).refresh_index()  # a derived file never costs a retry (0085)
     if check is not None:
         ran = check_record(root, check)
         if not ran["ok"]:
@@ -1718,6 +2044,9 @@ def done(root: Path, order_id: str, today: date | None = None) -> dict[str, Any]
             outcome = ran.get("verdict", ran["state"])
             return _fail(root, state, order_id, f"check {check}: {outcome}: {detail}")
     facts = Facts(root, state)
+    lost = _ratchet_failure(root, entry, facts)
+    if lost is not None:
+        return _fail(root, state, order_id, lost)
     if order_id in {o["id"] for o in orders_for(entry["stage"], facts)}:
         return _fail(root, state, order_id, "the condition behind this order still holds")
     tier = entry.get("tier", "small")
@@ -1928,6 +2257,7 @@ def open_orders(
     """
     state = load_state(root)
     facts = Facts(root, state)
+    facts.refresh_index()
     results = evaluate(facts, today or date.today())
     stage = current_stage(results)
     if stage is None:

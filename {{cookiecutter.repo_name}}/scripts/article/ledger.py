@@ -68,6 +68,9 @@ KINDS: dict[str, Kind] = {
         ),
         Kind("check-outcome", open_inputs=True, paths=True),
         Kind("cold-run", open_inputs=True, paths=True),
+        # A person's acceptance of a map item: the id and the folded text it was accepted
+        # with (decision 0085). The result holds who, when and the cause of a change.
+        Kind("accept", inputs=("node", "text")),
     )
 }
 

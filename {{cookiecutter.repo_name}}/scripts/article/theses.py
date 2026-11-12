@@ -8,11 +8,12 @@ from __future__ import annotations
 import json
 import re
 from collections import deque
+from datetime import date
 from pathlib import Path
 
 import yaml
 
-from . import address, dialectic
+from . import address, dialectic, ledger
 from .diagnostics import Diagnostics
 from .fsutil import atomic_write
 from .latex import strip_comments
@@ -799,8 +800,13 @@ def _brief(node: dict) -> dict:
     return {"id": node["id"], "type": node["type"], "status": node["status"], "text": node["text"]}
 
 
-def gaps(data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS) -> list[dict]:
-    """Gaps in a valid map, sorted by kind then id. Ids and one-line text only."""
+def gaps(
+    data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS, required: bool = False
+) -> list[dict]:
+    """Gaps in a valid map, sorted by kind then id. Ids and one-line text only.
+
+    *required* says the flow requires the dialectic stage, so its gaps apply to a map that
+    declares no contradiction yet (decision 0084)."""
     nodes = _nodes(data)
     found: list[dict] = []
 
@@ -874,7 +880,7 @@ def gaps(data: dict, labels: set[str] | None, kinds=DEFAULT_GAP_KINDS) -> list[d
         anchor = node.get("anchor")
         if anchor and labels is not None and anchor not in labels:
             add("anchor-missing", node)
-    found += [g for g in dialectic.gaps(data, kinds)]
+    found += dialectic.gaps(data, kinds, required=required)
     # A fatal objection with no answer comes first, then kind and id.
     return sorted(
         found,
@@ -937,13 +943,15 @@ def accept_text(text: str, node_id: str, by: str) -> tuple[str, bool]:
     root = yaml.compose(text)
     mapping = None
     for key, value in root.value:
-        if key.value == "nodes":
+        if key.value in WRITABLE_SECTIONS and isinstance(value, yaml.SequenceNode):
             for item in value.value:
+                if not isinstance(item, yaml.MappingNode):
+                    continue
                 fields = {k.value: v for k, v in item.value}
                 if "id" in fields and fields["id"].value == node_id:
                     mapping = item
     if mapping is None:
-        raise AcceptError(f"no node {node_id!r}")
+        raise AcceptError(f"no node, contradiction or move {node_id!r}")
     if mapping.flow_style:
         raise AcceptError(f"node {node_id!r} is in flow style; edit it by hand")
     fields = {k.value: v for k, v in mapping.value}
@@ -981,21 +989,133 @@ def accept_text(text: str, node_id: str, by: str) -> tuple[str, bool]:
     return text, True
 
 
-def accept(root: Path, node_id: str, by: str) -> bool:
-    """Promote *node_id*; returns False when nothing changed."""
+def accept(root: Path, node_id: str, by: str, because: str | None = None) -> dict:
+    """Promote *node_id* and record the acceptance in the ledger (decision 0085).
+
+    Returns ``{"changed": bool, "recorded": created|exists|skipped}``. A node whose accepted
+    text differs from the text its last acceptance was recorded with is re-accepted only
+    with *because*, the id of the objection, source-claim, contradiction or move that
+    caused the change.
+    """
     path = root / MAP_FILE
     if not path.is_file():
         raise AcceptError("theses.yaml not found")
     old = path.read_text(encoding="utf-8")
     new, changed = accept_text(old, node_id, by)
-    if not changed:
+    data = yaml.safe_load(new)
+    if changed:
+        check = Diagnostics()
+        validate_map(data, None, check)
+        if not check.ok:
+            raise AcceptError("the result would not validate; fix `theses lint` first")
+    if because is not None and not _cause_exists(data, because):
+        raise AcceptError(
+            f"--because {because!r} is not an objection, source-claim, contradiction or move id"
+        )
+    item = _item(data, node_id)
+    recorded = "skipped"
+    if item is not None and ledger.enabled():
+        keyed = accept_key(node_id, item_text(item))
+        records = acceptance_records(root).get(keyed.inputs["node"], [])
+        if any(r["inputs"]["text"] == keyed.inputs["text"] for r in records):
+            recorded = "exists"
+        elif records and because is None:
+            raise AcceptError(
+                f"the text of {node_id!r} changed since its acceptance was recorded; run "
+                f"`theses accept {node_id} --by NAME --because <id>` naming the objection, "
+                "source-claim, contradiction or move that caused the change"
+            )
+        else:
+            result = {"by": by.strip(), "at": date.today().isoformat()}
+            if because is not None:
+                result["because"] = because
+            recorded = ledger.put(root, keyed, "pass", result)
+    if changed:
+        atomic_write(path, new)
+    return {"changed": changed, "recorded": recorded}
+
+
+# ------------------------------------------------------- acceptance records (0085)
+
+ACCEPT_KIND = "accept"
+ACCEPT_VERSION = "1"
+CAUSE_TYPES = ("objection", "source-claim")
+
+
+def item_text(item: dict) -> str:
+    """The text an acceptance is recorded against: ``text``, or the poles of a contradiction."""
+    text = item.get("text")
+    if isinstance(text, str) and text.strip():
+        return dialectic.fold(text)
+    poles = [p.get("text") for p in item.get("poles") or [] if isinstance(p, dict)]
+    return dialectic.fold(" / ".join(p for p in poles if isinstance(p, str)))
+
+
+def accept_key(node_id: str, folded_text: str) -> ledger.Keyed:
+    return ledger.key(
+        ACCEPT_KIND, {"node": node_id, "text": folded_text}, ACCEPT_VERSION, "human"
+    )
+
+
+def _items(data: dict) -> list[dict]:
+    return [
+        i for section in WRITABLE_SECTIONS
+        for i in (data.get(section) or [] if isinstance(data, dict) else [])
+        if isinstance(i, dict) and isinstance(i.get("id"), str)
+    ]
+
+
+def _item(data: dict, item_id: str) -> dict | None:
+    return next((i for i in _items(data) if i["id"] == item_id), None)
+
+
+def _cause_exists(data: dict, cause: str) -> bool:
+    item = _item(data, cause)
+    if item is None:
         return False
-    check = Diagnostics()
-    validate_map(yaml.safe_load(new), None, check)
-    if not check.ok:
-        raise AcceptError("the result would not validate; fix `theses lint` first")
-    atomic_write(path, new)
-    return True
+    return "type" not in item or item.get("type") in CAUSE_TYPES
+
+
+def acceptance_records(root: Path) -> dict[str, list[dict]]:
+    """Stored ``accept`` entries grouped by the hash of the item id."""
+    grouped: dict[str, list[dict]] = {}
+    for digest in ledger.keys(root, ACCEPT_KIND):
+        try:
+            entry = ledger.get(root, ACCEPT_KIND, digest)
+        except ledger.LedgerError:
+            continue
+        if entry is not None:
+            grouped.setdefault(entry["inputs"]["node"], []).append(entry)
+    return grouped
+
+
+def acceptance_check(root: Path, data: dict, diagnostics: Diagnostics) -> list[dict]:
+    """T096 for an accepted item whose text differs from its recorded acceptance; a note
+    (returned, not a diagnostic) for an accepted item with no record (decision 0085)."""
+    notes: list[dict] = []
+    if not ledger.enabled():
+        return notes
+    records = acceptance_records(root)
+    for item in _items(data):
+        if item.get("status") != "accepted":
+            continue
+        keyed = accept_key(item["id"], item_text(item))
+        found = records.get(keyed.inputs["node"], [])
+        if any(r["inputs"]["text"] == keyed.inputs["text"] for r in found):
+            continue
+        if found:
+            diagnostics.error(
+                MAP_FILE, 0, "T096",
+                f"{item['id']!r}: accepted text changed since its acceptance was recorded; "
+                f"run `theses accept {item['id']} --by NAME --because <id>`",
+            )
+        else:
+            notes.append({
+                "code": "N096", "id": item["id"],
+                "message": f"no acceptance record for {item['id']!r}; run "
+                           f"`theses accept {item['id']} --by NAME` once to record one",
+            })
+    return notes
 
 
 # ----------------------------------------------------------------- add nodes
@@ -1005,36 +1125,78 @@ def _quote(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def append_nodes_text(text: str, new_nodes: list[dict]) -> str:
-    """Return *text* with *new_nodes* appended after the last node.
+WRITABLE_SECTIONS = ("nodes", "contradictions", "moves")
 
-    Only inserts lines: existing nodes, comments and ordering stay byte for byte, so two
-    branches that edit different nodes still merge. Values are written as quoted scalars.
+
+def _emit(value: object, indent: str) -> str:
+    """Block-style YAML lines for a nested value, one scalar per line, every scalar quoted.
+
+    A list of scalars or mappings and a mapping of scalars nest under their key; anything
+    else is written as one quoted scalar. Used for the sections an agent may append to.
     """
+    if isinstance(value, dict):
+        out = ""
+        for key, item in value.items():
+            out += _emit_field(str(key), item, indent)
+        return out
+    if isinstance(value, list):
+        out = ""
+        for item in value:
+            if isinstance(item, dict):
+                first = True
+                for key, inner in item.items():
+                    lead = f"{indent}- " if first else f"{indent}  "
+                    out += _emit_field(str(key), inner, lead, nested=f"{indent}  ")
+                    first = False
+            else:
+                out += f"{indent}- {_quote(str(item))}\n"
+        return out
+    return f"{indent}{_quote(str(value))}\n"
+
+
+def _emit_field(key: str, value: object, lead: str, nested: str | None = None) -> str:
+    inner = (nested if nested is not None else lead) + "  "
+    if isinstance(value, (dict, list)) and value:
+        return f"{lead}{key}:\n" + _emit(value, inner)
+    if isinstance(value, (dict, list)):
+        return f"{lead}{key}: []\n" if isinstance(value, list) else f"{lead}{key}: {{}}\n"
+    return f"{lead}{key}: {_quote(str(value))}\n"
+
+
+def append_nodes_text(text: str, new_nodes: list[dict], section: str = "nodes") -> str:
+    """Return *text* with *new_nodes* appended after the last item of *section*.
+
+    Only inserts lines: existing items, comments and ordering stay byte for byte, so two
+    branches that edit different items still merge. Values are written as quoted scalars;
+    a list or mapping value (poles, cites, resources) is written in block style. A missing
+    ``contradictions`` or ``moves`` section is created at the end of the file.
+    """
+    if section not in WRITABLE_SECTIONS:
+        raise AcceptError(f"section must be one of {', '.join(WRITABLE_SECTIONS)}")
     if not new_nodes:
         return text
     root = yaml.compose(text)
+    if not isinstance(root, yaml.MappingNode):
+        raise AcceptError("theses.yaml is not a mapping")
     value = None
     for key, item in root.value:
-        if key.value == "nodes":
+        if key.value == section:
             value = item
+    block = _emit(list(new_nodes), "  ")
     if value is None:
-        raise AcceptError("theses.yaml has no nodes list")
+        if section == "nodes":
+            raise AcceptError("theses.yaml has no nodes list")
+        body = text if text.endswith("\n") or not text else text + "\n"
+        return body + f"{section}:\n" + block
     key_indent = 0
     for key, item in root.value:
         if item is value:
             key_indent = key.start_mark.column
-    indent = " " * (key_indent + 2)
-    block = ""
-    for node in new_nodes:
-        first = True
-        for field, field_value in node.items():
-            lead = f"{indent}- " if first else f"{indent}  "
-            block += f"{lead}{field}: {_quote(str(field_value))}\n"
-            first = False
-    if value.flow_style:
+    if key_indent:
+        block = _emit(list(new_nodes), " " * (key_indent + 2))
+    if value.flow_style or not isinstance(value, yaml.SequenceNode):
         if value.value:
-            raise AcceptError("nodes is in flow style; edit the file by hand")
+            raise AcceptError(f"{section} is in flow style; edit the file by hand")
         head = text[: value.start_mark.index].rstrip(" ")
         tail = text[value.end_mark.index :]
         return head + "\n" + block + tail.lstrip(" ").lstrip("\n")
@@ -1046,12 +1208,12 @@ def append_nodes_text(text: str, new_nodes: list[dict]) -> str:
     return text[:at] + prefix + block + text[at:]
 
 
-def add_nodes(root: Path, new_nodes: list[dict]) -> None:
-    """Append nodes to theses.yaml; refuses a result that would not validate."""
+def add_nodes(root: Path, new_nodes: list[dict], section: str = "nodes") -> None:
+    """Append items to a section of theses.yaml; refuses a result that would not validate."""
     path = root / MAP_FILE
     if not path.is_file():
         raise AcceptError("theses.yaml not found")
-    new = append_nodes_text(path.read_text(encoding="utf-8"), new_nodes)
+    new = append_nodes_text(path.read_text(encoding="utf-8"), new_nodes, section)
     check = Diagnostics()
     validate_map(yaml.safe_load(new), None, check)
     if not check.ok:

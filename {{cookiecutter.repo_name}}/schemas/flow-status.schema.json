@@ -5,7 +5,7 @@
   "description": "Stable output of `python3 -m scripts.article flow status`.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "ok", "command", "round", "current_stage", "budget", "stages"],
+  "required": ["schema_version", "ok", "command", "round", "current_stage", "budget", "stages", "quality"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "ok": { "type": "boolean" },
@@ -19,6 +19,23 @@
       "properties": {
         "limit": { "type": "integer", "minimum": 0 },
         "used": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The outcome vector, derived from the repo on every call and never stored (decision 0085).",
+      "required": ["theses_accepted", "theses_opened", "contradictions_moved", "claims_verified", "objections_defended", "gaps"],
+      "properties": {
+        "theses_accepted": { "type": "integer", "minimum": 0 },
+        "theses_opened": { "type": "integer", "minimum": 0 },
+        "contradictions_moved": { "type": "integer", "minimum": 0 },
+        "claims_verified": { "type": "integer", "minimum": 0 },
+        "objections_defended": { "type": "integer", "minimum": 0 },
+        "gaps": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
       }
     },
     "stages": {

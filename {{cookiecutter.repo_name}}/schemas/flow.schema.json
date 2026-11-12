@@ -209,8 +209,8 @@
       "properties": {
         "stage": {
           "enum": [
-            "frame",
             "dialectic",
+            "frame",
             "map",
             "discover",
             "draft",
