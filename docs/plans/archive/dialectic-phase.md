@@ -1,5 +1,7 @@
 # Dialectic phase: contradictions, moves and TRIZ in the theses map
 
+Archived 2026-11-12: every step is done and shipped in template 1.10.0. Decision 0084 amends 0083 (placement, orders, development checks); the follow-up plan is `docs/plans/dialectic-guarantee.md`.
+
 Repo: `/home/sergei/projects/sergemso/article-scaffold` (a cookiecutter template; run Python from the venv: `make setup`, then `.venv/bin/python -m pytest <file>`; `make lint` runs ruff). Template tree is `{{cookiecutter.repo_name}}/` (quote it in shells). Code lives in `{{cookiecutter.repo_name}}/scripts/article/`, schemas in `{{cookiecutter.repo_name}}/schemas/`, tests in `tests/`.
 
 This plan implements decision 0083 (below), accepted by the owner on 2026-11-11. It extends 0065 to 0076 and follows the pattern of 0073.
@@ -8,11 +10,11 @@ Constraints for every step: every new field is optional so a `version: 1` map st
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved.
 
-## Decision 0083: a dialectic stage maps contradictions and typed moves before the thesis is fixed
+## Decision 0083 (as drafted; the accepted text is docs/decisions/0083-dialectic-stage-maps-contradictions-and-typed-moves.md)
 
 Status: draft, awaiting the owner. Tags: theses-map, lifecycle, dialectic, triz. Track: product.
 
-### Decision
+**Decision**
 
 The lifecycle (0070) gains an advisory stage `dialectic` between `frame` and `map`. The theses map gains two optional sections.
 
@@ -22,18 +24,18 @@ The lifecycle (0070) gains an advisory stage `dialectic` between `frame` and `ma
 
 `theses lint` checks structure only: references resolve, poles are anchored, move types carry their required fields, no cycles in the move chain. `theses gaps` adds kinds `contradiction-unmoved`, `move-without-opening` and `thesis-untraced` (a thesis with no `opening` or recorded reason). The gate of the stage passes when there are no such gaps and a human has attested the stage (`flow attest`); soundness of a synthesis is judged by a person. A procedure in `docs/procedures/` and a `dialectic` skill adapter have an agent run niche and topic analysis over sources already in `paper/sources/` and propose contradictions and moves as `proposed` nodes.
 
-### Why
+**Why**
 
 A thesis chosen before the niche's tensions are mapped tends to restate one pole. Keeping the moves as typed nodes lets objections and arguments (0073, 0074) target them and lets `theses gaps` show what is still unresolved. Making the stage advisory and opt-in keeps existing article repos passing. Free-text TRIZ parameters were chosen over the full matrix because the matrix is large and mostly useful in technical domains; a tagged principle can be added later without a schema break. `aufhebung` as a mere tag on `synthesis` was rejected: the three required fields are the point of the concept and only a first-class type can be linted.
 
-### Consequence
+**Consequence**
 
 Schema, linter, gap kinds, the shipped principle list, one procedure, one skill adapter and an upgrade/adoption note are needed. A repo that never declares a contradiction sees no change. Whether a synthesis is philosophically sound stays a human judgment.
 
 ## 1. Schema and structural lint
 
 ### 1.1 Contradictions section — [x]
-Class: implement · Effort: medium · Needs: decision 0083 accepted · Check: `.venv/bin/python -m pytest tests/test_theses_schema.py tests/test_dialectic.py -q`
+Class: implement · Effort: medium · Needs: none · Check: `.venv/bin/python -m pytest tests/test_theses_schema.py tests/test_dialectic.py -q`
 Decision: 0083. Scope: `schemas/theses.schema.json`, `scripts/article/theses.py`, new `scripts/article/dialectic.py`, `schemas/triz-principles.json`, `theses.yaml` template comments.
 Do: Add the `contradictions` section and its TRIZ fields; ship the closed list of 40 principles; lint pole anchors, kind rules and `principle` membership.
 Done-when: each rule has a failing and a passing test, and an existing map validates unchanged.
@@ -69,7 +71,7 @@ Done-when: the procedure covers each move type; no shipped file names go-getter,
 ## 4. Delivery
 
 ### 4.1 Upgrade note, companion check, full suite — [x]
-Class: verify · Effort: low · Needs: 3.1, 2.2 · Check: `make test && make lint`
+Class: review · Effort: low · Needs: 3.1, 2.2 · Check: `make test && make lint`
 Human: tagging and pushing needs the owner's explicit go-ahead. Status: tagging/push awaiting owner; version not bumped, CHANGELOG item is under Unreleased.
 Do: Add the adoption note (once per feature), confirm `upgrade` leaves `theses.yaml` alone and the companion excludes nothing new that it should keep out, then run the whole suite and lint and prepare the version bump.
 Done-when: `make test` and `make lint` pass and the release notes list decision 0083.

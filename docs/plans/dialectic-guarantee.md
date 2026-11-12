@@ -1,0 +1,147 @@
+# Dialectic guarantee: an order-driven dialectic stage before the thesis, and a flow that never closes an order by losing ground
+
+Repo: `/home/sergei/projects/sergemso/article-scaffold` (a cookiecutter template). Run Python from the venv: `make setup` once, then `.venv/bin/python -m pytest <file> -q`; the whole suite takes about five minutes with `make test`, so run single files while iterating; `make lint` runs ruff. The template tree is `{{cookiecutter.repo_name}}/`; quote that path in shells. Code lives in `{{cookiecutter.repo_name}}/scripts/article/` (`dialectic.py`, `theses.py`, `flow.py`, `ledger.py`, `cli.py`, `upgrade.py`), schemas in `{{cookiecutter.repo_name}}/schemas/`, procedures in `{{cookiecutter.repo_name}}/docs/procedures/`, tests in `tests/` (helpers: `tests/flow_helpers.py`, fixtures `VALID` and `PLAIN` in `tests/test_dialectic.py`).
+
+This plan implements decisions 0084 (the dialectic stage issues orders, precedes `frame`, and its gate demands development) and 0085 (an order cannot close by lowering what was accepted; an accepted node changes only with a recorded cause). They hold the why; this file holds the what. Do not re-open them; if one proves wrong, stop and mark the step `[!]` with the reason. Both are `status: draft` until the owner sets them `active` (step 0.2). Background and evidence: `docs/notes/paper-workflow-knowledge-first-handoff.md`; the shipped first version is decision 0083 and the archived plan `docs/plans/archive/dialectic-phase.md`.
+
+Constraints for every step: every new field is optional so a `version: 1` map and a `version: 1` `flow.yaml` stay valid; a repo that neither requires the stage nor declares a contradiction sees no change in `flow status`; no network and no model call in the new code (`tests/test_no_network_in_claim_code.py`); nothing shipped to an article repo names go-getter, a model or one agent host (guardrail `article-tooling-is-host-neutral`, `tests/test_host_neutral.py`); agents propose and humans promote (guardrail `agent-nodes-need-human-promotion`); `flow done` runs only names from the fixed check table (guardrail `flow-checks-are-named-not-supplied`); `theses.yaml` and `flow.yaml` belong to the author and `upgrade` never overwrites them; commit messages are Conventional Commits with a `Refs:` trailer naming the decision ids; stay out of `AGENTS.md`'s generated guardrail section; never run `agentctl` or resume the archived T-queue.
+
+## How to resume this plan (read this first, every session)
+
+This plan is re-entrant: the file alone says what remains. On entry:
+
+1. Run `go-getter plan next docs/plans/dialectic-guarantee.md`. It lists the ready steps; take the first unless the owner names one.
+2. Read the **Checkpoint log** below. The last line names the last commit and the Check command that passed. Run that Check once; if it fails, the tree moved after the checkpoint: fix that before starting anything new.
+3. A step marked `[~]` was interrupted. Its log line says `resume-from:` with what is in place and what is not. Continue it; do not restart it from scratch unless the log says so.
+4. Work in a branch off `master` named `feat/dialectic-guarantee-<step id>` (one branch per step, or one branch for a Needs chain). Before writing code, read the files the step's Scope names; the Done-when is checked against their content, not memory.
+
+Checkpoint discipline (every step): when the step's Check passes, (a) set its marker to `[x]`, (b) append one line to the Checkpoint log (date, step, commit, check result, one line of what was interpreted), (c) commit the code and this plan together with the step's commit message, (d) push the branch and open a pull request against `master` (the repo merges by PR). When you stop mid-step (call cap, context, a question only the owner can answer), set `[~]`, append a log line with `resume-from:` and commit the partial work on the branch with `wip(<step>):` in the subject; the next session squashes it. A step that fails its Check three times is `[!]` with the output in the log; stop and hand over.
+
+Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved. `‖` after the marker marks a step that may run in parallel with its siblings (own worktree each).
+
+## Checkpoint log
+
+| Date | Step | Commit | Check | Note |
+|---|---|---|---|---|
+| 2026-11-12 | 0.1 | branch `plan/dialectic-guarantee` | `go-getter plan status docs/plans/dialectic-guarantee.md` parses | decisions 0084 and 0085 drafted; fact 0009 amended; archived plan `dialectic-phase.md` fixed to parse; this plan written. Tier-2 claims work (plan `theses-map-extensions.md` 2.2) committed separately on `feat/claims-tier2`, PR #44. |
+
+## 0. Design
+
+### 0.1 Record the decisions and this plan — [x]
+Class: plan · Needs: none · Check: `go-getter plan status docs/plans/dialectic-guarantee.md`
+Context: The shipped dialectic stage (0083) sits after `frame`, issues no orders and is off until a contradiction is hand-written; nothing guarantees a contradiction is found, moved or developed before a thesis is accepted, and nothing stops an order from closing by degrading what was already accepted.
+Do: Write `docs/decisions/0084-dialectic-stage-is-order-driven-and-precedes-the-thesis.md` and `docs/decisions/0085-flow-outcomes-ratchet-and-reframing-needs-a-cause.md` as drafts, add their rows to `docs/decisions/INDEX.md`, amend `docs/facts/0009-flow-stage-and-gate-spec.md` with the new stage row, move the finished `docs/plans/dialectic-phase.md` to `docs/plans/archive/`, and write this plan.
+Done-when: both decision files exist with `status: draft`, the index lists them, and `go-getter plan status` parses this plan with no error.
+
+### 0.2 Owner accepts decisions 0084 and 0085 — [ ]
+Class: review · Needs: 0.1 · Check: `grep -L "status: active" docs/decisions/0084-dialectic-stage-is-order-driven-and-precedes-the-thesis.md docs/decisions/0085-flow-outcomes-ratchet-and-reframing-needs-a-cause.md`
+Human: only the owner does this step; an agent never edits a decision's status or `accepted-by`.
+Do: The owner reads both decisions, edits what is wrong, sets `status: active` and `accepted-by`, and updates the `status` column of their rows in `docs/decisions/INDEX.md`. Implementation steps may start before this; delivery (3.2) may not.
+Done-when: the Check prints nothing (both files carry `status: active`).
+
+## 1. The dialectic stage issues orders and runs first (0084)
+
+### 1.1 Development gaps and the trivial-aufhebung error — [ ]
+Class: implement · Effort: medium · Needs: none · Check: `.venv/bin/python -m pytest tests/test_dialectic.py tests/test_dialectic_gaps.py -q`
+Decision: 0084. Scope: `{{cookiecutter.repo_name}}/scripts/article/dialectic.py` (`GAP_KINDS`, `gaps`, `_check_moves`, `view`, `format_text`), `tests/test_dialectic.py`, `tests/test_dialectic_gaps.py`.
+Context: `gaps()` today returns nothing unless the map uses the section, and the chain can close on a thesis that repeats one pole. `_live` keeps `proposed` items, so a proposed thesis counts.
+Do: Add a function `applies(data, required: bool) -> bool` that is true when `required` or `uses_section(data)`; `gaps(data, kinds, required=False)` uses it. Add gap kind `niche-unmapped` (the stage applies, no live contradiction, and the map holds at least one `source-claim` node; the source-store condition is added in 1.2 where the flow knows the store). Add gap kind `opening-undeveloped` (an `opening` whose transitive `cites` chain holds no `synthesis`, `aufhebung` or `negation-of-negation`). Add gap kind `thesis-restates-pole` (a thesis opened by an opening whose folded text equals, contains or is contained in the folded text of any pole of any contradiction reachable through that opening's chain; folding is lower case, punctuation removed, whitespace collapsed; write `fold(text)` once and reuse it). Add lint error T095: an `aufhebung` whose folded `lifted` equals its folded `preserved`, `cancelled` or any pole text of a contradiction it cites. Extend `view()` and `format_text()` so the gaps show. Keep `GAP_KINDS` the single list the flow reads.
+Done-when: each new gap kind and T095 has a failing and a passing fixture test; `PLAIN` (no section, not required) still yields no gaps; `VALID` yields the same gaps as before plus nothing new unless a fixture is mutated; the derivation `development()` is unchanged.
+Rollback: `git revert` the step's commit; no file format changes.
+
+### 1.2 Stage placement, applicability and gate — [ ]
+Class: implement · Effort: medium · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_dialectic_gaps.py tests/test_flow_status.py tests/test_schemas.py -q`
+Decision: 0084. Scope: `{{cookiecutter.repo_name}}/scripts/article/flow.py` (`STAGES`, `dialectic_applies`, `_gate_dialectic`, `evaluate`, `Facts.gap_ids`), `{{cookiecutter.repo_name}}/schemas/flow-status.schema.json`, `tests/flow_helpers.py` (`stages`), `tests/test_flow_status.py`, `tests/test_dialectic_gaps.py`.
+Context: `STAGES` lists `dialectic` after `frame`; `evaluate()` leaves the stage out when `dialectic_applies` is false and marks it `advisory` unless `required_stages` lists it; `current_stage` takes the earliest failing non-advisory gate.
+Do: Move `dialectic` to the front of `STAGES`. `dialectic_applies(f)` is true when `required_stages` lists it or the map uses the section. `_gate_dialectic` reads all six gap kinds with `required` passed through, and adds the source-store half of `niche-unmapped`: when the map holds no `source-claim` node but `sources.list(root)` is non-empty, the gap still fires (there is something to anchor to). Keep the attestation `dialectic` requirement. Update the status schema if the stage list is enumerated there. Fix every test that asserts stage order.
+Done-when: `flow status` on a repo with no section and no `required_stages` prints the same stage table as before (a snapshot test); a repo with `required_stages: [dialectic]` and an empty map shows `dialectic` first and failing with `niche-unmapped` once a source or source-claim exists; a repo that uses the section but is not required shows the stage first and `advisory`; the frame gate is unchanged.
+Rollback: `git revert`; `flow.yaml` is not written by this step.
+
+### 1.3 Orders for the stage — [ ]
+Class: implement · Effort: high · Needs: 1.2 · Check: `.venv/bin/python -m pytest tests/test_flow_orders.py tests/test_flow_done.py tests/test_flow_brief.py tests/test_dialectic_gaps.py -q`
+Decision: 0084 with 0071 and 0081. Scope: `{{cookiecutter.repo_name}}/scripts/article/flow.py` (`orders_for`, `ROW_SOURCES`, `ROW_GAP_KINDS`, `procedure`), `{{cookiecutter.repo_name}}/schemas/flow-order.schema.json`, `tests/test_flow_orders.py`, `tests/test_flow_brief.py`, `tests/test_dialectic_gaps.py`.
+Context: `orders_for` has no `dialectic` branch, so `flow next` on an open stage returns a `gate-failing` needs-human order. Every gap-driven order is `make_order(stage, kind, nodes=[id], outputs=..., proc=procedure(name), check="theses-lint", reason=...)`; `flow done` re-runs `orders_for` and fails when the same order id is still present. `_live` counts `proposed` items, so a proposal closes a gap.
+Do: Add the branch, in this order: `ground-niche` (needs-human) when the stage applies, no live contradiction exists and neither a source-claim nor a stored source exists; `map-contradictions` for `niche-unmapped` (nodes: up to five source-claim ids, outputs `theses.yaml#contradictions`); `move-contradiction` per `contradiction-unmoved`; `develop-move` per `move-without-opening` and per `opening-undeveloped`; `trace-thesis` per `thesis-untraced` and per `thesis-restates-pole`; `promote-dialectic` (needs-human, nodes: the proposed contradiction and move ids, at most twenty) when no gap remains and the stage is not attested. All agent orders carry `proc=procedure("dialectic")`, tier `small`, check `theses-lint`. Add the kinds to `ROW_SOURCES` and `ROW_GAP_KINDS` so `flow next --brief` lists the gap rows. Order ids stay stable (stage, kind, sorted node ids).
+Done-when: for each gap kind a test shows the order kind, procedure path and nodes; closing `map-contradictions` after a proposed contradiction is appended passes `flow done`, and closing it with the map unchanged fails with "the condition behind this order still holds"; `promote-dialectic` is `needs_human` and `flow done` refuses it; a repo with no section and not required issues no dialectic order; `flow next --brief` for `move-contradiction` includes the contradiction's row and the guardrail line.
+Rollback: `git revert`.
+
+### 1.4 `theses add` and `theses accept` for contradictions and moves — [ ]
+Class: implement · Effort: medium · Needs: 1.1 · Check: `.venv/bin/python -m pytest tests/test_theses_cli.py tests/test_dialectic.py -q`
+Decision: 0084 with 0066. Scope: `{{cookiecutter.repo_name}}/scripts/article/theses.py` (`append_nodes_text`, `add_nodes`, `accept_text`, `accept`), `{{cookiecutter.repo_name}}/scripts/article/cli.py` (`theses add`, `theses accept`), `tests/test_theses_cli.py`.
+Context: `add_nodes` writes flat scalar fields under `nodes:` only; `accept_text` walks `nodes:` only and refuses a flow-style item. Contradictions carry a nested `poles` list; moves are flat. The procedure currently tells the agent to hand-write both sections.
+Do: Let `theses add --section contradictions|moves` (default `nodes`) append items with nested `poles` and list fields (`cites`, `resources`), written in block style, validated before the write exactly as nodes are. Let `accept_text` find an id in `nodes`, `contradictions` or `moves` (ids share one namespace, T071) and promote it the same way. Keep the refusal for flow style and for a node that is not `proposed`.
+Done-when: a round trip (add a contradiction with two anchored poles, lint, accept, lint) passes and leaves other lines of the file untouched (a byte comparison outside the added lines); accepting a move id and a contradiction id each set `status: accepted` and `accepted-by`; an agent name is refused.
+Rollback: `git revert`; existing `theses add` calls are unchanged (default section).
+
+### 1.5 Order-driven dialectic procedure and skill — [ ]
+Class: implement · Effort: medium · Needs: 1.3, 1.4 · Check: `.venv/bin/python -m pytest tests/test_host_neutral.py tests/test_skills.py tests/test_docs.py -q`
+Decision: 0084. Scope: `{{cookiecutter.repo_name}}/docs/procedures/dialectic.md`, `{{cookiecutter.repo_name}}/.claude/skills/dialectic/SKILL.md`, `{{cookiecutter.repo_name}}/docs/procedures/lifecycle.md` (one line naming the stage).
+Context: The procedure describes one whole pass. The orders now name one gap each: `map-contradictions`, `move-contradiction`, `develop-move`, `trace-thesis`.
+Do: Rewrite the procedure around the order kinds: a section per kind saying what to read (`theses slice`, `sources find`, `sources slice`), what to propose and with which move type, and when to stop. Carry the development checklist as instructions: a thesis must not restate a pole (say what the `thesis-restates-pole` check folds); an opening must follow a synthesis, aufhebung or negation-of-negation (`opening-undeveloped`); `aufhebung` needs `lifted` to say something neither pole said (T095); prefer `aufhebung` over `synthesis` when you can name what is kept, dropped and lifted; a `negation-of-negation` must cite the negation it answers. Replace the hand-write instruction with `theses add --section`. Keep the skill a pointer. Add one line to `lifecycle.md` that the first orders of a new article are dialectic orders.
+Done-when: each order kind and each of the three development checks appears once in the procedure; no shipped file names go-getter, a model or one host; the skill still points to the procedure.
+Rollback: `git revert`.
+
+### 1.6 Template requires the stage; upgrade notice; adoption note — [ ]
+Class: implement · Effort: low · Needs: 1.2, 1.3 · Check: `.venv/bin/python -m pytest tests/test_upgrade_dialectic.py tests/test_upgrade_flow.py tests/test_flow_status.py -q`
+Decision: 0084. Scope: `{{cookiecutter.repo_name}}/flow.yaml`, `{{cookiecutter.repo_name}}/scripts/article/upgrade.py` (the notice table), `docs/skills/adopting-the-theses-map-in-an-existing-article.md`, `{{cookiecutter.repo_name}}/CHANGES.md`, `tests/test_upgrade_dialectic.py`.
+Context: The template `flow.yaml` has no `required_stages`; `upgrade --plan` prints notice `N004` once for the dialectic feature and never touches `flow.yaml`.
+Do: Ship `required_stages: [dialectic]` in the template `flow.yaml` with a two-line comment saying how to make it advisory. Add notice `N005` to `upgrade --plan` for an existing repo whose `flow.yaml` lacks the line (printed once, nothing written). Extend the adoption procedure with the one line to add and what `flow next` then asks for. Record the change in `CHANGES.md` under Unreleased.
+Done-when: a fresh render shows `dialectic` first and open on `flow status`; an upgraded repo's `flow.yaml` is byte-identical before and after; the notice appears once; `tests/test_flow_status.py` snapshot for a repo without the line is unchanged.
+Rollback: `git revert`; a rendered repo keeps whatever `flow.yaml` it has.
+
+## 2. The flow ratchets (0085)
+
+### 2.1 Acceptance is recorded in the ledger; T096 and `--because` — [ ]‖
+Class: implement · Effort: medium · Needs: none · Check: `.venv/bin/python -m pytest tests/test_theses_cli.py tests/test_ledger.py tests/test_ledger_claims.py -q`
+Decision: 0085 with 0079. Scope: `{{cookiecutter.repo_name}}/scripts/article/ledger.py` (kinds table), `{{cookiecutter.repo_name}}/scripts/article/theses.py` (`accept`, `_check_node` or a new `_check_acceptance`), `{{cookiecutter.repo_name}}/scripts/article/cli.py` (`theses accept --because`), `{{cookiecutter.repo_name}}/schemas/theses.schema.json` only if a field is added (none is planned), `tests/test_theses_cli.py`, `tests/test_ledger.py`.
+Context: `theses accept` edits the node's lines and validates; the ledger (`docs/ledger/`) is append-only and hash-keyed, written today by `claims record` and `check record`. `lifecycle.md` says agents never edit the ledger; `theses accept` is a person's command, so a write from it keeps that rule.
+Do: Add ledger kind `accept` with inputs `node` (id) and `text` (sha256 of the folded text), outputs `by`, `at`, `because` (optional id). `theses accept` appends one entry after a successful promotion; `--because <id>` is accepted and validated (an existing objection, contradiction, move or source-claim id). `theses lint` reads the latest `accept` entry per accepted id: a text-hash mismatch is error T096 with the fix command in the message; a missing entry is a note (`theses lint --json` lists it under `notes`, exit 0). Re-accepting an already-accepted node whose text changed requires `--because`; without it `accept` refuses with the same message.
+Done-when: accept writes one ledger line; editing the text then linting fails with T096; `theses accept <id> --by NAME --because <id>` clears it and leaves two ledger lines; a legacy map (accepted nodes, no ledger) lints with a note and exit 0; `tests/test_no_network_in_claim_code.py` still passes.
+Rollback: `git revert`; ledger lines already written are harmless (unknown kinds are ignored by readers that do not know them: confirm in `ledger.py` before relying on this).
+
+### 2.2 `flow done` fails when the accepted set lost ground — [ ]
+Class: implement · Effort: medium · Needs: 2.1 · Check: `.venv/bin/python -m pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_schemas.py -q`
+Decision: 0085. Scope: `{{cookiecutter.repo_name}}/scripts/article/flow.py` (`_remember`, `done`, a new `accepted_digest(data)`), `{{cookiecutter.repo_name}}/schemas/flow.schema.json` (order entry gains optional `accepted_hash`), `tests/test_flow_done.py`.
+Context: `_remember` stores the issued order's entry in `flow.yaml`; `done` runs the named check, then re-derives `orders_for` and fails when the order is still there; `_fail` counts a retry and stores the last output.
+Do: `accepted_digest(data)` returns the sha256 of the sorted `(id, folded text)` pairs of every accepted node, contradiction, move and term, plus the list of ids. `_remember` stores the digest in the entry as `accepted_hash` (an unchanged value does not rewrite the file). `done` recomputes it before charging: if it differs, compute which accepted ids are now missing, retired, proposed or changed, and `_fail` with "ratchet: accepted items changed: <ids>". A needs-human or gated order is not checked. An order issued before this step (no `accepted_hash`) is not checked.
+Done-when: a test issues `fill-gap`, retires the thesis the objection attacks, closes the gap, and `flow done` fails naming the thesis; the same close with the thesis untouched passes; the failure counts one retry; an entry without `accepted_hash` closes as before; `flow.yaml` validates against its schema with the new key.
+Rollback: `git revert`; the `accepted_hash` keys left in `flow.yaml` are optional and ignored.
+
+### 2.3 `flow status` reports the quality vector — [ ]‖
+Class: implement · Effort: low · Needs: 1.2 · Check: `.venv/bin/python -m pytest tests/test_flow_status.py tests/test_schemas.py -q`
+Decision: 0085. Scope: `{{cookiecutter.repo_name}}/scripts/article/flow.py` (`status`, a new `quality(facts)`), `{{cookiecutter.repo_name}}/schemas/flow-status.schema.json`, `{{cookiecutter.repo_name}}/docs/cli.md` (the `flow status` section), `tests/test_flow_status.py`.
+Context: `status()` returns the stage table, round, budget and current stage; the schema requires exactly those keys.
+Do: Add `quality`: `theses_accepted`, `theses_opened` (accepted thesis with an accepted opening), `contradictions_moved`, `claims_verified` (fresh verdict or attestation, from `source_claim_state`), `objections_defended`, and `gaps` as a mapping kind to count. Derived on every call; nothing stored. Print it as one line in the text output after the stage table.
+Done-when: the JSON validates; counts match a fixture with known numbers; a repo without a map reports zeros; output is deterministic.
+Rollback: `git revert`.
+
+### 2.4 A stale section index is refreshed, never retried — [ ]‖
+Class: implement · Effort: low · Needs: none · Check: `.venv/bin/python -m pytest tests/test_flow_done.py tests/test_flow_orders.py tests/test_section_index.py -q`
+Decision: 0085. Scope: `{{cookiecutter.repo_name}}/scripts/article/flow.py` (`Facts.index_stale`, `_draft_orders`, `done`), `tests/test_flow_done.py`.
+Context: `_draft_orders` issues a `reindex` order when the index is stale; `done` runs `index-check`, which fails whenever a section file is newer than `paper/build/section-index.json`, so the order can reach the retry cap on a file the flow could rebuild (handoff item 7 in the note).
+Do: Before `index-check` runs in `done`, and before `_draft_orders` decides, call the in-process builder `section_index.write_index(root)` (`index.py`; `check_index` is the staleness test `Facts.index_stale` already uses) when the index is stale. The `reindex` order remains for a repo whose index cannot be built (the builder raises) and its reason names the command. An `index-check` failure after a refresh is a real failure and still counts.
+Done-when: a test touches a section file, runs `flow next`, and gets no `reindex` order while `index --check` passes; a test with an unbuildable index gets the order with the command in its reason; the retry count of a `write-section` order is unchanged by the refresh.
+Rollback: `git revert`.
+
+### 2.5 Lifecycle procedure: what to do on a ratchet failure — [ ]
+Class: implement · Effort: low · Needs: 2.2 · Check: `.venv/bin/python -m pytest tests/test_host_neutral.py tests/test_docs.py -q`
+Decision: 0085. Scope: `{{cookiecutter.repo_name}}/docs/procedures/lifecycle.md`, `{{cookiecutter.repo_name}}/AGENTS.md` (one line at most; the file is capped).
+Do: Add to the rules: when `flow done` reports `ratchet:`, restore the named items to what they were (your own edits only), never retire or rewrite a node you did not write, and if the gap cannot be closed without that, stop and report with the ids. Say that an accepted node's text is frozen and that a change needs a person to run `theses accept --because`.
+Done-when: the procedure names the failure text and the two rules; `AGENTS.md` stays within its line cap (`tests/test_docs.py` or the instruction-file guardrail check).
+Rollback: `git revert`.
+
+## 3. Delivery
+
+### 3.1 Upgrade path and adoption procedure for the ratchet — [ ]
+Class: implement · Effort: low · Needs: 2.1, 2.2, 2.3, 2.4 · Check: `.venv/bin/python -m pytest tests/test_upgrade_flow.py tests/test_upgrade_ledger.py tests/test_upgrade_theses.py -q`
+Decision: 0085. Scope: `{{cookiecutter.repo_name}}/scripts/article/upgrade.py`, `docs/skills/adopting-the-theses-map-in-an-existing-article.md`, `{{cookiecutter.repo_name}}/CHANGES.md`.
+Do: Confirm an upgrade delivers the new code and schemas and leaves `theses.yaml`, `flow.yaml` and `docs/ledger/` alone. Add to the adoption procedure: run `theses accept <id> --by NAME` once per already-accepted node to record acceptance (clears the lint note). Record the ratchet, `--because`, `quality` and the index refresh in `CHANGES.md` under Unreleased.
+Done-when: an upgrade of a repo with a `version: 1` map and an old `flow.yaml` passes `theses lint` with notes only and `flow status` unchanged apart from `quality`; `CHANGES.md` names 0084 and 0085 once each.
+Rollback: `git revert`.
+
+### 3.2 Full suite, lint, release notes — [ ]
+Class: review · Effort: low · Needs: 0.2, 1.5, 1.6, 2.5, 3.1 · Check: `make test && make lint`
+Human: tagging and pushing a release needs the owner's explicit go-ahead; the version is not bumped by an agent.
+Do: Run the whole suite and lint. Confirm `tests/test_host_neutral.py` and `tests/test_no_network_in_claim_code.py` pass. Write the Unreleased entry of `CHANGELOG.md` (template release notes) naming decisions 0084 and 0085, the six order kinds, the three gap kinds, T095, T096, `--because`, `quality` and the index refresh. Ask the owner before tagging.
+Done-when: `make test` and `make lint` pass on `master` after the last PR merges and the release notes list both decisions.
+Rollback: not applicable; a release is cut by the owner.

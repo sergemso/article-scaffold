@@ -101,7 +101,7 @@ Done-when: an upgrade of a repo with a `version: 1` map passes lint unchanged, a
 ## 7. Release
 
 ### 7.1 Full suite and version — [ ]
-Class: verify · Effort: low · Needs: 6.2 · Check: `make test && make lint`
+Class: review · Effort: low · Needs: 6.2 · Check: `make test && make lint`
 Human: tagging and pushing needs the owner's explicit go-ahead.
 Do: Run the whole suite and lint, then prepare the version bump in the repo's release practice and ask before tagging.
 Done-when: `make test` and `make lint` pass and the release notes list each decision.
