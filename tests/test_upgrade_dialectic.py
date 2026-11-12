@@ -43,10 +43,44 @@ def test_notice_is_shown_until_the_procedure_arrives(
     commit_all(project)
     notices = {n["code"]: n["message"] for n in _plan_json(project)["notices"]}
     assert "N004" in notices
-    for word in ("required_stages", "untraced-reason", "flow attest dialectic", "hand-written"):
+    for word in ("required_stages", "untraced-reason", "flow attest dialectic", "theses add"):
         assert word in notices["N004"], word
     _apply(project, base_template["new"])
     assert "N004" not in _notice_codes(project)  # once per feature
+
+
+def test_required_stage_notice_until_the_author_adds_the_line(
+    tmp_path: Path, base_template: dict[str, str]
+) -> None:
+    project = _old_repo(tmp_path, base_template)
+    (project / "flow.yaml").write_text(FLOW.replace("required_stages: [dialectic]\n", ""))
+    commit_all(project)
+    notices = {n["code"]: n["message"] for n in _plan_json(project)["notices"]}
+    assert "N005" in notices and "required_stages: [dialectic]" in notices["N005"]
+    before = yaml.safe_load((project / "flow.yaml").read_text())
+    _apply(project, base_template["new"])
+    # flow.yaml's values are the author's: the upgrade appends commented examples only.
+    assert yaml.safe_load((project / "flow.yaml").read_text()) == before
+    assert "N005" in _notice_codes(project)  # advice stays until the line is added
+    (project / "flow.yaml").write_text(FLOW)
+    assert "N005" not in _notice_codes(project)
+
+
+def test_fresh_repo_requires_the_stage_and_opens_on_it(fresh_project: Path) -> None:
+    flow = yaml.safe_load((fresh_project / "flow.yaml").read_text())
+    assert flow["required_stages"] == ["dialectic"]
+    assert "N005" not in _notice_codes(fresh_project)
+    status = json.loads(
+        run(fresh_project, "python3", "-m", "scripts.article", "flow", "status", "--json").stdout
+    )
+    assert [s["stage"] for s in status["stages"]][:2] == ["dialectic", "frame"]
+    assert status["current_stage"] == "dialectic"
+    order = json.loads(
+        run(fresh_project, "python3", "-m", "scripts.article", "flow", "next").stdout
+    )["order"]
+    assert (order["stage"], order["kind"], order["needs_human"]) == (
+        "dialectic", "ground-niche", True,
+    )
 
 
 def test_fresh_repo_has_no_dialectic_notice(tmp_path: Path) -> None:

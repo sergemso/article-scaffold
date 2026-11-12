@@ -9,6 +9,17 @@ generated repo as `template_version` in `template.json`.
 
 ### Added
 
+- The dialectic stage runs first and is driven by orders (decision 0084): `dialectic` precedes
+  `frame` and applies when `flow.yaml` lists it under `required_stages` (the template now ships
+  the line) or the map declares a contradiction. `flow next` issues `map-contradictions`,
+  `move-contradiction`, `develop-move` and `trace-thesis` (dialectic procedure, tier small,
+  check `theses-lint`) and the human-only `ground-niche` and `promote-dialectic`. New gap kinds
+  `niche-unmapped`, `opening-undeveloped` and `thesis-restates-pole`; lint error T095 rejects an
+  `aufhebung` whose `lifted` repeats a pole or its own `preserved`/`cancelled`. `theses add
+  --section nodes|contradictions|moves --file -` appends proposed items from JSON and `theses
+  accept` promotes a contradiction or move. The procedure is written per order kind. `upgrade
+  --plan` prints notice `N005` while `flow.yaml` lacks the line; a repo without the line and
+  without a contradiction is unchanged.
 - Source-claim fidelity, tier 1 (decision 0075): optional `locator` mapping (`edition`,
   `page`, `section`), `bib`, `rests-on`, `edition-map`, `translation`, `context` and `reading`
   on a `source-claim` (lint T050 to T057). `claims quote-check` reads the named edition's file

@@ -12,6 +12,9 @@ budget:
   limit: 20
   used: 0
 retry_cap: 3
+# The dialectic stage (contradictions and typed moves) runs first and must pass before a
+# thesis is accepted (decision 0084). Remove the line below to make the stage advisory.
+required_stages: [dialectic]
 # Optional token-economy settings; the defaults apply while they are absent.
 # max_calls: {small: 40, large: 60}   # advisory cap on tool calls per order
 # brief_bytes: 6000                   # byte cap of `flow next --brief`

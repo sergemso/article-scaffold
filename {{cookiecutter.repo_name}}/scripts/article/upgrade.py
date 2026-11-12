@@ -163,19 +163,42 @@ def _metadata_is_v1(root: Path) -> bool:
     return _metadata_schema(data, Diagnostics()) == 1
 
 
+def _requires_dialectic(root: Path) -> bool:
+    """True when flow.yaml lists the dialectic stage under required_stages, or is absent or
+    unreadable (then nothing can be advised)."""
+    path = root / FLOW_FILE
+    if not path.is_file():
+        return True
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        return True
+    required = data.get("required_stages") if isinstance(data, dict) else None
+    return isinstance(required, list) and "dialectic" in required
+
+
 def _notices(root: Path) -> list[dict[str, str]]:
     """Advice that does not block an upgrade (never changes ``ok``)."""
     notices: list[dict[str, str]] = []
     if not (root / DIALECTIC_PROCEDURE).is_file():
         notices.append({
             "code": N_DIALECTIC,
-            "message": "this upgrade adds the optional dialectic stage: contradictions and typed "
-            "moves in theses.yaml (hand-written proposals), `theses dialectic`, and an advisory "
-            "`dialectic` stage in `flow status` that shows only once the map uses them. It closes "
-            "with `flow attest dialectic --by NAME --why TEXT`. To make it a gate, add "
-            "`required_stages: [dialectic]` to flow.yaml yourself. Live theses may carry a "
-            "one-line `untraced-reason`. theses.yaml and flow.yaml are never changed; see "
-            "docs/procedures/dialectic.md",
+            "message": "this upgrade adds the dialectic stage: contradictions and typed "
+            "moves in theses.yaml (proposed with `theses add --section`), `theses dialectic`, and "
+            "a `dialectic` stage in `flow status` that shows once the map uses them or flow.yaml "
+            "requires it. It closes with `flow attest dialectic --by NAME --why TEXT`. To make it "
+            "a gate that issues orders, add `required_stages: [dialectic]` to flow.yaml yourself. "
+            "Live theses may carry a one-line `untraced-reason`. theses.yaml and flow.yaml are "
+            "never changed; see docs/procedures/dialectic.md",
+        })
+    if not _requires_dialectic(root):
+        notices.append({
+            "code": N_DIALECTIC_REQUIRED,
+            "message": "flow.yaml is yours and upgrade does not edit it; add "
+            "`required_stages: [dialectic]` so the dialectic stage runs first and issues "
+            "orders (map-contradictions, move-contradiction, develop-move, trace-thesis) "
+            "before a thesis is accepted. Without the line the stage is advisory and silent "
+            "until the map declares a contradiction",
         })
     if (root / LEGACY_CLAIMS_CACHE).is_file():
         notices.append({
@@ -444,7 +467,11 @@ N_COMPANION_PRIVATE = "N002"
 N_LEGACY_CACHE = "N003"
 # Shown once per repo: until the dialectic procedure has arrived, the stage is new to the author.
 N_DIALECTIC = "N004"
+# Shown while flow.yaml does not require the dialectic stage (decision 0084); upgrade never
+# edits flow.yaml, so the author adds the line.
+N_DIALECTIC_REQUIRED = "N005"
 DIALECTIC_PROCEDURE = Path("docs") / "procedures" / "dialectic.md"
+FLOW_FILE = "flow.yaml"
 LEGACY_CLAIMS_CACHE = Path(".theses") / "claims-cache.json"
 
 

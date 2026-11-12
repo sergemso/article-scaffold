@@ -30,6 +30,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done, `[!]` blocked, `[>]` moved
 | 2026-11-12 | 1.3 | branch `feat/dialectic-guarantee-1.3` (stacked on 1.2) | `pytest tests/test_flow_orders.py tests/test_flow_done.py tests/test_flow_brief.py tests/test_dialectic_gaps.py`: 128 passed; with schema, status, group, parallel suites: 155 passed | six order kinds, brief rows, guardrail rules, order schema enum. |
 | 2026-11-12 | 1.4 | branch `feat/dialectic-guarantee-1.4` (stacked on 1.3) | `pytest tests/test_theses_cli.py tests/test_dialectic.py`: pass; with arguments, objections, schema, terms, flow round, CLI, docs suites: 393 passed | new `theses add` command; nested append; accept across sections. |
 | 2026-11-12 | 1.5 | branch `feat/dialectic-guarantee-1.5` (stacked on 1.4) | `pytest tests/test_host_neutral.py tests/test_skills.py tests/test_docs.py tests/test_dialectic.py`: 208 passed | procedure rewritten per order kind; lifecycle line. |
+| 2026-11-12 | 1.6 | branch `feat/dialectic-guarantee-1.6` (stacked on 1.5) | `pytest tests/test_upgrade_dialectic.py tests/test_upgrade_flow.py tests/test_flow_status.py`: pass; with skills, dialectic gaps, user-owned, orders, CLI, status suites: 146 passed | template requires the stage; N005; fixtures split into flow_project (advisory) and fresh_project (shipped). |
 
 ## 0. Design
 
@@ -92,13 +93,14 @@ Done-when: each order kind and each of the three development checks appears once
 Rollback: `git revert`.
 Resolved: the procedure is rewritten around the four agent orders with a section each, a shared "Writing items" section (`theses add --section`, never by hand), the move-type rules (when `synthesis`, when `aufhebung`, what `lifted` must not repeat), and a "Development checks" section; it tells the agent to stop at `max_calls` and hand off, and to close with `flow done`. `lifecycle.md` says the first orders of a new article are dialectic orders. The skills test now asserts the order kinds and checks instead of the old "by hand" wording.
 
-### 1.6 Template requires the stage; upgrade notice; adoption note — [ ]
+### 1.6 Template requires the stage; upgrade notice; adoption note — [x]
 Class: implement · Effort: low · Needs: 1.2, 1.3 · Check: `.venv/bin/python -m pytest tests/test_upgrade_dialectic.py tests/test_upgrade_flow.py tests/test_flow_status.py -q`
 Decision: 0084. Scope: `{{cookiecutter.repo_name}}/flow.yaml`, `{{cookiecutter.repo_name}}/scripts/article/upgrade.py` (the notice table), `docs/skills/adopting-the-theses-map-in-an-existing-article.md`, `{{cookiecutter.repo_name}}/CHANGES.md`, `tests/test_upgrade_dialectic.py`.
 Context: The template `flow.yaml` has no `required_stages`; `upgrade --plan` prints notice `N004` once for the dialectic feature and never touches `flow.yaml`.
 Do: Ship `required_stages: [dialectic]` in the template `flow.yaml` with a two-line comment saying how to make it advisory. Add notice `N005` to `upgrade --plan` for an existing repo whose `flow.yaml` lacks the line (printed once, nothing written). Extend the adoption procedure with the one line to add and what `flow next` then asks for. Record the change in `CHANGES.md` under Unreleased.
 Done-when: a fresh render shows `dialectic` first and open on `flow status`; an upgraded repo's `flow.yaml` is byte-identical before and after; the notice appears once; `tests/test_flow_status.py` snapshot for a repo without the line is unchanged.
 Rollback: `git revert`; a rendered repo keeps whatever `flow.yaml` it has.
+Resolved: the template `flow.yaml` ships `required_stages: [dialectic]` with a two-line comment; `upgrade --plan` prints `N005` while an existing `flow.yaml` lacks the line (it stays until the author adds it, like `N002`; an absent `flow.yaml` gets the template's file, so no notice); the `N004` text now says `theses add --section` instead of hand-written. The template's `CHANGES.md` is the article's own version history, not the template changelog, so the entry went to the root `CHANGELOG.md` under Unreleased; `docs/cli.md` and the adoption procedure are updated. Interpretations worth knowing: (1) the `flow_project` test fixture now strips the `required_stages` line so every existing flow test still starts at `frame` (that is the pre-0084 configuration, still supported), and a new `fresh_project` fixture keeps the shipped file; (2) `upgrade` appends commented examples to `flow.yaml`, so "byte-identical" became "same parsed values" in the test; (3) an old repo that gains `flow.yaml` from the template now shows `dialectic` first (`tests/test_upgrade_flow.py` updated).
 
 ## 2. The flow ratchets (0085)
 
