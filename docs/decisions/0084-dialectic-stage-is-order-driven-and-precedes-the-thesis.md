@@ -1,10 +1,11 @@
 ---
 id: 0084-dialectic-stage-is-order-driven-and-precedes-the-thesis
 title: The dialectic stage issues work orders, runs before the thesis is fixed, and its gate demands development
-status: draft
+status: active
 date: 2026-11-12
 tags: [theses-map, lifecycle, dialectic, orchestration]
 track: product
+accepted-by: Sergei Strebulaev
 ---
 
 ## Decision
