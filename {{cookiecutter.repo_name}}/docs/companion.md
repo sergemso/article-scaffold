@@ -35,8 +35,11 @@ publishing credential. After tagging a final `vX.Y.Z` equal to the `version` in
 `metadata.yaml`, the owner dispatches the scaffold's `publish-companion.yml` with this repo,
 the tag and `dry_run`. It builds the PDF and DOCX, applies the same gate, commits the
 snapshot to the companion as `release vX.Y.Z`, tags it and creates a GitHub Release with the
-PDF and DOCX, which Zenodo archives. Other tags (release candidates, mismatches) never
-publish. Re-running a published tag is a no-op.
+PDF and DOCX. Zenodo's GitHub integration archives only the repository's source zip, so the
+PDF and DOCX would sit inside it. When the scaffold has the `ZENODO_TOKEN` secret, the same run
+deposits them on Zenodo as separate files, with a source archive, and a later tag becomes a new
+version of the same record; switch the GitHub integration off for such a companion. Other tags
+(release candidates, mismatches) never publish. Re-running a published tag is a no-op.
 
 To rehearse, dispatch it with `dry_run` on (the default) and read the uploaded snapshot
 artifact. An older repo that still has `.github/workflows/publish-companion.yml` loses it on

@@ -155,3 +155,54 @@ def test_docx_is_built_from_the_paper_directory_and_checked() -> None:
     assert "-w /workspace/article/paper" in block
     assert "paper/article.tex" not in block
     assert "Verify the DOCX holds the sections" in text
+
+
+def _step(job: dict, name: str) -> dict:
+    return next(s for s in job["steps"] if s.get("name") == name)
+
+
+def test_zenodo_input_is_a_boolean_on_by_default() -> None:
+    inputs = _doc()["on"]["workflow_dispatch"]["inputs"]
+    assert inputs["zenodo"]["type"] == "boolean"
+    assert inputs["zenodo"]["default"] is True
+
+
+def test_zenodo_token_stays_in_the_publish_job_and_in_step_environments() -> None:
+    doc = _doc()
+    assert "ZENODO_TOKEN" not in _steps_text(doc["jobs"]["snapshot"])
+    publish = doc["jobs"]["publish"]
+    for step in publish["steps"]:
+        for block in (step.get("run", ""), step.get("with", {})):
+            assert "secrets.ZENODO_TOKEN" not in str(block)
+    holders = [
+        s["name"] for s in publish["steps"] if "secrets.ZENODO_TOKEN" in str(s.get("env", {}))
+    ]
+    assert holders == ["Find the earlier Zenodo record", "Deposit on Zenodo"]
+
+
+def test_the_deposit_runs_only_when_the_lookup_says_so() -> None:
+    publish = _doc()["jobs"]["publish"]
+    names = [s["name"] for s in publish["steps"]]
+    release = names.index("Push the snapshot and create the Release")
+    assert release < names.index("Deposit on Zenodo")
+    for name in ("Deposit on Zenodo", "Record the Zenodo record on the Release"):
+        assert "steps.zenodo.outputs.run == 'true'" in _step(publish, name)["if"]
+
+
+def test_the_lookup_skips_a_tag_that_already_has_a_record() -> None:
+    run = _step(_doc()["jobs"]["publish"], "Find the earlier Zenodo record")["run"]
+    assert "zenodo-record" in run and 'run=false' in run
+    assert "env.TAG" in run  # the tag being published is not its own predecessor
+
+
+def test_the_deposit_script_is_the_scaffold_s_not_the_article_s() -> None:
+    run = _step(_doc()["jobs"]["publish"], "Deposit on Zenodo")["run"]
+    assert "python3 scripts/zenodo_deposit.py" in run
+    assert "article/" not in run
+
+
+def test_supplements_are_compiled_and_uploaded_with_the_release() -> None:
+    snapshot = _doc()["jobs"]["snapshot"]
+    assert "artifacts/supp" in _step(snapshot, "Compile the supplementary documents")["with"]["run"]
+    publish = _step(_doc()["jobs"]["publish"], "Push the snapshot and create the Release")["run"]
+    assert "supp/*.pdf" in publish
