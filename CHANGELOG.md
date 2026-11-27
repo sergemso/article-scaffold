@@ -9,6 +9,15 @@ generated repo as `template_version` in `template.json`.
 
 ### Added
 
+- `publish-companion.yml` deposits the PDF and the DOCX on Zenodo as separate files, with one
+  source archive and the snapshot's `.zenodo.json` metadata (decision 0086). It runs after the
+  Release is created, only when the scaffold has the `ZENODO_TOKEN` secret and the new `zenodo`
+  input is on. A later tag becomes a new version of the earlier record, and the record id is kept
+  in the Release notes so a re-run does not deposit twice. `scripts/zenodo_deposit.py` is
+  standard-library only and sends the token only to zenodo.org or sandbox.zenodo.org.
+- The companion docs no longer say Zenodo archives the Release's PDF and DOCX: its GitHub
+  integration archives only the source zip.
+
 - The dialectic stage runs first and is driven by orders (decision 0084): `dialectic` precedes
   `frame` and applies when `flow.yaml` lists it under `required_stages` (the template now ships
   the line) or the map declares a contradiction. `flow next` issues `map-contradictions`,

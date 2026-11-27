@@ -13,6 +13,13 @@
 # uploaded plan, validates it, mints a Contents-write token narrowed to that companion,
 # pushes the snapshot as `release vX.Y.Z`, tags it and creates the Release.
 #
+# Zenodo: its GitHub integration archives only the repository's source zip, so the PDF
+# and the DOCX would sit inside it. When the ZENODO_TOKEN secret is set, a last step
+# deposits them through Zenodo's API as separate files, plus one source archive, with the
+# snapshot's .zenodo.json. The record id is kept in the Release notes, so a later tag is
+# deposited as a new version of the same record and a re-run does not deposit twice.
+# Switch the Zenodo GitHub integration off for a companion that uses this step.
+#
 # Prerequisites: docs/skills/setting-up-the-article-github-app.md.
 
 name: Publish companion
@@ -32,6 +39,10 @@ name: Publish companion
         required: true
       dry_run:
         description: "Build the snapshot only; do not touch the companion"
+        type: boolean
+        default: true
+      zenodo:
+        description: "Also deposit the PDF, the DOCX and a source archive on Zenodo (needs the ZENODO_TOKEN secret)"
         type: boolean
         default: true
 
@@ -324,3 +335,68 @@ jobs:
             done
           fi
           echo "Published ${TAG} to ${REPO}"
+
+      - name: Find the earlier Zenodo record
+        id: zenodo
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          HAS_TOKEN: ${{ secrets.ZENODO_TOKEN != '' }}
+          WANT: ${{ inputs.zenodo }}
+          TAG: ${{ inputs.tag }}
+          REPO: ${{ inputs.owner }}/${{ steps.target.outputs.name }}
+        run: |
+          set -euo pipefail
+          set +x   # the token lives in the environment; never trace it
+          if [ "$WANT" != "true" ] || [ "$HAS_TOKEN" != "true" ]; then
+            echo "::notice title=No Zenodo deposit::needs the zenodo input and the ZENODO_TOKEN secret"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          current=$(gh api "repos/${REPO}/releases/tags/${TAG}" --jq .body)
+          if printf '%s' "$current" | grep -q '^zenodo-record: [0-9]*$'; then
+            echo "::notice title=Already deposited::${TAG} has a Zenodo record"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The newest earlier Release that names a record is the one to add a version to.
+          previous=$(gh api "repos/${REPO}/releases" --paginate \
+            --jq '.[] | select(.tag_name != env.TAG) | .body' \
+            | sed -n 's/^zenodo-record: \([0-9][0-9]*\)$/\1/p' | head -n 1 || true)
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "previous=${previous}" >> "$GITHUB_OUTPUT"
+
+      - name: Deposit on Zenodo
+        id: deposit
+        if: ${{ steps.zenodo.outputs.run == 'true' }}
+        env:
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+          ZENODO_API: ${{ vars.ZENODO_API }}
+          TAG: ${{ inputs.tag }}
+          REPO: ${{ inputs.owner }}/${{ steps.target.outputs.name }}
+          PREVIOUS: ${{ steps.zenodo.outputs.previous }}
+        run: |
+          set -euo pipefail
+          set +x   # the token lives in the environment; never trace it
+          args=(--snapshot snapshot --tag "$TAG" --companion "$REPO")
+          if [ -n "$PREVIOUS" ]; then args+=(--previous-record "$PREVIOUS"); fi
+          python3 scripts/zenodo_deposit.py "${args[@]}" | tee "$RUNNER_TEMP/deposit.out"
+          tail -n 1 "$RUNNER_TEMP/deposit.out" > "$RUNNER_TEMP/deposit.json"
+
+      - name: Record the Zenodo record on the Release
+        if: ${{ steps.zenodo.outputs.run == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          TAG: ${{ inputs.tag }}
+          REPO: ${{ inputs.owner }}/${{ steps.target.outputs.name }}
+        run: |
+          set -euo pipefail
+          set +x   # the token lives in the environment; never trace it
+          python3 - <<'PY'
+          import json, os
+          d = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "deposit.json")))
+          body = f"Release {os.environ['TAG']}\n\nZenodo: https://doi.org/{d['doi']}\nzenodo-record: {d['record_id']}\n"
+          open(os.path.join(os.environ["RUNNER_TEMP"], "notes.txt"), "w").write(body)
+          PY
+          id=$(gh api "repos/${REPO}/releases/tags/${TAG}" --jq .id)
+          gh api -X PATCH "repos/${REPO}/releases/${id}" -F body=@"$RUNNER_TEMP/notes.txt" > /dev/null
+          echo "Recorded the Zenodo record on ${TAG}"

@@ -86,3 +86,4 @@ id,title,tags,status
 0083-dialectic-stage-maps-contradictions-and-typed-moves,"A dialectic stage maps contradictions and typed moves before the thesis is fixed","theses-map, lifecycle, dialectic, triz",active
 0084-dialectic-stage-is-order-driven-and-precedes-the-thesis,"The dialectic stage issues work orders, runs before the thesis is fixed, and its gate demands development","theses-map, lifecycle, dialectic, orchestration",active
 0085-flow-outcomes-ratchet-and-reframing-needs-a-cause,"An order cannot close by lowering what was accepted, and an accepted node changes only with a recorded cause","orchestration, flow, theses-map, quality",active
+0086-zenodo-deposit-carries-the-artifacts-as-files,"The publish workflow deposits the PDF and DOCX on Zenodo as separate files","companion, zenodo, release, ci",active
