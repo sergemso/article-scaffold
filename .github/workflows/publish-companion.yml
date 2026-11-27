@@ -143,6 +143,30 @@ jobs:
             mkdir -p ../../artifacts
             cp build/article.pdf ../../artifacts/manuscript.pdf
 
+      # Mirrors reusable-build.yml: every paper/supplementary/*.tex with a \documentclass.
+      # No such file is not an error; the snapshot then has no supp/ directory.
+      - name: Compile the supplementary documents
+        uses: xu-cheng/texlive-action@v3
+        with:
+          texlive_version: "2024"
+          run: |
+            set -eu
+            mkdir -p artifacts/supp
+            build() {
+              dir="$1"; file="$2"
+              (cd "$dir" && latexmk -pdf -interaction=nonstopmode -file-line-error -halt-on-error -outdir=build "$file")
+              cp "$dir/build/${file%.tex}.pdf" "artifacts/supp/${file%.tex}.pdf"
+            }
+            if [ -f article/paper/supplementary.tex ] && grep -q '^[^%]*\\documentclass' article/paper/supplementary.tex; then
+              build article/paper supplementary.tex
+            fi
+            for f in article/paper/supplementary/*.tex; do
+              [ -f "$f" ] || continue
+              if grep -q '^[^%]*\\documentclass' "$f"; then
+                build article/paper/supplementary "$(basename "$f")"
+              fi
+            done
+
       - name: Build the DOCX with Pandoc
         run: |
           set -euo pipefail
@@ -328,7 +352,7 @@ jobs:
           else
             gh api -X POST "repos/${REPO}/releases" \
               -f tag_name="$TAG" -f name="$TAG" -f body="Release ${TAG}" > /dev/null
-            for f in manuscript.pdf manuscript.docx; do
+            for f in manuscript.pdf manuscript.docx supp/*.pdf; do
               if [ -f "${snap}/${f}" ]; then
                 gh release upload "$TAG" "${snap}/${f}" --repo "$REPO"
               fi

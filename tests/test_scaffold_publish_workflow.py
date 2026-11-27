@@ -199,3 +199,10 @@ def test_the_deposit_script_is_the_scaffold_s_not_the_article_s() -> None:
     run = _step(_doc()["jobs"]["publish"], "Deposit on Zenodo")["run"]
     assert "python3 scripts/zenodo_deposit.py" in run
     assert "article/" not in run
+
+
+def test_supplements_are_compiled_and_uploaded_with_the_release() -> None:
+    snapshot = _doc()["jobs"]["snapshot"]
+    assert "artifacts/supp" in _step(snapshot, "Compile the supplementary documents")["with"]["run"]
+    publish = _step(_doc()["jobs"]["publish"], "Push the snapshot and create the Release")["run"]
+    assert "supp/*.pdf" in publish

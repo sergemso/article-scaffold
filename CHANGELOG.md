@@ -15,6 +15,10 @@ generated repo as `template_version` in `template.json`.
   input is on. A later tag becomes a new version of the earlier record, and the record id is kept
   in the Release notes so a re-run does not deposit twice. `scripts/zenodo_deposit.py` is
   standard-library only and sends the token only to zenodo.org or sandbox.zenodo.org.
+- `publish-companion.yml` compiles the standalone supplementary documents of the article
+  (`paper/supplementary.tex`, `paper/supplementary/*.tex` with a `\documentclass`), attaches
+  `supp/*.pdf` to the companion Release and deposits each on Zenodo as its own file, kept out of the
+  source archive.
 - The companion docs no longer say Zenodo archives the Release's PDF and DOCX: its GitHub
   integration archives only the source zip.
 

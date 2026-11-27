@@ -226,3 +226,15 @@ def test_a_snapshot_without_a_pdf_is_refused(tmp_path) -> None:
     (snap / "manuscript.pdf").unlink()
     with pytest.raises(zd.ZenodoError, match="manuscript.pdf"):
         zd.collect_files(snap, "x")
+
+
+def test_supplement_pdfs_are_separate_files_not_in_the_source_archive(tmp_path) -> None:
+    snap = tmp_path / "snap"
+    (snap / "supp").mkdir(parents=True)
+    (snap / "manuscript.pdf").write_bytes(b"%PDF main")
+    (snap / "supp" / "evidence-tables.pdf").write_bytes(b"%PDF supp")
+    (snap / "README.md").write_text("x")
+    files = dict(zd.collect_files(snap, "art-v1"))
+    assert files["evidence-tables.pdf"] == b"%PDF supp"
+    with zipfile.ZipFile(io.BytesIO(files["art-v1-source.zip"])) as z:
+        assert not any("supp/" in n for n in z.namelist())

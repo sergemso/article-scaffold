@@ -158,6 +158,11 @@ def build_metadata(snapshot: Path, tag: str, companion: str) -> dict[str, Any]:
     return meta
 
 
+def _is_supplement(rel: Path) -> bool:
+    """A built supplementary PDF: supp/NAME.pdf at the snapshot root."""
+    return len(rel.parts) == 2 and rel.parts[0] == "supp" and rel.suffix == ".pdf"
+
+
 def source_archive(snapshot: Path, name: str) -> bytes:
     """One reproducible zip of the snapshot without the artifacts deposited separately."""
     buf = io.BytesIO()
@@ -165,6 +170,8 @@ def source_archive(snapshot: Path, name: str) -> bytes:
         for path in sorted(p for p in snapshot.rglob("*") if p.is_file()):
             rel = path.relative_to(snapshot)
             if len(rel.parts) == 1 and rel.name in ARTIFACT_FILES:
+                continue
+            if _is_supplement(rel):
                 continue
             info = zipfile.ZipInfo(f"{name}/{rel.as_posix()}", _ZIP_TIME)
             info.compress_type = zipfile.ZIP_DEFLATED
@@ -181,6 +188,8 @@ def collect_files(snapshot: Path, name: str) -> list[tuple[str, bytes]]:
             files.append((artifact, path.read_bytes()))
     if not any(n == "manuscript.pdf" for n, _ in files):
         raise ZenodoError("manuscript.pdf not found in the snapshot")
+    for path in sorted((snapshot / "supp").glob("*.pdf")):
+        files.append((path.name, path.read_bytes()))
     files.append((f"{name}-source.zip", source_archive(snapshot, name)))
     return files
 
